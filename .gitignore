@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Photos, panoramas et visites : données personnelles, jamais dans le dépôt
+visites/
+*.jpg
+*.jpeg
+*.JPG
+*.JPEG
+*.heic
+*.HEIC
+*.dng
+*.DNG
+*.tif
+*.tiff
+
+# Poids de modèles d'IA : téléchargés, jamais versionnés
+*.pt
+*.pth
+*.safetensors
+*.onnx
+
+# Système et éditeurs
+.DS_Store
+.idea/
+.vscode/
+
+# Réglages personnels de Claude Code
+CLAUDE.local.md
+.claude/settings.local.json
