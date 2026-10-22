@@ -13,6 +13,7 @@ Les licences changent : revérifier chaque ligne avant une mise en production.
 | pytest | Tests (développement) | MIT | Paquet Python, non livré | 2026-10-09 | pypi.org/project/pytest |
 | ruff | Style du code (développement) | MIT | Paquet Python, non livré | 2026-10-09 | pypi.org/project/ruff |
 | hatchling | Construction du paquet | MIT | Paquet Python, non livré | 2026-10-09 | pypi.org/project/hatchling |
+| sips | Conversion des photos HEIC (étape 1) | Logiciel Apple fourni avec macOS, licence de macOS | Programme externe, non livré | 2026-10-22 | Présent dans /usr/bin de macOS, voir D17 |
 
 ## Prévu par le plan
 
