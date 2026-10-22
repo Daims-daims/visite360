@@ -16,7 +16,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | # | Étape | Phase | Statut |
 |---|---|---|---|
 | 0 | Cadrage du dépôt | — | livrée |
-| 1 | Contrôle de l'installation et protocole de prise de vue | 1 | en cours |
+| 1 | Contrôle de l'installation et protocole de prise de vue | 1 | livrée |
 | 2 | Assemblage d'un panorama | 1 | à faire |
 | 3 | Visite d'un point | 1 | à faire |
 | 4 | Visite de plusieurs points | 1 | à faire |
