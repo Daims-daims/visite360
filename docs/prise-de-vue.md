@@ -8,7 +8,7 @@ Un point est un endroit du logement d'où l'on regarde tout autour de soi. Une p
 
 - Environ **30 photos** par point, en **4 rangées** : horizon, haut, bas, plafond.
 - Chaque photo recouvre la précédente d'**un bon tiers**.
-- Le **téléphone tourne sur lui-même**, c'est le photographe qui tourne autour.
+- L'**objectif du téléphone ne bouge pas** : il reste au-dessus d'une marque au sol, seule son orientation change. C'est vous qui vous déplacez autour.
 - Exposition **verrouillée**, mêmes lumières du début à la fin.
 
 ## Avant de commencer
@@ -27,16 +27,19 @@ Un point est un endroit du logement d'où l'on regarde tout autour de soi. Une p
   - ranger ce qui est personnel : courrier, photos de famille, écrans allumés.
 - **L'emplacement :** au milieu de l'espace, à plus d'un mètre des meubles. Plus un objet est proche, plus le raccord autour de lui sera difficile. Marquer l'endroit au sol, par exemple avec un morceau de ruban adhésif.
 
-## Le geste : tourner autour du téléphone
+## Le geste : l'objectif reste au même endroit
 
-Le défaut le plus courant est de tourner sur soi-même avec le téléphone tendu à bout de bras. L'objectif décrit alors un cercle, les objets proches se décalent par rapport au fond d'une photo à l'autre (parallaxe), et les raccords deviennent visibles.
+Le réflexe naturel est de rester planté au milieu et de pivoter sur ses talons, téléphone devant soi. Mais le téléphone est alors à 30 ou 40 cm de l'axe de rotation : à chaque photo, il se déplace sur un cercle autour de vous. Vu de deux endroits différents, un objet proche ne se superpose plus au fond de la même façon (parallaxe), et les raccords se voient.
 
-À faire :
+Ce qu'il faut : que l'**objectif du téléphone reste au même point dans l'espace** pour toutes les photos, et que seule la direction dans laquelle il vise change.
 
-- garder l'**objectif du téléphone au même endroit**, à la verticale de la marque au sol ;
-- faire pivoter le téléphone autour de son objectif, et **déplacer ses pieds autour** à petits pas ;
-- tenir le téléphone à hauteur de poitrine, **à la même hauteur** pour tout le point (environ 1,50 m) ;
-- pour plus de précision, un trépied avec une rotule panoramique supprime presque toute parallaxe.
+En pratique :
+
+- tenir le téléphone au-dessus de la marque au sol, à hauteur de poitrine (environ 1,50 m), et garder cette hauteur pour tout le point ;
+- pour viser la direction suivante, **ne pas pivoter sur place** : faire un petit pas de côté autour de la marque, comme si vous tourniez autour d'un poteau, en gardant le téléphone au-dessus d'elle ;
+- vous restez donc toujours derrière l'écran, et vous faites un tour complet autour de la marque pendant chaque rangée ;
+- pour les rangées haut et bas, incliner le téléphone sans l'avancer ni le reculer ;
+- un trépied avec une rotule panoramique fait ce travail tout seul et supprime presque toute parallaxe.
 
 ## Les rangées
 
