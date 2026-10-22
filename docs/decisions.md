@@ -107,3 +107,15 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Date :** 2026-10-22
 - **Décision :** le squelette n'utilise que la bibliothèque standard. pytest et ruff sont des outils de développement.
 - **Raisons :** chaque dépendance est une licence à vérifier et une source de casse. On n'en ajoute que lorsqu'une étape en a besoin.
+
+## D17 : photos HEIC converties par sips, OpenCV 4.10 ou plus
+
+- **Date :** 2026-10-22
+- **Décision :**
+  - les photos HEIC de l'iPhone sont converties par `sips`, programme fourni avec macOS, appelé en ligne de commande. Pas de bibliothèque Python de lecture du HEIC ;
+  - la version minimale d'OpenCV est 4.10. `visite360 doctor` la vérifie dès l'étape 1, mais `opencv-python-headless` n'entre dans les dépendances de `pyproject.toml` qu'à l'étape 2, qui l'utilise (D16).
+- **Raisons :**
+  - `pillow-heif` s'importe dans le code et ses paquets embarquent libheif et libde265, sous LGPL : interdit pour une bibliothèque importée. `sips` est déjà sur la machine de référence (D3) et ne s'importe pas ;
+  - OpenCV 4.10 a des paquets pour Python 3.11 à 3.13 sur puce Apple. OpenCV 5.0, version installée par défaut au 2026-10-22, garde le module d'assemblage (`cv2.Stitcher`) : il est accepté.
+- **Conséquences :** la conversion HEIC ne fonctionne que sur macOS. Ailleurs, régler l'iPhone sur « Le plus compatible » pour obtenir du JPEG.
+- **À confirmer à l'étape 2 :** fixer ou non une version maximale d'OpenCV après les essais d'assemblage.

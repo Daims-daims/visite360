@@ -2,7 +2,7 @@
 
 Transforme des photos prises en tournant sur soi-même avec un téléphone en visite 360° d'un logement, puis permet de repeindre un mur et de voir la visite mise à jour.
 
-**État :** étape 0 terminée (cadrage). Aucun traitement d'image n'existe encore. L'avancement est dans [PLAN.md](PLAN.md).
+**État :** étape 1 (contrôle de l'installation et protocole de prise de vue). Aucun traitement d'image n'existe encore. L'avancement est dans [PLAN.md](PLAN.md).
 
 ## Installation pour développer
 
@@ -18,12 +18,15 @@ Vérifier que tout est en place :
 
 ```bash
 visite360 --version
+visite360 doctor
 pytest
 ruff check .
 ruff format --check .
 ```
 
-Les dépendances de traitement (OpenCV, puis SAM 2) arrivent avec les étapes qui en ont besoin.
+`visite360 doctor` vérifie Python, OpenCV et la conversion des photos HEIC, et dit quoi installer s'il manque quelque chose. Les dépendances de traitement (OpenCV, puis SAM 2) arrivent dans `pyproject.toml` avec les étapes qui en ont besoin.
+
+Pour photographier un point de la visite : [docs/prise-de-vue.md](docs/prise-de-vue.md).
 
 ## Organisation du dépôt
 
@@ -33,7 +36,8 @@ visite360/
 ├── PLAN.md            étapes, jalons et statuts
 ├── docs/
 │   ├── decisions.md   journal des choix techniques
-│   └── licences.md    registre des dépendances et de leurs licences
+│   ├── licences.md    registre des dépendances et de leurs licences
+│   └── prise-de-vue.md  comment photographier un point
 ├── src/visite360/     le traitement en Python
 ├── tests/             tests automatiques
 ├── .github/           tests lancés à chaque pull request, modèle de pull request
