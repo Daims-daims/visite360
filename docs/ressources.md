@@ -1,6 +1,6 @@
 # Ressources pour comprendre les étapes
 
-Le but n'est pas d'apprendre à coder ces algorithmes, mais de savoir juger un résultat : reconnaître un échec et en deviner la cause. Chaque pull request explique aussi son étape en clair (décision D17).
+Le but n'est pas d'apprendre à coder ces algorithmes, mais de savoir juger un résultat : reconnaître un échec et en deviner la cause. Chaque pull request explique aussi son étape en clair (décision D18).
 
 Presque tout est en anglais, sauf le TP de l'ENSTA.
 

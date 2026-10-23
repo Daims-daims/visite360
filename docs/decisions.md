@@ -120,7 +120,7 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Conséquences :** la conversion HEIC ne fonctionne que sur macOS. Ailleurs, régler l'iPhone sur « Le plus compatible » pour obtenir du JPEG.
 - **À confirmer à l'étape 2 :** fixer ou non une version maximale d'OpenCV après les essais d'assemblage.
 
-## D17 : une explication en clair dans chaque pull request
+## D18 : une explication en clair dans chaque pull request
 
 - **Date :** 2026-10-24
 - **Décision :** chaque pull request contient une rubrique « Comment ça marche, en clair » : le principe de l'étape sans jargon, ses limites, et à quoi ressemble un mauvais résultat. `docs/ressources.md` liste ce qu'il faut lire ou regarder pour aller plus loin, étape par étape.
