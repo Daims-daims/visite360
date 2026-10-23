@@ -25,7 +25,8 @@ Ces trois vérifications doivent passer avant tout commit.
 
 - Une étape = une branche `etape-N-nom-court` = une pull request vers `main`. Aucun commit direct sur `main`.
 - Passer l'étape à « en cours » dans `PLAN.md` au premier commit, à « livrée » dans le dernier.
-- La description de la pull request suit `.github/pull_request_template.md` : ce qui a été fait, comment le tester, ce qui n'a pas été testé, questions ouvertes.
+- La description de la pull request suit `.github/pull_request_template.md` : ce qui a été fait, comment ça marche en clair, comment le tester, ce qui n'a pas été testé, questions ouvertes.
+- La rubrique « Comment ça marche, en clair » est obligatoire (D18). Le propriétaire n'est pas spécialiste de vision par ordinateur ni d'IA générative, et il valide chaque étape sur le résultat : il doit pouvoir reconnaître un mauvais résultat et en deviner la cause. Chaque mot technique est expliqué à sa première apparition.
 - Ne pas fusionner soi-même. Le propriétaire relit, teste sur son Mac, puis fusionne.
 - Rester dans le périmètre de l'étape. Une idée hors périmètre se note dans « Questions ouvertes », elle ne se code pas.
 - Dire clairement ce qui n'a pas pu être vérifié, en particulier ce qui demande de vraies photos ou un téléphone.
