@@ -17,7 +17,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 |---|---|---|---|
 | 0 | Cadrage du dépôt | — | livrée |
 | 1 | Contrôle de l'installation et protocole de prise de vue | 1 | livrée |
-| 2 | Assemblage d'un panorama | 1 | en cours |
+| 2 | Assemblage d'un panorama | 1 | livrée |
 | 3 | Visite d'un point | 1 | à faire |
 | 4 | Visite de plusieurs points | 1 | à faire |
 | 5 | Sélection d'une surface au clic | 2 | à faire |

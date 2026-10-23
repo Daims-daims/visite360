@@ -2,7 +2,7 @@
 
 Transforme des photos prises en tournant sur soi-même avec un téléphone en visite 360° d'un logement, puis permet de repeindre un mur et de voir la visite mise à jour.
 
-**État :** étape 2 (assemblage d'un panorama). L'avancement est dans [PLAN.md](PLAN.md).
+**État :** étape 2 livrée (assemblage d'un panorama). L'avancement est dans [PLAN.md](PLAN.md).
 
 ## Installation pour développer
 
