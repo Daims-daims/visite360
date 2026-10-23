@@ -45,8 +45,9 @@ def list_photos(folder: Path) -> list[Path]:
     return photos
 
 
-def convert_heic(source: Path, target: Path, platform: str = sys.platform) -> None:
+def convert_heic(source: Path, target: Path, platform: str | None = None) -> None:
     """Convertit un HEIC en JPEG avec `sips` (macOS)."""
+    platform = platform or sys.platform
     sips = shutil.which("sips") if platform == "darwin" else None
     if sips is None:
         raise PhotoError(
