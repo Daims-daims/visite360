@@ -50,7 +50,8 @@ visite360/
 ├── docs/
 │   ├── decisions.md   journal des choix techniques
 │   ├── licences.md    registre des dépendances et de leurs licences
-│   └── prise-de-vue.md  comment photographier un point
+│   ├── prise-de-vue.md  comment photographier un point
+│   └── ressources.md  ce qu'il faut lire ou regarder pour comprendre chaque étape
 ├── scripts/           compilation d'OpenCV sans FFmpeg
 ├── src/visite360/     le traitement en Python
 ├── tests/             tests automatiques
@@ -65,7 +66,7 @@ La visionneuse web et l'app mobile auront leur dossier quand le plan y arrivera.
 - Une étape du plan = une branche = une pull request.
 - La fusion d'une pull request dans `main` vaut validation de l'étape.
 - Un jalon est une décision écrite du propriétaire, à inscrire dans `PLAN.md` avant de continuer.
-- Chaque pull request dit ce qui a été fait, comment le tester, ce qui n'a pas été testé et les questions ouvertes.
+- Chaque pull request dit ce qui a été fait, comment ça marche en clair, comment le tester, ce qui n'a pas été testé et les questions ouvertes.
 - Toute nouvelle dépendance est inscrite dans [docs/licences.md](docs/licences.md).
 
 ## Démarrer une session Claude Code
