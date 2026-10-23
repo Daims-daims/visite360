@@ -8,7 +8,10 @@ dynamic = ["version"]
 description = "Transforme des photos prises au téléphone en visite 360° modifiable d'un logement."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+# OpenCV n'est pas déclaré ici : il est compilé sans FFmpeg par scripts/installer-opencv.sh (D19).
+dependencies = [
+    "numpy>=1.26",
+]
 classifiers = [
     # Empêche tout envoi accidentel sur PyPI.
     "Private :: Do Not Upload",

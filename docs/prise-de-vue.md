@@ -70,7 +70,7 @@ Repères pratiques :
 
 - Vérifier vite les photos : pas de photo floue, pas de doigt devant l'objectif.
 - Transférer les photos d'origine sur le Mac (AirDrop ou câble), **sans les retoucher ni les recadrer**. Sur iPhone, AirDrop garde le HEIC d'origine.
-- Un dossier par point, nommé d'après la pièce (`salon`, `cuisine`, …), rangé dans `visites/<nom de la visite>/`. L'organisation exacte des dossiers sera fixée à l'étape 2.
+- Un dossier par point, nommé d'après la pièce (`salon`, `cuisine`, …), avec les photos dans un sous-dossier `photos/` : `visites/<nom de la visite>/<point>/photos/`. Ensuite : `visite360 stitch visites/<nom de la visite>/<point>`.
 - Ne jamais ajouter ces photos au dépôt git : ce sont des données personnelles. Le dossier `visites/` est ignoré par git.
 
 ## Points à confirmer à l'étape 2
