@@ -10,6 +10,10 @@ point après l'autre, par `stitch.stitch`, pendant que la page affiche une barre
 
 Les panoramas d'origine ne sont jamais modifiés (D9). Une copie réduite pour les téléphones est
 fabriquée dans `cache/` de chaque point.
+
+Étape 7 : la visionneuse peut aussi sélectionner une surface au clic. Les routes `/api/selection/`
+reçoivent la vue regardée et les clics, et répondent avec le contour trouvé par SAM 2.1 (voir
+`selection.py`). Une sélection validée est enregistrée dans `<point>/modifications/`.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
 
-from visite360 import stitch, visite
+from visite360 import segment, selection, stitch, visite
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import PhotoError
 
@@ -35,6 +39,9 @@ DEFAULT_PORT = 8360
 MOBILE_WIDTH = 4096
 MOBILE_NAME = "panorama-mobile.jpg"
 JSON = "application/json; charset=utf-8"
+MAX_BODY = 64 * 1024
+SELECTIONS_PATH = re.compile(r"^/p/(\d+)/selections\.json$")
+PREVIEW_PATH = re.compile(r"^/p/(\d+)/selections/(selection-\d+)\.jpg$")
 
 
 class ServeError(Exception):
@@ -259,16 +266,69 @@ def tour_needs_generation(tour: visite.Tour, force: bool) -> bool:
     return any(needs_generation(point.folders, force) for point in tour.points)
 
 
+def default_selector(tour: visite.Tour) -> selection.Selector:
+    """Sélection avec SAM 2.1, s'il est installé (sinon la visionneuse dit quoi installer)."""
+    problem = segment.missing()
+    message = (
+        f"La sélection demande SAM 2.1 ({problem}). L'installer : {segment.INSTALL_COMMAND}"
+        if problem
+        else None
+    )
+    return selection.Selector(tour, segment.load_segmenter, segment.MODEL_NAME, message)
+
+
+class RequestError(Exception):
+    """Requête refusée, avec son code HTTP et un message en français pour la visionneuse."""
+
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+def handle_selection(
+    selector: selection.Selector, route: str, body: dict[str, Any]
+) -> tuple[bytes, str]:
+    """Traite une route POST `/api/selection/...`. Renvoie (contenu, type)."""
+    if selector.unavailable and route in ("vue", "masque", "valider"):
+        raise RequestError(503, selector.unavailable)
+    if route == "vue":
+        token = selector.open_view(
+            body.get("point"), body.get("cap"), body.get("hauteur"), body.get("champ")
+        )
+        result: Any = {"vue": token, "taille": selection.VIEW_SIZE}
+    elif route == "masque":
+        mask, _ = selector.mask(body.get("vue"), body.get("clics"))
+        return selection.overlay_png(mask), "image/png"
+    elif route == "valider":
+        result = selector.validate(body.get("vue"), body.get("clics"), body.get("nom"))
+    elif route == "supprimer":
+        point = selector.point(body.get("point"))
+        selection_id = body.get("id")
+        if not isinstance(selection_id, str):
+            raise selection.SelectionError("Identifiant de sélection manquant.")
+        selection.delete(point.folders.point, selection_id)
+        result = {"supprimee": selection_id}
+    else:
+        raise RequestError(404, "Introuvable")
+    return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
+
+
 def make_server(
-    tour: visite.Tour, host: str, port: int, force: bool = False
+    tour: visite.Tour,
+    host: str,
+    port: int,
+    force: bool = False,
+    selector: selection.Selector | None = None,
 ) -> ThreadingHTTPServer:
     """Prépare le serveur d'une visite, sans le lancer.
 
     Si un panorama manque (ou avec `force`), la visite reste « en cours de génération » : c'est
     à l'appelant de lancer `server.visit.generate(...)`. Sinon elle est prête tout de suite.
+    `selector` remplace la sélection par SAM 2.1 (les tests y passent un modèle simulé).
     """
     visit = Visit(tour)
     fixed = viewer_assets()
+    selector = selector or default_selector(tour)
     if tour_needs_generation(tour, force):
         for point in tour.points:
             if needs_generation(point.folders, force):
@@ -283,6 +343,14 @@ def make_server(
             if path == "/status.json":
                 self._send(json.dumps(visit.status()).encode("utf-8"), JSON)
                 return
+            if path == "/api/selection":
+                message = selector.unavailable
+                state = {"disponible": message is None, "message": message}
+                self._send(json.dumps(state, ensure_ascii=False).encode("utf-8"), JSON)
+                return
+            if SELECTIONS_PATH.match(path) or PREVIEW_PATH.match(path):
+                self._answer(lambda: self._selection_file(path))
+                return
             info, asset = visit.lookup(path)
             if info is not None:
                 self._send(info, JSON)
@@ -293,8 +361,64 @@ def make_server(
                 return
             self._send(asset.path.read_bytes(), asset.content_type)
 
-        def _send(self, data: bytes, content_type: str) -> None:
-            self.send_response(200)
+        def do_POST(self) -> None:
+            path = self.path.split("?", 1)[0]
+            if not path.startswith("/api/selection/"):
+                self.send_error(404, "Introuvable")
+                return
+            self._answer(lambda: handle_selection(selector, path.rsplit("/", 1)[1], self._body()))
+
+        def _answer(self, produce: Callable[[], tuple[bytes, str]]) -> None:
+            """Envoie ce que `produce` renvoie, ou une erreur JSON lisible par la visionneuse."""
+            try:
+                if visit.status()["status"] != "ready":
+                    raise RequestError(409, "La visite n'est pas encore prête.")
+                data, kind = produce()
+            except RequestError as error:
+                self._send_error(error.status, str(error))
+            except selection.SelectionError as error:
+                self._send_error(400, str(error))
+            except (segment.SegmentError, OpenCVError) as error:
+                print(f"Erreur : {error}", file=sys.stderr)
+                self._send_error(503, str(error))
+            except Exception as error:  # le serveur doit répondre, même à une erreur imprévue
+                print(f"Erreur inattendue pendant la sélection : {error!r}", file=sys.stderr)
+                self._send_error(500, f"Erreur inattendue : {error}")
+            else:
+                self._send(data, kind)
+
+        def _body(self) -> dict[str, Any]:
+            try:
+                length = int(self.headers.get("Content-Length", ""))
+            except ValueError:
+                raise RequestError(411, "Longueur de la requête manquante.") from None
+            if not 0 < length <= MAX_BODY:
+                raise RequestError(413, "Requête vide ou trop grosse.")
+            try:
+                body = json.loads(self.rfile.read(length))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                raise RequestError(400, "Requête illisible : JSON attendu.") from None
+            if not isinstance(body, dict):
+                raise RequestError(400, "Requête illisible : objet JSON attendu.")
+            return body
+
+        def _selection_file(self, path: str) -> tuple[bytes, str]:
+            listing = SELECTIONS_PATH.match(path)
+            match = listing or PREVIEW_PATH.match(path)
+            assert match is not None
+            folders = selector.point(int(match.group(1))).folders
+            if listing:
+                records = selection.list_all(folders.point, folders.panorama)
+                return json.dumps(records, ensure_ascii=False).encode("utf-8"), JSON
+            image = selection.preview(folders.point, folders.panorama, match.group(2))
+            return image.read_bytes(), "image/jpeg"
+
+        def _send_error(self, status: int, message: str) -> None:
+            data = json.dumps({"erreur": message}, ensure_ascii=False).encode("utf-8")
+            self._send(data, JSON, status)
+
+        def _send(self, data: bytes, content_type: str, status: int = 200) -> None:
+            self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control", "no-cache")

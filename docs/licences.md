@@ -26,6 +26,17 @@ Les licences changent : revérifier chaque ligne avant une mise en production.
 | Frameworks d'iOS : SwiftUI, UIKit, AVFoundation, Core Motion, simd, Foundation, Network, CryptoKit, ARKit, SceneKit, Core Image | App de capture (étapes 5 et 6) | Logiciel Apple fourni avec iOS, Xcode and Apple SDKs Agreement | Frameworks du système, appelés par l'app, non copiés dans l'app | 2026-10-24 | developer.apple.com/support/terms, voir D25 |
 | dns-sd | Annonce du Mac sur le Wi-Fi par Bonjour (étape 6) | Logiciel Apple fourni avec macOS, licence de macOS | Programme externe, appelé sans shell, non livré | 2026-10-24 | Présent dans /usr/bin de macOS, voir D26 |
 | Xcode 26.3, Swift, XCTest | Compilation, installation et tests de l'app (développement) | Xcode and Apple SDKs Agreement ; Swift sous Apache 2.0 avec exception de bibliothèque d'exécution | Outils de développement, non livrés | 2026-10-24 | developer.apple.com/support/terms, swift.org/legal/license.html |
+| PyTorch 2.14.1 (`torch`) | Fait tourner SAM 2.1 sur la puce graphique du Mac (étape 7) | Apache 2.0, BSD 2 et 3 clauses, MIT, Boost (BSL-1.0), Apache 2.0 avec exception LLVM | Paquet Python facultatif, installé par `scripts/installer-sam2.sh` | 2026-10-25 | métadonnées et LICENSE du paquet torch 2.14.1 |
+| torchvision 0.29.1 | Dépendance de SAM 2 | BSD 3 clauses | Paquet Python facultatif | 2026-10-25 | LICENSE du paquet torchvision 0.29.1 |
+| SAM 2 (code, commit 2b90b9f) | Sélection d'une surface au clic (étape 7) | Apache 2.0 ; module CUDA adapté de cc_torch sous BSD 3 clauses, non compilé sur Mac | Paquet Python facultatif, installé depuis github.com/facebookresearch/sam2 | 2026-10-25 | LICENSE et LICENSE_cctorch du dépôt, README (« model checkpoints … licensed under Apache 2.0 ») |
+| Poids SAM 2.1 small (`sam2.1_hiera_small.pt`) | Modèle de sélection (étape 7) | Apache 2.0 | Téléchargés depuis dl.fbaipublicfiles.com, empreinte vérifiée, rangés hors du dépôt dans `~/.cache/visite360/modeles/` | 2026-10-25 | README de github.com/facebookresearch/sam2. Données d'entraînement : voir la remarque sur SA-1B |
+| hydra-core 1.3.7, iopath 0.1.10 | Dépendances de SAM 2 (réglages, fichiers) | MIT | Paquets Python facultatifs | 2026-10-25 | LICENSE de chaque paquet |
+| omegaconf 2.3.1, antlr4-python3-runtime 4.9.3, portalocker 4.4.1 | Dépendances de hydra-core et iopath | BSD 3 clauses | Paquets Python facultatifs | 2026-10-25 | LICENSE ou métadonnées de chaque paquet |
+| Pillow 13.0.0 | Dépendance de SAM 2 (images) | MIT-CMU (proche de MIT) | Paquet Python facultatif | 2026-10-25 | LICENSE du paquet pillow 13.0.0 |
+| tqdm 4.70.1 | Dépendance de SAM 2 (barres d'avancement) | MPL 2.0 et MIT | Paquet Python facultatif, utilisé sans modification (D29) | 2026-10-25 | LICENCE du paquet tqdm 4.70.1 |
+| typing_extensions 4.16.0 | Dépendance de PyTorch | PSF 2.0 (licence de Python) | Paquet Python facultatif | 2026-10-25 | LICENSE du paquet |
+| sympy 1.14.0, mpmath 1.3.0, networkx 3.7, Jinja2 3.1.6, MarkupSafe 3.0.4, fsspec 2026.9.0 | Dépendances de PyTorch | BSD | Paquets Python facultatifs | 2026-10-25 | LICENSE ou métadonnées de chaque paquet |
+| filelock 4.2.4, PyYAML 6.0.3, setuptools 84.2.1 | Dépendances de PyTorch et hydra-core | MIT | Paquets Python facultatifs | 2026-10-25 | LICENSE de chaque paquet |
 
 ## Prévu par le plan
 
@@ -35,7 +46,6 @@ Les licences changent : revérifier chaque ligne avant une mise en production.
 |---|---|---|---|---|---|
 | Hugin | Repli pour l'assemblage (étape 2) | GPL 2 ou ultérieure | Programme externe uniquement | 2026-10-22 | Wikipédia, page Hugin (software) |
 | Marzipano | Alternative à Pannellum | Apache 2.0 | Bibliothèque web | 2026-10-22 | github.com/google/marzipano |
-| SAM 2 | Sélection d'une surface (étape 5) | Apache 2.0, code et poids | Modèle d'IA | 2026-10-22 | github.com/facebookresearch/sam2 |
 
 Remarques :
 
@@ -43,7 +53,10 @@ Remarques :
 - **numpy** sur Mac ne dépend que d'Accelerate (Apple). Sur Linux, utilisé seulement par les tests GitHub, son paquet embarque OpenBLAS (BSD), libgfortran (GPL 3 avec exception pour les bibliothèques d'exécution de GCC) et libquadmath (LGPL 2.1), vérifié le 2026-10-24 sur numpy 2.5.4. Rien n'est livré depuis Linux, mais ce point reste à trancher avant tout déploiement sur un serveur Linux.
 - **Tests GitHub sur Linux** : OpenCV y est compilé par le même script. La compilation de Linux n'a pas été inspectée comme celle du Mac.
 - **Hugin** : source secondaire. Revérifier sur le site officiel de Hugin avant de l'ajouter.
-- **SAM 2** dépend de PyTorch, à inscrire ici à l'étape 5 avec sa licence vérifiée. Les polices de la démo de SAM 2 sont sous SIL Open Font License, sans objet si la démo n'est pas utilisée.
+- **SAM 2.1 et ses données d'entraînement** : SAM 2 a été entraîné en partie sur SA-1B, collection de photos de Meta réservée à la recherche (« Research purposes only » sur ai.meta.com/datasets/segment-anything, vérifié le 2026-10-25). Meta, propriétaire de ces données, publie elle-même les poids sous Apache 2.0 : ils sont considérés comme autorisés. C'est une interprétation, à faire confirmer par un juriste avec le reste de ce registre. La démo web de SAM 2 et ses polices ne sont pas utilisées.
+- **SAM 2.1 est facultatif** : il n'est pas déclaré dans `pyproject.toml` et s'installe par `scripts/installer-sam2.sh`, aux versions de ce tableau. Sans lui, tout fonctionne sauf la sélection.
+- **PyTorch** embarque d'autres composants, listés dans son fichier LICENSE ; les licences déclarées par le paquet sont celles du tableau. Aucun n'est sous GPL.
+- **Licences ajoutées à la liste autorisée** le 2026-10-25 par le propriétaire (D29) : MIT-CMU, PSF 2.0, Boost (BSL-1.0), et MPL 2.0 pour une bibliothèque utilisée sans modifier ses fichiers.
 
 ## Interdit
 
@@ -57,6 +70,7 @@ Remarques :
 | FLUX [dev] auto-hébergé | Licence non commerciale. Passer par l'API payante ou une licence commerciale | 2026-10-09 |
 | Hunyuan3D | La licence communautaire Tencent exclut l'Union européenne | 2026-10-09 |
 | Depth Anything V2 Base, Large, Giant | CC BY-NC 4.0. La version Small est sous Apache 2.0 | 2026-10-09 |
+| MobileSAM (poids) | Code sous Apache 2.0, mais poids entraînés par un tiers sur 1 % des images de SA-1B, réservées à la recherche. Même cas que ZInD | 2026-10-25 |
 
 ## Zone grise, à éviter sans vérification complète
 

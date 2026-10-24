@@ -25,7 +25,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 5 | App : capture guidée à un point | v0.1 | livrée |
 | 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | livrée |
 | J1 | **Jalon v0.1 : validation de la visite par le propriétaire** | — | livrée |
-| 7 | Sélection d'une surface au clic | v0.2 | à faire |
+| 7 | Sélection d'une surface au clic | v0.2 | livrée |
 | 8 | Changement de couleur | v0.2 | à faire |
 | 9 | Modification par génération d'image, en local | v0.2 | à faire |
 | J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | à faire |
@@ -104,6 +104,7 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 - **Tests automatiques :** découpage d'une vue et report du masque dans le panorama, aller-retour sans décalage, sur des images de synthèse. Le modèle est simulé.
 - **Validation :** sur de vrais panoramas, le contour suit le mur, y compris derrière les meubles et le long des plinthes.
 - **À trancher pendant l'étape :** taille du modèle SAM 2 et vitesse sur le Mac. Interface de clic : dans la visionneuse ou dans une page dédiée.
+- **Tranché le 2026-10-25 (D29) :** SAM 2.1 small, sur la puce graphique du Mac, choisi après essai de MobileSAM et SAM 2.1 tiny ; sélection dans la visionneuse, sur la vue regardée, avec clics « en plus » et « en moins ». Mode d'emploi dans `docs/selection.md`.
 
 ### Étape 8 : changement de couleur
 

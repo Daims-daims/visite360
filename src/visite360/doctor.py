@@ -14,6 +14,7 @@ import sys
 from dataclasses import dataclass
 from typing import TextIO
 
+from visite360 import segment
 from visite360.opencv import INSTALL_COMMAND, uses_ffmpeg
 
 MIN_PYTHON = (3, 11)
@@ -158,9 +159,24 @@ def check_hugin() -> CheckResult:
     return CheckResult("Hugin", True, False, path)
 
 
+def check_sam2() -> CheckResult:
+    """Signale si SAM 2.1, facultatif, est prêt pour la sélection d'une surface (étape 7)."""
+    name = "SAM 2.1 (sélection au clic)"
+    hint = (
+        "Nécessaire seulement pour sélectionner une surface. "
+        f"L'installer : {segment.INSTALL_COMMAND}"
+    )
+    problem = segment.missing()
+    if problem:
+        return CheckResult(name, False, False, problem, hint)
+    if segment.file_sha256(segment.weights_path()) != segment.WEIGHTS_SHA256:
+        return CheckResult(name, False, False, "poids abîmés ou différents de ceux de Meta", hint)
+    return CheckResult(name, True, False, f"{segment.MODEL_NAME}, poids vérifiés")
+
+
 def run_checks() -> list[CheckResult]:
     """Lance toutes les vérifications, dans l'ordre d'affichage."""
-    return [check_python(), check_opencv(), check_heic(), check_hugin()]
+    return [check_python(), check_opencv(), check_heic(), check_hugin(), check_sam2()]
 
 
 def report(results: list[CheckResult], out: TextIO) -> int:
