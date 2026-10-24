@@ -34,7 +34,8 @@ Ces trois vérifications doivent passer avant tout commit.
 ## Licences
 
 - Toute nouvelle dépendance (paquet Python, programme externe, modèle, poids, bibliothèque web, paquet npm) est inscrite dans `docs/licences.md` dans la même pull request, avec sa licence vérifiée à la source et la date de vérification.
-- Autorisées : MIT, BSD, Apache 2.0, ISC, zlib, libpng (PNG Reference Library License), IJG (Independent JPEG Group).
+- Autorisées : MIT, BSD, Apache 2.0, ISC, zlib, libpng (PNG Reference Library License), IJG (Independent JPEG Group), MIT-CMU, PSF 2.0, Boost (BSL-1.0).
+- MPL 2.0 : acceptée pour une bibliothèque utilisée sans modifier ses fichiers (décision du propriétaire du 2026-10-25, D29).
 - Interdites : toute licence non commerciale ou « recherche uniquement », notamment CC BY-NC.
 - Un modèle d'IA se vérifie en trois parties : code, poids, données d'entraînement. Un code sous MIT avec des poids entraînés sur des données réservées à la recherche est interdit. C'est le cas des modèles d'estimation de la forme des pièces entraînés sur ZInD.
 - GPL, LGPL, AGPL : acceptées seulement pour un programme externe appelé en ligne de commande, jamais importé ni lié dans le code. À signaler dans la pull request.

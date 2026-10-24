@@ -9,6 +9,7 @@ description = "Transforme des photos prises au téléphone en visite 360° modif
 readme = "README.md"
 requires-python = ">=3.11"
 # OpenCV n'est pas déclaré ici : il est compilé sans FFmpeg par scripts/installer-opencv.sh (D19).
+# SAM 2.1 et PyTorch, facultatifs, s'installent par scripts/installer-sam2.sh (D29).
 dependencies = [
     "numpy>=1.26",
 ]

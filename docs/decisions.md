@@ -284,3 +284,25 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - aucun retour d'agent avant la v1 : les choix des versions v0.2 à v1 se font sans avis extérieur, au risque de développer des fonctions qui ne les intéressent pas ;
   - le passage à la v1, qui engage les premiers coûts d'hébergement (D22), se décide au jalon v0.3 sans retour d'agent ;
   - `docs/retours-agents.md` sera créé au jalon v1.
+
+## D29 : sélection au clic avec SAM 2.1 small, dans la vue regardée
+
+- **Date :** 2026-10-25
+- **Décision :**
+  - le modèle de sélection est SAM 2.1 small (`sam2.1_hiera_small`), sur la puce graphique du Mac par PyTorch (MPS). Il est facultatif : `scripts/installer-sam2.sh` installe PyTorch et SAM 2 à des versions fixées, puis télécharge les poids et vérifie leur empreinte SHA-256. Les poids sont rangés hors du dépôt, dans `~/.cache/visite360/modeles/` ;
+  - la sélection se fait dans la visionneuse servie par `visite360 serve`, pas dans une page dédiée. La vue regardée est figée, le serveur en découpe une image carrée de 1024 pixels (champ de vision de l'écran, 120° au plus), SAM 2.1 y cherche le contour, et la page pose ce contour par-dessus la visionneuse ;
+  - clics « en plus » et « en moins » pour corriger. Le masque est nettoyé : seuls les morceaux qui contiennent un clic « en plus » sont gardés, et les trous de moins de 0,05 % de la vue sont bouchés ;
+  - une sélection validée est reportée dans le panorama et enregistrée comme opération dans `<point>/modifications/` : masque PNG à la taille du panorama, fiche JSON avec la vue, les clics, le modèle et l'empreinte du panorama (format dans `docs/selection.md`). Le panorama d'origine n'est jamais modifié (D9) ;
+  - nouvelles licences autorisées par le propriétaire, pour les dépendances de SAM 2 : MIT-CMU (Pillow), PSF 2.0 (typing_extensions), Boost BSL-1.0 (une partie de PyTorch) et MPL 2.0 pour une bibliothèque utilisée sans modifier ses fichiers (tqdm).
+- **Raisons :**
+  - essai du 2026-10-25 sur 6 vues des panoramas du propriétaire : MobileSAM, SAM 2.1 tiny et SAM 2.1 small sont tous quasi instantanés (0,1 à 0,25 s par vue, 0,015 s par clic). SAM 2.1 small donne les contours les plus justes avec un seul clic (mur avec affiches, parquet, plafond). Choix du propriétaire ;
+  - MobileSAM est écarté : ses poids sont entraînés par un tiers sur des images réservées à la recherche (SA-1B), le même cas que ZInD ;
+  - sélectionner dans la vue regardée évite de choisir une taille de découpe : on sélectionne ce qu'on voit. La visionneuse est figée pour que le contour reste à sa place à l'écran ;
+  - le nettoyage efface la frange de petits points que SAM 2 laisse au bord des surfaces texturées, observée pendant l'essai ;
+  - le masque à la taille du panorama sert directement aux étapes 8 et 9. Les clics et la vue suffisent à recalculer une sélection.
+- **Modifie :** D10, dont la vitesse et la taille de modèle restaient à confirmer.
+- **Limites :**
+  - une sélection ne couvre que la vue de l'écran : un mur plus large se sélectionne en reculant la vue ;
+  - un mur à motifs demande plusieurs clics « en plus » ;
+  - sur une zone floue du panorama, le contour est mauvais : la cause est l'assemblage ;
+  - les routes de sélection du serveur acceptent les requêtes de tout appareil du Wi-Fi, comme la visite elle-même. Elles n'écrivent que dans `modifications/` et `cache/`, avec des noms choisis par le serveur. À revoir avant tout hébergement (v1).

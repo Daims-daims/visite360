@@ -23,12 +23,50 @@
       background-image: none; box-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
     .pnlm-hotspot-base.fleche::before { content: "\2191"; display: block; text-align: center;
       line-height: 48px; font-size: 30px; color: #111; }
+    /* Étape 7 : sélection d'une surface au clic. */
+    button { font: inherit; cursor: pointer; }
+    #outils { position: fixed; z-index: 10; right: 0; bottom: 0; margin: 12px; display: flex; gap: 8px;
+      flex-wrap: wrap; justify-content: flex-end; max-width: calc(100vw - 24px); }
+    #outils button, #liste button, #apercu button { padding: 8px 12px; border-radius: 8px; border: 0;
+      background: rgba(0, 0, 0, .65); color: #fff; }
+    #outils button.actif { background: #4da3ff; }
+    #outils button:disabled { opacity: .45; cursor: default; }
+    #calque { position: fixed; inset: 0; z-index: 5; display: none; overflow: hidden; cursor: crosshair;
+      touch-action: none; }
+    #calque img { position: absolute; pointer-events: none; }
+    .repere { position: absolute; width: 14px; height: 14px; margin: -9px 0 0 -9px; border-radius: 50%;
+      border: 2px solid #fff; pointer-events: none; }
+    .repere.plus { background: #2ecc40; }
+    .repere.moins { background: #ff4136; }
+    #consigne, #apercu { position: fixed; z-index: 10; top: 0; left: 50%; transform: translateX(-50%);
+      margin: 12px; padding: 8px 12px; border-radius: 8px; background: rgba(0, 0, 0, .7); color: #fff;
+      font-size: 14px; display: none; max-width: calc(100vw - 48px); text-align: center; }
+    #apercu { gap: 10px; align-items: center; }
+    #liste { position: fixed; z-index: 10; right: 0; bottom: 56px; margin: 12px; padding: 10px;
+      border-radius: 8px; background: rgba(0, 0, 0, .8); display: none; max-height: 50vh; overflow: auto;
+      min-width: 240px; font-size: 14px; }
+    #liste .ligne { display: flex; gap: 6px; align-items: center; justify-content: space-between;
+      padding: 4px 0; }
+    #liste .perimee { color: #ffb84d; font-size: 12px; }
   </style>
 </head>
 <body>
   <div id="panorama"></div>
   <select id="points" aria-label="Aller à un point"></select>
   <div id="cap"></div>
+  <div id="calque"><img id="masque" alt=""></div>
+  <div id="consigne"></div>
+  <div id="apercu"><span id="apercu-nom"></span><button id="retour">Revenir à la visite</button></div>
+  <div id="liste"></div>
+  <div id="outils">
+    <button id="choisir" hidden>Sélectionner une surface</button>
+    <button id="mes-selections" hidden>Sélections</button>
+    <button id="ajouter" hidden title="Ajouter à la sélection">+ Ajouter</button>
+    <button id="retirer" hidden title="Retirer de la sélection (ou Alt + clic)">− Retirer</button>
+    <button id="defaire" hidden>Annuler le dernier clic</button>
+    <button id="valider" hidden>Valider</button>
+    <button id="abandonner" hidden>Abandonner</button>
+  </div>
   <div id="message">
     <div id="text"></div>
     <div id="bar"><div id="fill"></div></div>
@@ -112,7 +150,7 @@
             menu.value = info.start;
             menu.style.display = "block";
             menu.onchange = () => viewer.loadScene(menu.value);
-            viewer.on("scenechange", (id) => { menu.value = id; });
+            viewer.on("scenechange", (id) => { if (!id.startsWith("apercu:")) menu.value = id; });
           }
 
           // Aide pour déclarer un lien : l'angle du centre de l'écran et du dernier clic,
@@ -130,8 +168,262 @@
           });
           viewer.on("scenechange", () => { click = null; });
           setInterval(refresh, 200);
+
+          setupSelection(info, viewer);
         })
         .catch(() => show("Impossible de charger la visite.", null, ""));
+    }
+
+    async function postJson(path, body) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        let message = "Erreur " + response.status;
+        try { message = (await response.json()).erreur || message; } catch (error) { /* pas de JSON */ }
+        throw new Error(message);
+      }
+      return response;
+    }
+
+    // Étape 7 : sélection d'une surface. Le serveur découpe la vue regardée (une photo carrée,
+    // sans la déformation du panorama), SAM 2.1 y trouve le contour autour des clics, et la
+    // page pose ce contour par-dessus la visionneuse, immobilisée le temps de la sélection.
+    function setupSelection(info, viewer) {
+      const $ = (id) => document.getElementById(id);
+      const layer = $("calque"), maskImage = $("masque"), hint = $("consigne");
+      const selectButtons = ["ajouter", "retirer", "defaire", "valider", "abandonner"];
+      let currentId = info.start, previewOf = null, state = null, busy = false;
+
+      viewer.on("scenechange", (id) => {
+        if (!id.startsWith("apercu:")) {
+          currentId = id;
+          previewOf = null;
+          $("apercu").style.display = "none";
+          $("outils").style.display = "flex";
+        }
+        $("liste").style.display = "none";
+        refreshList();
+      });
+
+      const pointIndex = () => info.points.findIndex((point) => point.id === currentId);
+      const say = (text) => { hint.textContent = text; hint.style.display = text ? "block" : "none"; };
+      const toRad = (deg) => deg * Math.PI / 180;
+
+      function setMode(selecting) {
+        $("choisir").hidden = selecting;
+        $("mes-selections").hidden = selecting;
+        for (const id of selectButtons) $(id).hidden = !selecting;
+        layer.style.display = selecting ? "block" : "none";
+        $("liste").style.display = "none";
+      }
+
+      function setAdding(adding) {
+        state.adding = adding;
+        $("ajouter").classList.toggle("actif", adding);
+        $("retirer").classList.toggle("actif", !adding);
+      }
+
+      // Correspondance entre l'écran et la vue carrée : la visionneuse et la vue sont deux
+      // photos prises du même endroit dans la même direction, seule l'échelle change.
+      function geometry() {
+        const rect = $("panorama").getBoundingClientRect();
+        const perTan = (rect.width / 2) / Math.tan(toRad(state.hfov) / 2);
+        const focal = (state.size / 2) / Math.tan(toRad(state.fov) / 2);
+        return { rect, scale: perTan / focal };
+      }
+
+      function placeMask() {
+        const { rect, scale } = geometry();
+        const side = state.size * scale;
+        Object.assign(maskImage.style, {
+          left: (rect.width - side) / 2 + "px", top: (rect.height - side) / 2 + "px",
+          width: side + "px", height: side + "px",
+        });
+        layer.querySelectorAll(".repere").forEach((dot) => dot.remove());
+        for (const click of state.clicks) {
+          const dot = document.createElement("div");
+          dot.className = "repere " + (click.ajout ? "plus" : "moins");
+          dot.style.left = rect.width / 2 + (click.x - state.size / 2) * scale + "px";
+          dot.style.top = rect.height / 2 + (click.y - state.size / 2) * scale + "px";
+          layer.appendChild(dot);
+        }
+      }
+
+      async function updateMask() {
+        placeMask();
+        if (!state.clicks.some((click) => click.ajout)) {
+          maskImage.removeAttribute("src");
+          say("Cliquez sur la surface à sélectionner.");
+          return;
+        }
+        busy = true;
+        try {
+          const response = await postJson("/api/selection/masque", { vue: state.view, clics: state.clicks });
+          const url = URL.createObjectURL(await response.blob());
+          if (maskImage.src.startsWith("blob:")) URL.revokeObjectURL(maskImage.src);
+          maskImage.src = url;
+          say("+ pour ajouter une zone, − pour en retirer. Valider quand le contour est bon.");
+        } catch (error) {
+          say(error.message);
+        } finally {
+          busy = false;
+        }
+      }
+
+      async function start() {
+        if (busy) return;
+        const response = await fetch("/api/selection").then((r) => r.json());
+        if (!response.disponible) { say(response.message); return; }
+        // Mesuré sur la visionneuse : le calque, encore masqué, aurait une taille nulle.
+        const rect = $("panorama").getBoundingClientRect();
+        const hfov = viewer.getHfov();
+        const vfov = 2 * Math.atan(Math.tan(toRad(hfov) / 2) * rect.height / rect.width) * 180 / Math.PI;
+        state = { hfov, fov: Math.min(Math.max(hfov, vfov), 120), clicks: [], adding: true, size: 1024 };
+        setMode(true);
+        setAdding(true);
+        maskImage.removeAttribute("src");
+        placeMask();
+        busy = true;
+        say("Préparation de la vue (la première fois, chargement du modèle : quelques secondes)...");
+        try {
+          const answer = await postJson("/api/selection/vue", {
+            point: pointIndex(), cap: viewer.getYaw(), hauteur: viewer.getPitch(), champ: state.fov,
+          }).then((r) => r.json());
+          state.view = answer.vue;
+          state.size = answer.taille;
+          say("Cliquez sur la surface à sélectionner.");
+        } catch (error) {
+          stop();
+          say(error.message);
+        } finally {
+          busy = false;
+        }
+      }
+
+      function stop() {
+        state = null;
+        setMode(false);
+        say("");
+      }
+
+      layer.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        if (!state || !state.view || busy) return;
+        const { rect, scale } = geometry();
+        const x = state.size / 2 + (event.clientX - rect.left - rect.width / 2) / scale;
+        const y = state.size / 2 + (event.clientY - rect.top - rect.height / 2) / scale;
+        if (x < 0 || y < 0 || x >= state.size || y >= state.size) {
+          say("Ce point est hors de la vue préparée : abandonner et réorienter la vue.");
+          return;
+        }
+        state.clicks.push({ x, y, ajout: state.adding && !event.altKey && event.button !== 2 });
+        updateMask();
+      });
+      layer.addEventListener("contextmenu", (event) => event.preventDefault());
+      window.addEventListener("resize", () => { if (state) placeMask(); });
+      document.addEventListener("keydown", (event) => { if (state && event.key === "Escape") stop(); });
+
+      $("choisir").onclick = start;
+      $("ajouter").onclick = () => setAdding(true);
+      $("retirer").onclick = () => setAdding(false);
+      $("abandonner").onclick = stop;
+      $("defaire").onclick = () => { if (state && !busy && state.clicks.pop()) updateMask(); };
+      $("valider").onclick = async () => {
+        if (!state || busy || !state.clicks.some((click) => click.ajout)) return;
+        const name = window.prompt("Nom de la sélection (par exemple « Mur du canapé ») :", "");
+        if (name === null) return;
+        busy = true;
+        say("Report de la sélection dans le panorama...");
+        try {
+          const record = await postJson("/api/selection/valider", {
+            vue: state.view, clics: state.clicks, nom: name,
+          }).then((r) => r.json());
+          stop();
+          say("« " + record.nom + " » enregistrée. Bouton « Sélections » pour la revoir.");
+          refreshList();
+        } catch (error) {
+          say(error.message);
+        } finally {
+          busy = false;
+        }
+      };
+
+      // Sélections enregistrées du point affiché : aperçu dans le panorama entier, suppression.
+      async function refreshList() {
+        const index = pointIndex();
+        if (index < 0) return [];
+        const records = await fetch("/p/" + index + "/selections.json").then((r) => r.ok ? r.json() : []);
+        $("mes-selections").textContent = "Sélections (" + records.length + ")";
+        return records;
+      }
+
+      function showPreview(index, record) {
+        const sceneId = "apercu:" + index + ":" + record.id;
+        previewOf = { pointId: currentId };
+        viewer.addScene(sceneId, {
+          type: "equirectangular",
+          panorama: "/p/" + index + "/selections/" + record.id + ".jpg?t=" + Date.now(),
+        });
+        viewer.loadScene(sceneId, viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
+        say("");
+        $("apercu-nom").textContent = "Aperçu : " + record.nom;
+        $("apercu").style.display = "flex";
+        $("outils").style.display = "none";
+      }
+
+      $("retour").onclick = () => {
+        if (!previewOf) return;
+        viewer.loadScene(previewOf.pointId, viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
+      };
+
+      $("mes-selections").onclick = async () => {
+        const box = $("liste");
+        if (box.style.display === "block") { box.style.display = "none"; return; }
+        const index = pointIndex();
+        const records = await refreshList();
+        box.replaceChildren();
+        if (!records.length) box.textContent = "Aucune sélection pour ce point.";
+        for (const record of records) {
+          const line = document.createElement("div");
+          line.className = "ligne";
+          const label = document.createElement("span");
+          label.textContent = record.nom;
+          if (record.perimee) {
+            const note = document.createElement("div");
+            note.className = "perimee";
+            note.textContent = "panorama refait depuis : à reprendre";
+            label.appendChild(note);
+          }
+          const see = document.createElement("button");
+          see.textContent = "Voir";
+          see.onclick = () => { box.style.display = "none"; showPreview(index, record); };
+          const remove = document.createElement("button");
+          remove.textContent = "Supprimer";
+          remove.onclick = async () => {
+            if (!window.confirm("Supprimer « " + record.nom + " » ? Le panorama ne change pas.")) return;
+            try {
+              await postJson("/api/selection/supprimer", { point: index, id: record.id });
+              line.remove();
+              refreshList();
+            } catch (error) {
+              say(error.message);
+            }
+          };
+          line.append(label, see, remove);
+          box.appendChild(line);
+        }
+        box.style.display = "block";
+      };
+
+      fetch("/api/selection").then((r) => r.json()).then((answer) => {
+        $("choisir").hidden = false;
+        $("mes-selections").hidden = false;
+        if (!answer.disponible) $("choisir").title = answer.message;
+      });
+      refreshList();
     }
 
     // Tant que le panorama est en cours d'assemblage, on interroge le serveur chaque seconde.

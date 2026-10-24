@@ -2,7 +2,7 @@
 
 Transforme des photos prises en tournant sur soi-même avec un téléphone en visite 360° d'un logement, puis permet de modifier ce qu'on voit (couleur d'un mur, modifications générées par IA) et de chiffrer ces modifications. Feuille de route par versions dans [PLAN.md](PLAN.md).
 
-**État :** étape 5 (app de capture guidée sur iPhone). L'avancement est dans [PLAN.md](PLAN.md).
+**État :** étape 7 (sélection d'une surface au clic). L'avancement est dans [PLAN.md](PLAN.md).
 
 ## Installation pour développer
 
@@ -27,7 +27,7 @@ ruff check .
 ruff format --check .
 ```
 
-`visite360 doctor` vérifie Python, OpenCV et la conversion des photos HEIC, et dit quoi installer s'il manque quelque chose.
+`visite360 doctor` vérifie Python, OpenCV, la conversion des photos HEIC et, s'il est installé, SAM 2.1, et dit quoi installer s'il manque quelque chose.
 
 Pour photographier un point de la visite : [docs/prise-de-vue.md](docs/prise-de-vue.md). Avec l'app iPhone, qui guide la prise de vue : [docs/app.md](docs/app.md) (installation par câble depuis Xcode).
 
@@ -60,6 +60,16 @@ La commande affiche deux adresses : une pour le Mac, une pour un téléphone con
 
 Une visite reçue de l'app a déjà son `visite.json`, flèches comprises. Pour des photos prises sans l'app, `visite.json` est créé tout seul avec un point par dossier et aucun lien, et les flèches s'y ajoutent à la main : voir [docs/visite-json.md](docs/visite-json.md).
 
+## Sélectionner une surface
+
+Dans la visite, le bouton **Sélectionner une surface** trouve le contour d'un mur, d'un sol ou d'un plafond au clic, avec le modèle SAM 2.1 qui tourne sur le Mac. Il s'installe à part, une fois :
+
+```bash
+bash scripts/installer-sam2.sh
+```
+
+Les sélections sont enregistrées dans `visites/<visite>/<point>/modifications/`, sans toucher au panorama. Mode d'emploi : [docs/selection.md](docs/selection.md).
+
 ## Organisation du dépôt
 
 ```
@@ -73,11 +83,12 @@ visite360/
 │   ├── capture-json.md  orientations écrites par l'app
 │   ├── transfert.md   envoyer une visite de l'iPhone au Mac
 │   ├── visite-json.md  points et flèches d'une visite
+│   ├── selection.md   sélectionner une surface au clic, format des sélections
 │   ├── prise-de-vue.md  comment photographier un point
 │   └── ressources.md  ce qu'il faut lire ou regarder pour comprendre chaque étape
 ├── app/               app iPhone de capture guidée (SwiftUI, D25)
 ├── visionneuse/       page web de la visite et Pannellum
-├── scripts/           compilation d'OpenCV sans FFmpeg
+├── scripts/           compilation d'OpenCV sans FFmpeg, installation de SAM 2.1
 ├── src/visite360/     le traitement en Python
 ├── tests/             tests automatiques
 ├── .github/           tests lancés à chaque pull request, modèle de pull request
