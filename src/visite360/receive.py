@@ -27,6 +27,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -452,6 +453,10 @@ def announce(port: int, out: TextIO) -> subprocess.Popen[bytes] | None:
         return None
 
 
+def _interrupt(signum: int, frame: Any) -> None:
+    raise KeyboardInterrupt
+
+
 def new_code() -> str:
     return f"{secrets.randbelow(10**6):06d}"
 
@@ -480,6 +485,10 @@ def run(root: Path, port: int = DEFAULT_PORT, out: TextIO | None = None) -> int:
         print(f"Adresse, si l'app ne trouve pas le Mac : {address}:{actual_port}", file=out)
     process = announce(actual_port, out)
     print("Ctrl+C pour arrêter.", file=out, flush=True)
+    # Fenêtre du Terminal fermée ou commande arrêtée : on s'arrête comme avec Ctrl+C, pour ne
+    # pas laisser l'annonce Bonjour d'un serveur disparu.
+    for number in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(number, _interrupt)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -1,4 +1,5 @@
-// Écran de prise de vue : aperçu de la caméra, cibles à viser, consignes.
+// Écran de prise de vue : aperçu de la caméra, cibles à viser, consignes, puis flèches vers
+// les autres pièces.
 
 import AVFoundation
 import simd
@@ -32,6 +33,8 @@ struct TargetsOverlay: View {
     let targets: [Target]
     let done: Set<Int>
     let suggested: Target?
+    /// Flèches déjà visées : direction dans le monde et nom de la pièce d'arrivée.
+    let arrows: [(direction: SIMD3<Double>, label: String)]
     let fieldOfView: Double
 
     var body: some View {
@@ -55,6 +58,17 @@ struct TargetsOverlay: View {
                     context.stroke(circle, with: .color(isNext ? .orange : .white), lineWidth: isNext ? 4 : 2)
                 }
             }
+            for arrow in arrows {
+                guard let p = Orientation.project(arrow.direction, rotation: rotation, focal: focal)
+                else { continue }
+                let point = CGPoint(x: center.x + p.x, y: center.y + p.y)
+                let marker = Path(ellipseIn: CGRect(x: point.x - 9, y: point.y - 9, width: 18, height: 18))
+                context.fill(marker, with: .color(.blue))
+                context.draw(
+                    Text("→ \(arrow.label)").font(.headline).foregroundStyle(.white),
+                    at: CGPoint(x: point.x, y: point.y - 24)
+                )
+            }
             let reticle = Path(ellipseIn: CGRect(x: center.x - 28, y: center.y - 28, width: 56, height: 56))
             context.stroke(reticle, with: .color(.white.opacity(0.9)), lineWidth: 2)
         }
@@ -66,9 +80,27 @@ struct CaptureView: View {
     @StateObject private var model: CaptureModel
     @Environment(\.dismiss) private var dismiss
     @State private var confirmStop = false
+    /// Direction notée au moment de « Flèche ici », pendant le choix de la pièce.
+    @State private var aim: Aim?
 
-    init(point: PointFolder, lens: Lens) {
-        _model = StateObject(wrappedValue: CaptureModel(point: point, lens: lens))
+    struct Aim: Identifiable {
+        let id = UUID()
+        let angle: Double
+        let pitch: Double
+    }
+
+    init(visit: VisitFolder, pointID: String, lens: Lens) {
+        _model = StateObject(wrappedValue: CaptureModel(visit: visit, pointID: pointID, lens: lens))
+    }
+
+    private var arrowsDone: Bool { model.phase == .shooting && model.mandatoryLeft == 0 }
+
+    private var arrowMarkers: [(direction: SIMD3<Double>, label: String)] {
+        guard let startYaw = model.startYaw else { return [] }
+        let file = model.visit.load()
+        return model.arrows.map {
+            (Orientation.direction(yaw: startYaw + $0.angle, pitch: $0.pitch ?? 0), file.displayName($0.to))
+        }
     }
 
     var body: some View {
@@ -78,7 +110,8 @@ struct CaptureView: View {
             if let rotation = model.rotation, model.phase == .shooting {
                 TargetsOverlay(
                     rotation: rotation, targets: model.targets, done: Set(model.done.keys),
-                    suggested: model.suggested, fieldOfView: model.camera.fieldOfView
+                    suggested: model.suggested, arrows: arrowMarkers,
+                    fieldOfView: model.camera.fieldOfView
                 )
                 .ignoresSafeArea()
             }
@@ -106,6 +139,15 @@ struct CaptureView: View {
             Button("Arrêter, le panorama aura des trous", role: .destructive) { dismiss() }
             Button("Continuer la prise de vue", role: .cancel) {}
         }
+        .sheet(item: $aim) { aim in
+            ArrowTargetSheet(model: model) { choice in
+                switch choice {
+                case .point(let id): model.addArrow(to: id, angle: aim.angle, pitch: aim.pitch)
+                case .newRoom(let name): model.addArrow(toNewRoom: name, angle: aim.angle, pitch: aim.pitch)
+                }
+                self.aim = nil
+            }
+        }
         .alert(
             "Problème",
             isPresented: Binding(get: { model.problem != nil }, set: { if !$0 { model.problem = nil } })
@@ -131,6 +173,13 @@ struct CaptureView: View {
                 Text("Tournez autour du téléphone, pas sur vous-même.").font(.footnote)
             } else {
                 Text("Toutes les photos sont prises.").font(.headline)
+                Text("Visez le milieu de chaque porte vers une autre pièce, puis « Flèche ici ».")
+                Text(
+                    model.arrows.isEmpty
+                        ? "Les flèches de la visite partiront de là."
+                        : "\(model.arrows.count) flèche(s) : un rond bleu chacune."
+                )
+                .font(.footnote)
             }
         }
         .multilineTextAlignment(.center)
@@ -141,6 +190,24 @@ struct CaptureView: View {
     }
 
     private var footer: some View {
+        VStack(spacing: 12) {
+            if arrowsDone {
+                Button {
+                    if let current = model.currentAim() {
+                        aim = Aim(angle: current.angle, pitch: current.pitch)
+                    }
+                } label: {
+                    Label("Flèche ici", systemImage: "arrow.up.right.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+            }
+            buttons
+        }
+        .controlSize(.large)
+    }
+
+    private var buttons: some View {
         HStack(spacing: 12) {
             if model.phase == .framing {
                 Button("Annuler") { dismiss() }
@@ -176,5 +243,61 @@ struct CaptureView: View {
         }
         if abs(pitch) > 3 { return pitch > 0 ? "Inclinez vers le haut ↑" : "Inclinez vers le bas ↓" }
         return model.isSteady ? "Visez le rond orange." : "Ne bougez plus…"
+    }
+}
+
+/// Choix de la pièce où mène une flèche : un autre point de la visite, ou une pièce pas encore
+/// prise, qui sera proposée au moment de créer le point suivant.
+struct ArrowTargetSheet: View {
+    enum Choice {
+        case point(String)
+        case newRoom(String)
+    }
+
+    @ObservedObject var model: CaptureModel
+    let choose: (Choice) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var newRoom = ""
+
+    var body: some View {
+        let file = model.visit.load()
+        let others = file.points.filter { $0.id != model.pointID }
+        NavigationStack {
+            List {
+                if !others.isEmpty {
+                    Section("Vers un point de la visite") {
+                        ForEach(others, id: \.id) { point in
+                            Button {
+                                choose(.point(point.id))
+                            } label: {
+                                LabeledContent(
+                                    point.name,
+                                    value: model.visit.point(point.id).isTaken ? "" : "à prendre"
+                                )
+                            }
+                        }
+                    }
+                }
+                Section {
+                    TextField("cuisine, chambre…", text: $newRoom)
+                    Button("Ajouter la flèche") {
+                        choose(.newRoom(newRoom))
+                    }
+                    .disabled(newRoom.trimmingCharacters(in: .whitespaces).isEmpty)
+                } header: {
+                    Text("Vers une pièce pas encore prise")
+                } footer: {
+                    Text("Elle sera proposée quand vous créerez le point suivant.")
+                }
+            }
+            .navigationTitle("Où mène cette porte ?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Annuler") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

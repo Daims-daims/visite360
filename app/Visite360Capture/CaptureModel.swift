@@ -1,5 +1,6 @@
-// Déroulement de la prise de vue d'un point : cadrage et verrouillage de l'exposition, puis
-// déclenchement automatique quand le téléphone vise une cible et ne bouge plus.
+// Déroulement de la prise de vue d'un point : cadrage et verrouillage de l'exposition,
+// déclenchement automatique quand le téléphone vise une cible et ne bouge plus, puis flèches
+// visées vers les autres pièces de la visite (étape 6).
 
 import Foundation
 import simd
@@ -18,6 +19,8 @@ final class CaptureModel: ObservableObject {
     static let steadyDelay = 0.35  // secondes
 
     let point: PointFolder
+    let pointID: String
+    let visit: VisitFolder
     let lens: Lens
     let camera = CameraController()
     private let motion = MotionTracker()
@@ -29,16 +32,22 @@ final class CaptureModel: ObservableObject {
     @Published private(set) var done: [Int: PhotoEntry] = [:]
     @Published private(set) var isBusy = false
     @Published private(set) var isSteady = false
+    /// Flèches visées depuis ce point.
+    @Published private(set) var arrows: [VisitLink] = []
     @Published var problem: String?
 
     private var file: CaptureFile
     private var order: [Int] = []
     private var steadySince: Date?
+    /// Cap visé au verrouillage : centre du panorama et origine des flèches.
+    private(set) var startYaw: Double?
 
     /// Un point se prend d'une traite : le cap de départ de Core Motion est arbitraire et change
     /// à chaque démarrage, donc des photos de deux séances ne partageraient pas le même repère.
-    init(point: PointFolder, lens: Lens) {
-        self.point = point
+    init(visit: VisitFolder, pointID: String, lens: Lens) {
+        self.visit = visit
+        self.pointID = pointID
+        point = visit.point(pointID)
         self.lens = lens
         file = CaptureFile(
             app: PointStore.appVersion, device: PointStore.deviceModel, started: Date(), lens: lens
@@ -66,6 +75,8 @@ final class CaptureModel: ObservableObject {
     func stop() {
         motion.stop()
         camera.stop()
+        // visite.json ne contient que les points pris : il change avec la première photo.
+        saveVisit { _ in }
     }
 
     /// Verrouille l'exposition et place les cibles : la première face au téléphone.
@@ -75,6 +86,8 @@ final class CaptureModel: ObservableObject {
         camera.lock { [weak self] exposure in
             guard let self else { return }
             file.exposure = exposure
+            file.startYaw = startYaw
+            self.startYaw = startYaw
             targets = Plan.targets(startYaw: startYaw, lens: lens)
             phase = .shooting
         }
@@ -86,6 +99,41 @@ final class CaptureModel: ObservableObject {
         try? FileManager.default.removeItem(at: point.photos.appendingPathComponent(entry.file))
         file.photos.removeAll { $0.file == entry.file }
         save()
+    }
+
+    /// Direction visée en ce moment, en angle et hauteur de flèche.
+    func currentAim() -> (angle: Double, pitch: Double)? {
+        guard let rotation, let startYaw else { return nil }
+        return (
+            ArrowAim.angle(yaw: Orientation.yaw(rotation), startYaw: startYaw),
+            ArrowAim.pitch(Orientation.pitch(rotation))
+        )
+    }
+
+    /// Enregistre une flèche vers un point de la visite, pris ou annoncé.
+    func addArrow(to target: String, angle: Double, pitch: Double) {
+        saveVisit { $0.setLink(from: self.pointID, to: target, angle: angle, pitch: pitch) }
+    }
+
+    /// Enregistre une flèche vers une pièce pas encore prise, qui devient un point annoncé.
+    func addArrow(toNewRoom name: String, angle: Double, pitch: Double) {
+        saveVisit { file in
+            let target = file.addPoint(name: name)
+            file.setLink(from: self.pointID, to: target, angle: angle, pitch: pitch)
+        }
+    }
+
+    func removeArrow(to target: String) {
+        saveVisit { $0.links.removeAll { $0.from == self.pointID && $0.to == target } }
+    }
+
+    private func saveVisit(_ change: (inout VisitFile) -> Void) {
+        do {
+            try visit.update(change)
+            arrows = visit.load().links(from: pointID)
+        } catch {
+            problem = "Impossible d'enregistrer la visite : \(error.localizedDescription)"
+        }
     }
 
     private func update(rotation: simd_double3x3, speed: Double) {
