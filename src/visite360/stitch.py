@@ -27,7 +27,14 @@ from typing import Any, TextIO
 import numpy as np
 
 from visite360 import __version__, capture
-from visite360.adjust import PairMatches, adjust, initial_rotations, relative_rotation
+from visite360.adjust import (
+    PairMatches,
+    adjust,
+    initial_rotations,
+    relative_rotation,
+    rotation_from_vector,
+    vector_from_rotation,
+)
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import Photo, PhotoError, list_photos, prepare_photos
 from visite360.spherical import (
@@ -63,6 +70,12 @@ ANALYSIS_WIDTH = 1024
 SEAM_WIDTH = 512
 # Bonus de poids d'une photo dans la zone que la recherche de raccords lui attribue.
 SEAM_PRIORITY = 10.0
+# Priorité à l'horizon : là où l'œil se pose en premier. Une photo dont l'axe est à moins de
+# HORIZON_MAX_PITCH_DEG de l'horizon est prioritaire dans toute la zone qu'elle voit à plus de
+# HORIZON_INNER_MARGIN (part de sa largeur et de sa hauteur) de ses bords : les photos des
+# autres rangées n'y sont pas candidates, et leurs raccords passent plus haut ou plus bas.
+HORIZON_MAX_PITCH_DEG = 20.0
+HORIZON_INNER_MARGIN = 0.12
 FOOTPRINT_WIDTH = 512
 RENDER_OVERSAMPLE = 1.5
 BLEND_STRENGTH = 0.05
@@ -224,6 +237,25 @@ def align_to_sensors(rotations: list[np.ndarray], sensors: list[np.ndarray]) -> 
     return [turn @ R for R in rotations]
 
 
+def drift_corrected(number: int, corrections: dict[int, np.ndarray]) -> np.ndarray:
+    """Correction à appliquer à l'orientation mesurée par le téléphone pour la photo number.
+
+    Le gyroscope dérive de quelques degrés pendant la prise de vue. Pour chaque photo alignée
+    par ses points communs, corrections donne la rotation qui mène de l'orientation mesurée à
+    l'orientation trouvée. Une photo placée par les seuls capteurs reçoit la correction de ses
+    voisines dans l'ordre de prise de vue (numéro de photo), interpolée entre la précédente et
+    la suivante.
+    """
+    before = [n for n in corrections if n < number]
+    after = [n for n in corrections if n > number]
+    if not before or not after:
+        return corrections[max(before) if before else min(after)]
+    previous, following = max(before), min(after)
+    t = (number - previous) / (following - previous)
+    step = vector_from_rotation(corrections[previous].T @ corrections[following])
+    return corrections[previous] @ rotation_from_vector(t * step)
+
+
 def _align(
     cv2: Any,
     images: dict[int, np.ndarray],
@@ -287,11 +319,12 @@ def _align(
     placed: list[int] = []
     if sensors:
         rotations = align_to_sensors(adjustment.rotations, [sensors[n] for n in kept])
-        # Une photo sans points communs (mur ou plafond unis) garde l'orientation mesurée par
-        # le téléphone : à 1° près, l'écart ne se voit pas là où il n'y a rien à raccorder.
+        # Une photo sans points communs (mur ou plafond unis) prend l'orientation mesurée par
+        # le téléphone, corrigée de la dérive du gyroscope constatée sur ses voisines.
         placed, rejected = sorted(rejected), []
+        corrections = {n: R @ sensors[n].T for n, R in zip(kept, rotations, strict=True)}
+        rotations += [drift_corrected(n, corrections) @ sensors[n] for n in placed]
         kept += placed
-        rotations += [sensors[n] for n in placed]
     else:
         corrected = cv2.detail.waveCorrect(
             [r.astype(np.float32) for r in adjustment.rotations], cv2.detail.WAVE_CORRECT_HORIZ
@@ -494,6 +527,38 @@ def compute_gains(cameras: list[Camera], low: LowRes) -> dict[int, np.ndarray]:
     return {camera.index: gains[k] for k, camera in enumerate(cameras)}
 
 
+def is_horizon(camera: Camera) -> bool:
+    """Vrai si l'axe de la photo est proche de l'horizon."""
+    axis = camera.R[:, 2]
+    return abs(math.degrees(math.asin(float(np.clip(-axis[1], -1.0, 1.0))))) <= (
+        HORIZON_MAX_PITCH_DEG
+    )
+
+
+def horizon_priority(
+    cameras: list[Camera], masks: list[np.ndarray], width: int
+) -> list[np.ndarray]:
+    """Retire aux photos hors de l'horizon la zone que les photos de l'horizon voient bien.
+
+    masks sont les zones visibles de chaque photo dans un panorama de largeur width. Rien n'est
+    retiré s'il n'y a pas de photo à l'horizon.
+    """
+    height = width // 2
+    directions = equirect_directions(width, height, np.arange(height), np.arange(width))
+    inner = np.zeros((height, width), bool)
+    for camera in cameras:
+        if not is_horizon(camera):
+            continue
+        x, y, front = project(directions, camera.K, camera.R)
+        w, h = camera.size
+        mx, my = w * HORIZON_INNER_MARGIN, h * HORIZON_INNER_MARGIN
+        inner |= front & (x >= mx) & (x <= w - mx) & (y >= my) & (y <= h - my)
+    return [
+        mask if is_horizon(camera) else mask & ~inner
+        for camera, mask in zip(cameras, masks, strict=True)
+    ]
+
+
 def find_seams(
     cv2: Any, cameras: list[Camera], low: LowRes, gains: dict[int, np.ndarray]
 ) -> list[np.ndarray]:
@@ -505,7 +570,12 @@ def find_seams(
     """
     margin = low.width // 8
     images, masks, corners, boxes = [], [], [], []
-    for camera, warped, mask in zip(cameras, low.warped, low.masks, strict=True):
+    priority = horizon_priority(cameras, low.masks, low.width)
+    for camera, warped, mask in zip(cameras, low.warped, priority, strict=True):
+        if not mask.any():
+            # Photo entièrement couverte par l'horizon : un pixel suffit à la garder en lice.
+            mask = np.zeros_like(mask)
+            mask[0, 0] = True
         image = warped * gains[camera.index].astype(np.float32)
         image = np.concatenate([image[:, -margin:], image, image[:, :margin]], axis=1)
         wrapped = np.concatenate([mask[:, -margin:], mask, mask[:, :margin]], axis=1)

@@ -241,3 +241,38 @@ def test_align_to_sensors_recovers_the_horizon() -> None:
 
     for R, S in zip(leveled, sensors, strict=True):
         assert np.allclose(R, S, atol=1e-9)
+
+
+def test_drift_correction_is_interpolated_between_neighbours() -> None:
+    corrections = {10: rotation_y(np.radians(2.0)), 20: rotation_y(np.radians(4.0))}
+
+    middle = stitch.drift_corrected(15, corrections)
+    first = stitch.drift_corrected(3, corrections)
+    last = stitch.drift_corrected(25, corrections)
+
+    assert np.allclose(middle, rotation_y(np.radians(3.0)), atol=1e-12)
+    assert np.allclose(first, corrections[10]) and np.allclose(last, corrections[20])
+
+
+def test_plain_photo_follows_the_gyroscope_drift(
+    tmp_path: Path, truth: np.ndarray, views: list[View]
+) -> None:
+    # Le cap mesuré dérive de 0,3° par photo : 9° d'écart entre la première et la dernière.
+    ceiling = next(n for n, view in enumerate(views) if view.pitch == 90.0)
+    plain = [
+        View(np.full_like(view.image, 230), view.yaw, view.pitch) if n == ceiling else view
+        for n, view in enumerate(views)
+    ]
+    point = write_point(tmp_path, plain)
+    drifting = [
+        rotation_y(np.radians(0.3 * n)) @ R
+        for n, R in enumerate(sensor_rotations(plain, noise_deg=0.2))
+    ]
+    write_capture(point, drifting)
+
+    code, report, _ = run_stitch(point)
+
+    assert code == 0
+    assert report["orientations"]["source"] == "capteurs"
+    assert report["photos"][ceiling]["placed_by_sensors"]
+    assert_matches(truth, point)
