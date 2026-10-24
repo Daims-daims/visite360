@@ -9,7 +9,8 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 - Une étape ne démarre que si la précédente est « livrée » sur `main`.
 - Un jalon est une décision du propriétaire, pas du code. Il s'inscrit dans ce fichier avant qu'on passe à la suite.
 - Chaque étape a un critère de validation à vérifier sur le Mac ou le téléphone. Les tests automatiques ne le remplacent pas.
-- Tout fonctionne en local jusqu'à la v1 : traitement sur le Mac, visite servie par le Mac, aucun hébergement ni service payant (D22). Les présentations se font en local. Aucun utilisateur extérieur n'a accès au produit avant la v1.
+- Tout fonctionne en local jusqu'à la v1 : traitement sur le Mac, visite servie par le Mac, aucun hébergement ni service payant (D22). Aucun utilisateur extérieur n'a accès au produit avant la v1.
+- Les jalons v0.1, v0.2 et v0.3 sont validés par le propriétaire seul. La première présentation à des agents immobiliers a lieu au jalon v1, une fois la v1 réalisée (D28).
 - Les versions v0.3 et v1 sont esquissées. Chacune sera détaillée dans une pull request dédiée après le jalon de la version précédente.
 
 ## Vue d'ensemble
@@ -23,18 +24,18 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 4 | Visite de plusieurs points | v0.1 | livrée |
 | 5 | App : capture guidée à un point | v0.1 | livrée |
 | 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | livrée |
-| J1 | **Jalon v0.1 : présentation locale de la visite** | — | à faire |
+| J1 | **Jalon v0.1 : validation de la visite par le propriétaire** | — | livrée |
 | 7 | Sélection d'une surface au clic | v0.2 | à faire |
 | 8 | Changement de couleur | v0.2 | à faire |
 | 9 | Modification par génération d'image, en local | v0.2 | à faire |
-| J2 | **Jalon v0.2 : présentation locale des modifications** | — | à faire |
+| J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | à faire |
 | 10 | Dimensions des pièces | v0.3 | à faire |
 | 11 | Chiffrage d'une modification | v0.3 | à faire |
-| J3 | **Jalon v0.3 : présentation locale du chiffrage** | — | à faire |
+| J3 | **Jalon v0.3 : validation du chiffrage par le propriétaire** | — | à faire |
 | 12 | Hébergement et lien de partage | v1 | à faire |
 | 13 | Envoi depuis l'app et traitement sur serveur | v1 | à faire |
 | 14 | Retours d'engagement pour l'agent | v1 | à faire |
-| J4 | **Jalon v1 : premiers accès utilisateurs** | — | à faire |
+| J4 | **Jalon v1 : présentation aux agents et premiers accès** | — | à faire |
 
 ## Étape 0 : cadrage du dépôt
 
@@ -88,11 +89,10 @@ Les étapes 1 à 4 valident l'assemblage et la visite avec des photos prises à 
 - **À trancher pendant l'étape :** suivi de position par la réalité augmentée du téléphone pour renseigner tout seul `position`, `nord` et les liens de `visite.json` (aujourd'hui à la main, D14, D24) ; quels points relier (par exemple ceux pris à la suite) ; moyen de transfert sans service payant : réception par le Mac sur le Wi-Fi local, AirDrop, ou câble.
 - **Tranché le 2026-10-24 (D26) :** pas de réalité augmentée ; les flèches se visent dans l'app à la fin de chaque point, vers la porte de la pièce d'arrivée, choisie par l'utilisateur ; transfert par le Wi-Fi local avec `visite360 receive` sur le Mac, AirDrop et câble en secours. Mode d'emploi dans `docs/app.md` et `docs/transfert.md`.
 
-## Jalon v0.1 : présentation locale de la visite
+## Jalon v0.1 : validation de la visite par le propriétaire
 
-- **Contenu :** visite de l'appartement du propriétaire, prise avec l'app, montrée en local à 2 ou 3 agents immobiliers.
-- **Livrable :** leurs retours, notés dans `docs/retours-agents.md` sans données personnelles.
-- **Décision :** le propriétaire décide de poursuivre, d'ajuster ou d'arrêter, et l'écrit ici.
+- **Contenu :** le propriétaire juge la visite de son appartement, prise avec l'app, transférée, assemblée et parcourue sur le Mac et le téléphone (étape 6).
+- **Décision du propriétaire (2026-10-25) :** poursuivre avec la v0.2. La démo aux agents immobiliers prévue à ce jalon est repoussée à la fin du plan, après la réalisation de la v1 (jalon v1, D28).
 
 ## v0.2 : modifier ce qu'on voit, sans coût
 
@@ -121,10 +121,10 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 - **Validation :** sur de vrais panoramas, la modification est crédible vue dans la visite, sans raccord au bord de la zone modifiée.
 - **À trancher avant l'étape :** modèle utilisé. Code, poids et données d'entraînement doivent avoir une licence autorisée (`CLAUDE.md`), et beaucoup de modèles de génération d'image ont des poids non commerciaux. Le modèle doit aussi tenir dans les 24 Go du Mac. Si aucun modèle local ne convient, le propriétaire décide s'il accepte une API payante.
 
-## Jalon v0.2 : présentation locale des modifications
+## Jalon v0.2 : validation des modifications par le propriétaire
 
-- **Contenu :** la visite du jalon v0.1 avec un mur repeint et au moins une modification générée, montrée en local.
-- **Livrable :** retours ajoutés à `docs/retours-agents.md`, temps et coût de génération mesurés.
+- **Contenu :** la visite du jalon v0.1 avec un mur repeint et au moins une modification générée, jugée par le propriétaire.
+- **Livrable :** temps et coût de génération mesurés.
 - **Décision :** le propriétaire décide de la suite et l'écrit ici.
 
 ## v0.3 : chiffrage (esquisse)
@@ -133,7 +133,7 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 - **Étape 11 : chiffrage d'une modification.** Surface touchée en m², multipliée par un prix unitaire tiré d'une grille modifiable (peinture, revêtement, pose). Validation : ordre de grandeur cohérent avec un devis réel.
 - **À trancher :** source des prix ; chiffrage des modifications générées, comme un meuble remplacé.
 
-## Jalon v0.3 : présentation locale du chiffrage
+## Jalon v0.3 : validation du chiffrage par le propriétaire
 
 - **Décision :** le propriétaire décide du passage à la v1, qui engage les premiers coûts d'hébergement, et l'écrit ici.
 
@@ -146,10 +146,11 @@ Les coûts d'hébergement et de traitement commencent ici, au moment du déploie
 - **Étape 14 : retours d'engagement pour l'agent.** Comptes agents. Statistiques par lien : ouvertures, durée, pièces vues, modifications essayées.
 - **À trancher :** hébergeur et coût mensuel ; consentement des clients au suivi de leur consultation (RGPD).
 
-## Jalon v1 : premiers accès utilisateurs
+## Jalon v1 : présentation aux agents et premiers accès
 
-- **Contenu :** premiers agents qui utilisent le produit eux-mêmes, avec de vrais clients.
-- **Décision :** le propriétaire écrit ici les conditions de ces premiers accès.
+- **Contenu :** d'abord une démo de la v1 à 2 ou 3 agents immobiliers : prise d'une visite avec l'app, lien de partage, modifications, chiffrage et retours d'engagement. Puis, selon leurs retours, premiers agents qui utilisent le produit eux-mêmes, avec de vrais clients.
+- **Livrable :** les retours des agents, notés dans `docs/retours-agents.md` sans données personnelles.
+- **Décision :** le propriétaire décide de poursuivre, d'ajuster ou d'arrêter, et écrit ici les conditions des premiers accès.
 
 ## Hors plan, pour plus tard
 

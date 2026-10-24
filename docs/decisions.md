@@ -270,3 +270,17 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Décision du propriétaire (2026-10-24) :** « ×1 + AR » devient le réglage conseillé et le réglage par défaut de l'app. ×1 et ×0,5 restent proposés, sans suivi.
 - **Modifie :** D25, où le ×0,5 était le réglage par défaut.
 
+
+## D28 : démo aux agents repoussée après la v1
+
+- **Date :** 2026-10-25
+- **Décision :**
+  - la démo aux agents immobiliers prévue au jalon v0.1 est repoussée à la fin du plan, après la réalisation de la v1. Elle ouvre le jalon v1, avant les premiers accès ;
+  - les jalons v0.1, v0.2 et v0.3 deviennent des validations par le propriétaire seul. Chacun reste une décision écrite dans `PLAN.md` avant de passer à la version suivante ;
+  - le jalon v0.1 est validé : on poursuit avec la v0.2.
+- **Raisons :** décision du propriétaire, qui préfère montrer aux agents un produit complet : visite partagée par lien, modifications, chiffrage et retours d'engagement.
+- **Modifie :** D22, où les présentations aux agents se faisaient en local avant la v1. Tout reste en local jusqu'à la v1 et aucun utilisateur extérieur n'a accès au produit avant.
+- **Conséquences :**
+  - aucun retour d'agent avant la v1 : les choix des versions v0.2 à v1 se font sans avis extérieur, au risque de développer des fonctions qui ne les intéressent pas ;
+  - le passage à la v1, qui engage les premiers coûts d'hébergement (D22), se décide au jalon v0.3 sans retour d'agent ;
+  - `docs/retours-agents.md` sera créé au jalon v1.
