@@ -45,14 +45,22 @@ def sensor_rotations(views: list[View], noise_deg: float, seed: int = 0) -> list
     ]
 
 
-def write_capture(point: Path, rotations: list[np.ndarray], skip: int | None = None) -> Path:
+def write_capture(
+    point: Path,
+    rotations: list[np.ndarray],
+    skip: int | None = None,
+    start_yaw: float | None = None,
+) -> Path:
     photos = [
         {"fichier": f"IMG_{number:02d}.jpg", "rotation": np.round(R, 6).tolist()}
         for number, R in enumerate(rotations)
         if number != skip
     ]
+    data = {"format": 1, "appareil": "iPhone15,4", "photos": photos}
+    if start_yaw is not None:
+        data["cap_depart"] = start_yaw
     path = point / capture.FILE_NAME
-    path.write_text(json.dumps({"format": 1, "appareil": "iPhone15,4", "photos": photos}))
+    path.write_text(json.dumps(data))
     return path
 
 
@@ -64,6 +72,7 @@ def run_stitch(point: Path, force: bool = False) -> tuple[int, dict, str]:
 
 
 def assert_matches(truth: np.ndarray, point: Path) -> None:
+    """Le panorama assemblé est le panorama de synthèse, sans décalage."""
     panorama = cv2.imread(str(point / "panorama.jpg"))
     expected = cv2.resize(truth, (WIDTH, WIDTH // 2), interpolation=cv2.INTER_AREA)
     band = slice(WIDTH // 2 * 15 // 100, WIDTH // 2 * 85 // 100)
@@ -88,6 +97,22 @@ def test_phone_orientations_are_used(tmp_path: Path, truth: np.ndarray, views: l
     assert all(photo["used"] for photo in report["photos"])
     assert report["coverage"] > 0.999
     assert_matches(truth, point)
+
+
+def test_start_yaw_is_the_centre_of_the_panorama(
+    tmp_path: Path, truth: np.ndarray, views: list[View]
+) -> None:
+    # Le téléphone a commencé face à la direction à 45° à droite de la première photo : c'est
+    # elle qui doit être au centre du panorama, quelle que soit la première photo retenue.
+    point = write_point(tmp_path, views)
+    heading = 37.0  # cap de départ arbitraire des capteurs, voir sensor_rotations
+    write_capture(point, sensor_rotations(views, noise_deg=1.0), start_yaw=heading + 45.0)
+
+    code, _, _ = run_stitch(point)
+
+    assert code == 0
+    shift = truth.shape[1] // 8  # 45° en pixels du panorama de synthèse
+    assert_matches(np.roll(truth, -shift, axis=1), point)
 
 
 def test_plain_photo_is_placed_by_the_phone(tmp_path: Path, views: list[View]) -> None:
@@ -186,6 +211,8 @@ def test_valid_capture_is_read(tmp_path: Path) -> None:
     found = capture.parse(data, tmp_path / capture.FILE_NAME)
 
     assert found.device == "iPhone15,4"
+    assert found.start_yaw is None
+    assert capture.parse({**data, "cap_depart": -12.5}, tmp_path).start_yaw == -12.5
     rotation = found.rotations["IMG_0001.jpg"]
     assert np.allclose(rotation @ rotation.T, np.eye(3), atol=1e-12)
     assert np.allclose(rotation, R, atol=1e-3)
@@ -218,6 +245,8 @@ def test_valid_capture_is_read(tmp_path: Path) -> None:
             },
             "déclarée deux fois",
         ),
+        ({"format": 1, "photos": [], "cap_depart": "nord"}, "cap_depart"),
+        ({"format": 1, "photos": [], "cap_depart": 400}, "cap_depart"),
     ],
 )
 def test_invalid_capture(tmp_path: Path, data: object, message: str) -> None:

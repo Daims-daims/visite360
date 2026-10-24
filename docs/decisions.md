@@ -205,10 +205,12 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - l'app de capture est une app iPhone native en SwiftUI, dans `app/`, sans bibliothèque extérieure : caméra par AVFoundation, orientation par Core Motion ;
   - installation par câble depuis Xcode avec l'identifiant Apple du propriétaire, sans compte développeur payant ;
   - l'orientation de chaque photo vient du gyroscope et de l'accéléromètre (référence Core Motion « X arbitraire, Z vertical »), sans la boussole. Elle est écrite dans `capture.json` (format dans `docs/capture-json.md`), dans le repère de l'assemblage ;
-  - `visite360 stitch` s'en sert si chaque photo a la sienne : point de départ de l'ajustement, recherche de points communs limitée aux photos dont les axes sont à moins de 75°, horizon donné par les capteurs au lieu de la correction d'horizon d'OpenCV. Si l'écart médian entre capteurs et photos dépasse 10°, ou si l'alignement échoue avec eux, ils sont ignorés et l'assemblage se fait comme sans app. Le rapport dit lequel a servi ;
+  - `visite360 stitch` s'en sert si chaque photo a la sienne : point de départ de l'ajustement, recherche de points communs limitée aux photos dont les axes sont à moins de 90°, horizon donné par les capteurs au lieu de la correction d'horizon d'OpenCV. Si l'écart médian entre capteurs et photos dépasse 10°, ou si l'alignement échoue avec eux, ils sont ignorés et l'assemblage se fait comme sans app. Le rapport dit lequel a servi ;
   - quand les capteurs sont retenus, une photo sans assez de points communs n'est plus rejetée : elle est placée à l'orientation mesurée par le téléphone, corrigée de la dérive du gyroscope constatée sur les photos prises juste avant et juste après. Premier essai réel (salon, 2026-10-24) : 7 photos sur 30, du haut et du plafond blancs, étaient rejetées et le plafond restait gris. Les capteurs y dérivaient de 3 à 10° par rapport aux photos au fil de la prise de vue : sans correction, les photos placées étaient décalées d'autant ;
   - avec ou sans app, les paires de photos incohérentes s'écartent en plusieurs passes, jusqu'à ce qu'il n'en reste plus (au plus 4) : sur le salon, une paire décalée de 6° restait après la première passe ;
   - avec ou sans app, les photos de l'horizon (axe à moins de 20° de l'horizon) sont prioritaires : dans la zone qu'elles voient à plus de 12 % de leurs bords, les photos des autres rangées ne sont pas candidates. Les raccords entre rangées passent ainsi plus haut et plus bas, là où le regard se pose moins (demande du propriétaire) ;
+  - l'app propose les deux objectifs, ×0,5 par défaut : 21 photos (8 à l'horizon, 6 en haut et 6 en bas inclinées à 50°, le plafond) au lieu de 29 au ×1. Sur le salon, au ×1, les objets à un mètre de l'objectif (frigo, table, radiateur) étaient coupés par les raccords entre rangées ; les essais à la main du propriétaire donnaient de meilleurs résultats au ×0,5. La correction de déformation d'iOS est activée pour le grand-angle ;
+  - les raccords se cherchent sur un panorama réduit de 1536 pixels de large au lieu de 512, et la fusion des raccords est 4 fois plus étroite (`BLEND_STRENGTH` 0,012 au lieu de 0,05). Sur le salon, le bord fantôme de la télé et une tête de guitare en double disparaissent, pour environ 1 min 20 de calcul en plus par point ;
   - la géométrie de l'app est en Swift pur et se teste sur le Mac par `swift test` (`app/Package.swift`).
 - **Raisons :**
   - le propriétaire a un iPhone. Une app native accède directement à la caméra et aux capteurs, sans module natif à écrire en plus comme avec Expo, et sans paquet npm dont il faudrait vérifier la licence ;
@@ -221,3 +223,29 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - l'app ne fonctionne que sur iPhone. Une version Android demanderait un second développement ;
   - un point se prend d'une traite : le cap 0 des capteurs change à chaque démarrage ;
   - les tests GitHub ne compilent pas l'app (ils tournent sous Linux). `swift test` et la compilation se lancent sur le Mac.
+
+## D26 : visite prise dans l'app, flèches visées sur place, envoi au Mac par le Wi-Fi local
+
+- **Date :** 2026-10-24
+- **Décision :**
+  - l'app range les points dans des visites, sur le téléphone comme sur le Mac : `Documents/<visite>/<point>/`. Elle tient à jour `visite.json` au format du Mac (points pris et flèches entre eux), et garde son état complet dans `visite-app.json`, qui contient en plus les pièces annoncées par une flèche mais pas encore prises ;
+  - les flèches se visent dans l'app à la fin de la prise de vue d'un point, téléphone toujours à sa place : on vise la porte, puis on choisit la pièce d'arrivée. L'angle est l'écart entre le cap visé et le cap de départ du point, la hauteur est l'inclinaison du téléphone ;
+  - l'app note ce cap de départ dans `capture.json` (`cap_depart`). Quand les orientations du téléphone servent à l'assemblage, le centre du panorama est ce cap, et non plus la première photo retenue ;
+  - pas de réalité augmentée : la position des points (`position`, `nord`) n'est pas mesurée, et les flèches ne se calculent pas toutes seules (D22) ;
+  - le transfert se fait par le Wi-Fi local : `visite360 receive` sur le Mac (serveur HTTP de la bibliothèque standard, port 8361), annoncé par Bonjour avec `dns-sd`, programme fourni avec macOS. L'app le trouve avec le framework Network d'iOS ;
+  - un code à 6 chiffres, affiché par le Mac et nouveau à chaque lancement, est exigé pour tout échange. 10 codes faux bloquent la réception jusqu'au relancement ;
+  - chaque fichier est vérifié par sa taille et son empreinte SHA-256. Les fichiers passent par un dossier caché et ne sont rangés que si l'envoi est complet et si `visite.json` et les `capture.json` sont valides. Un renvoi ne transfère que ce qui manque ;
+  - sur le Mac, une photo ou un `capture.json` existant n'est jamais réécrit : un point du même nom avec d'autres photos fait refuser l'envoi. `visite.json` est remplacé, l'ancien est gardé sous `visite-avant-<date>.json` ;
+  - AirDrop et le câble restent possibles en secours : le dossier de la visite est utilisable tel quel sur le Mac.
+- **Raisons :**
+  - une visée sur place ne demande ni calcul ni saisie d'angle. Elle utilise l'orientation que l'app mesure déjà, dans le même repère que les photos, tant que le point n'est pas terminé ;
+  - centrer sur la première photo retenue aurait décalé toutes les flèches d'un point dont la première photo est écartée par l'assemblage. Le cap de départ, lui, ne dépend pas des photos ;
+  - le Wi-Fi évite le câble et la décompression d'un ZIP, qui demandent de manipuler des fichiers, ce que le critère de validation de l'étape exclut. Aucun service en ligne ni compte (D22). Bonjour évite de recopier une adresse ;
+  - sans code, n'importe quel appareil du même Wi-Fi pourrait déposer des fichiers sur le Mac. La vérification par empreinte détecte un fichier tronqué par une coupure du Wi-Fi ;
+  - le serveur et l'annonce n'ajoutent aucune dépendance (D16), et `dns-sd` est un programme externe appelé sans shell, comme `sips` (D17).
+- **Modifie :** D14 et D24 : `nord` et `position` restent lus et vérifiés mais ne seront pas remplis par l'app dans le plan actuel. D25 : le centre du panorama est le cap de départ quand `capture.json` le donne.
+- **Limites :**
+  - l'échange n'est pas chiffré : à n'utiliser que sur un Wi-Fi de confiance, ce qui est le cas jusqu'à la v1 ;
+  - une flèche visée au jugé tombe à quelques degrés près. Si l'assemblage ignore les orientations du téléphone (écart de plus de 10°), le centre redevient la première photo et les flèches de ce point peuvent être décalées ;
+  - une flèche ne se vise que pendant la prise de vue du point. Pour la refaire, reprendre le point ou corriger `visite.json` sur le Mac.
+

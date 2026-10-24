@@ -1,6 +1,6 @@
 # App de capture sur iPhone
 
-L'app guide la prise de vue d'un point : elle montre où viser, déclenche toute seule quand le téléphone est en place et note l'orientation de chaque photo dans `capture.json` ([format](capture-json.md)). Code dans `app/`, en SwiftUI, sans bibliothèque extérieure (D25).
+L'app guide la prise de vue d'une visite, point par point : elle montre où viser, déclenche toute seule quand le téléphone est en place et note l'orientation de chaque photo dans `capture.json` ([format](capture-json.md)). À la fin de chaque point, on vise les portes pour placer les flèches vers les autres pièces. La visite s'envoie ensuite au Mac par le Wi-Fi ([transfert](transfert.md)). Code dans `app/`, en SwiftUI, sans bibliothèque extérieure (D25, D26).
 
 ## Installer l'app sur l'iPhone, par câble et sans frais
 
@@ -17,43 +17,73 @@ Il faut Xcode sur le Mac et un identifiant Apple, sans abonnement développeur.
 
 **Limite de l'installation gratuite :** l'app cesse de s'ouvrir au bout de 7 jours. Il suffit de rebrancher l'iPhone et de relancer depuis Xcode (étape 6). Les points déjà pris restent sur le téléphone.
 
-## Prendre un point
+## Prendre une visite
 
-Les conseils de [prise-de-vue.md](prise-de-vue.md) restent valables : objectif immobile au-dessus d'une marque au sol, portes et lumières fixées, personne qui bouge.
+Les conseils de [prise-de-vue.md](prise-de-vue.md) restent valables : objectif immobile au-dessus d'une marque au sol, portes ouvertes et lumières fixées, personne qui bouge.
 
-1. **Nouveau point**, puis donner le nom de la pièce (`salon`, `cuisine`…). Ce sera le nom du dossier sur le Mac.
-2. **Viser un mur moyennement éclairé** (pas une fenêtre), puis **Verrouiller et commencer**. L'exposition, la mise au point et la couleur sont figées pour tout le point. La direction visée devient la première photo de l'horizon.
-3. **Suivre les ronds :** chaque direction à photographier est un rond dans l'image. Le rond orange est le prochain conseillé. Amener le rond dans le cercle blanc du centre et ne plus bouger : la photo part toute seule (petite vibration) et le rond devient vert. On peut aussi prendre les ronds dans un autre ordre.
-4. **Consignes à l'écran :** « Tournez vers la droite », « Inclinez vers le haut », « Tenez le téléphone droit » (téléphone penché sur le côté), « Ne bougez plus ».
-5. **Refaire la dernière** supprime la dernière photo pour la reprendre.
-6. **Terminer** apparaît quand les rangées horizon, haut, bas et plafond sont complètes (29 photos). La photo du sol est facultative.
+1. **Choisir l'objectif** sur l'écran d'accueil :
+   - **×0,5 (conseillé)** : 21 photos par point (8 à l'horizon, 6 en haut, 6 en bas, le plafond). Chaque photo voit plus large : un objet proche (frigo, table, chaise) tient plus souvent dans une seule photo, et il y a moins de raccords pour le couper ;
+   - **×1** : 29 photos (12, 8, 8 et le plafond), plus de détail mais plus de raccords.
 
-Un point se prend d'une traite. Quitter l'écran de prise de vue termine le point : pour reprendre, créer un nouveau point. Le cap 0 des capteurs change à chaque démarrage, des photos de deux séances ne s'assembleraient pas avec leurs orientations.
+   Le choix est gardé pour les points suivants.
+2. **Nouvelle visite**, puis lui donner un nom (`Appartement Dupont`). Le dossier sur le Mac portera ce nom simplifié (`appartement-dupont`).
+3. **Nouveau point**, puis donner le nom de la pièce (`Salon`, `Cuisine`…). Le premier point pris est celui où la visite s'ouvre.
+4. **Prendre le point** comme ci-dessous, puis **viser les portes** (paragraphe suivant).
+5. **Point suivant :** une pièce annoncée par une flèche apparaît dans « Pièces à prendre » : la toucher pour la prendre, son nom est déjà le bon. Sinon, **Nouveau point**.
+6. **Envoyer au Mac** quand la visite est finie, ou au fil de l'eau : voir [transfert.md](transfert.md).
 
-## Envoyer le point au Mac
+### Prendre un point
 
-Deux possibilités :
+1. **Viser un mur moyennement éclairé** (pas une fenêtre), puis **Verrouiller et commencer**. L'exposition, la mise au point et la couleur sont figées pour tout le point. La direction visée devient la première photo de l'horizon, et le centre du panorama sur le Mac.
+2. **Suivre les ronds :** chaque direction à photographier est un rond dans l'image. Le rond orange est le prochain conseillé. Amener le rond dans le cercle blanc du centre et ne plus bouger : la photo part toute seule (petite vibration) et le rond devient vert. On peut aussi prendre les ronds dans un autre ordre.
+3. **Consignes à l'écran :** « Tournez vers la droite », « Inclinez vers le haut », « Tenez le téléphone droit » (téléphone penché sur le côté), « Ne bougez plus ».
+4. **Refaire la dernière** supprime la dernière photo pour la reprendre.
+5. Quand les rangées horizon, haut, bas et plafond sont complètes, le bouton bleu **Flèche ici** apparaît. La photo du sol est facultative.
 
-- **AirDrop :** dans l'app, toucher le point, puis **Envoyer au Mac (AirDrop)**. Le Mac reçoit `<point>.zip` dans Téléchargements. Le décompresser et placer le dossier obtenu dans `visites/<visite>/`.
-- **Câble :** iPhone branché, ouvrir le Finder, cliquer sur l'iPhone dans la barre latérale, onglet *Fichiers*, déplier *Visite360* et glisser le dossier du point dans `visites/<visite>/`.
+Un point se prend d'une traite. Quitter l'écran de prise de vue termine le point : pour reprendre une pièce, supprimer le point (le toucher dans la visite, puis **Supprimer ce point**) et le reprendre. Le cap 0 des capteurs change à chaque démarrage : des photos ou des flèches de deux séances ne s'assembleraient pas avec leurs orientations.
+
+### Viser les portes : les flèches
+
+Toujours depuis la même place, sans déplacer le téléphone de sa marque au sol :
+
+1. **Viser le milieu d'une porte** qui mène à une autre pièce de la visite, le cercle blanc sur la porte.
+2. **Flèche ici**, puis choisir la pièce où mène cette porte : un point déjà pris, une pièce annoncée, ou une nouvelle pièce à saisir (« Vers une pièce pas encore prise »). La direction est notée au moment où l'on touche **Flèche ici** : on peut bouger ensuite.
+3. Un rond bleu marque chaque flèche placée. Recommencer pour chaque porte, puis **Terminer**.
+
+Une flèche va dans un seul sens. Pour revenir, la flèche retour se vise depuis l'autre pièce, quand on la prend. Viser une flèche une seconde fois vers la même pièce remplace la première.
+
+L'angle n'a pas besoin d'être exact au degré près : la flèche apparaît dans la visite là où l'on a visé, à quelques degrés près. Pour la corriger après coup, modifier son `angle` dans `visite.json` sur le Mac ([format](visite-json.md)). Attention : un nouvel envoi depuis l'app remplace ce fichier (l'ancien est gardé à côté).
+
+### Points pris avant les visites
+
+Les points pris avec la première version de l'app (étape 5) apparaissent sur l'écran d'accueil sous « Points pris hors visite ». Toucher un point pour le ranger dans une visite. Ces points n'ont pas de flèches visées : leur centre est la première photo. Leurs flèches se déclarent à la main dans `visite.json` sur le Mac, comme à l'étape 4.
+
+## Envoyer la visite au Mac
+
+Par le Wi-Fi, sans manipuler de fichiers : lancer `visite360 receive` sur le Mac, puis **Envoyer au Mac (Wi-Fi)** dans la visite. Le mode d'emploi complet et les solutions aux problèmes sont dans [transfert.md](transfert.md).
+
+En secours :
+
+- **AirDrop :** dans la visite, **Envoyer par AirDrop**. Le Mac reçoit `<visite>.zip` dans Téléchargements. Le décompresser dans `visites/`.
+- **Câble :** iPhone branché, ouvrir le Finder, cliquer sur l'iPhone dans la barre latérale, onglet *Fichiers*, déplier *Visite360* et glisser le dossier de la visite dans `visites/`.
+
+Le dossier de la visite sur l'iPhone contient `visite.json` à jour : il marche tel quel sur le Mac. `visite-app.json`, à côté, garde en plus les pièces annoncées pas encore prises ; le Mac l'ignore.
 
 Puis sur le Mac :
 
 ```bash
-visite360 stitch visites/<visite>/<point>
+visite360 serve visites/<visite>
 ```
 
-La ligne « Orientations » du résumé doit dire « mesurées par le téléphone (capture.json) ». Si elle dit « ignorées », la raison suit.
-
-Le transfert sans manipulation de fichiers est prévu à l'étape 6.
+Pour un seul point, `visite360 stitch visites/<visite>/<point>` affiche le détail de l'assemblage. La ligne « Orientations » du résumé doit dire « mesurées par le téléphone (capture.json) ». Si elle dit « ignorées », la raison suit, et les flèches de ce point peuvent être décalées.
 
 ## Tests de l'app
 
-La géométrie (cibles, orientation, alignement) se teste sur le Mac, sans iPhone :
+La géométrie (cibles, orientation, alignement, angle des flèches) et le modèle de visite (points, flèches, `visite.json` exporté, liste des fichiers à envoyer) se testent sur le Mac, sans iPhone :
 
 ```bash
 cd app
 swift test
 ```
 
-La caméra et les capteurs ne se testent que sur un vrai iPhone : le simulateur n'en a pas.
+La caméra et les capteurs ne se testent que sur un vrai iPhone : le simulateur n'en a pas. Les écrans de visite et l'envoi au Mac, eux, marchent dans le simulateur.

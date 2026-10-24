@@ -9,7 +9,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from visite360 import __version__, doctor, serve, stitch
+from visite360 import __version__, doctor, receive, serve, stitch
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,6 +81,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="recalcule le panorama même s'il existe déjà, puis sert la visite",
     )
+    receive_parser = subparsers.add_parser(
+        "receive",
+        help="reçoit les visites envoyées par l'app de l'iPhone sur le Wi-Fi",
+        description=(
+            "Attend les visites envoyées par l'app de l'iPhone, sur le même Wi-Fi, et les range "
+            "dans le dossier des visites. Affiche un code à saisir dans l'app. Un envoi "
+            "incomplet ou abîmé est refusé ; les photos déjà sur le Mac ne sont jamais écrasées."
+        ),
+    )
+    receive_parser.add_argument(
+        "dossier",
+        type=Path,
+        nargs="?",
+        default=receive.DEFAULT_FOLDER,
+        help=f"dossier des visites (par défaut {receive.DEFAULT_FOLDER}/)",
+    )
+    receive_parser.add_argument(
+        "--port",
+        type=int,
+        default=receive.DEFAULT_PORT,
+        help=f"port du serveur (par défaut {receive.DEFAULT_PORT})",
+    )
     return parser
 
 
@@ -94,5 +116,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return stitch.run(args.dossier, args.largeur, args.force)
     if args.command == "serve":
         return serve.run(args.dossier, args.port, args.local, args.force)
+    if args.command == "receive":
+        return receive.run(args.dossier, args.port)
     parser.print_help()
     return 0

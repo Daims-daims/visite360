@@ -1,5 +1,7 @@
-// Rangement des points sur le téléphone, comme sur le Mac (D20) :
-// Documents/<point>/photos/IMG_0001.jpg et Documents/<point>/capture.json (docs/capture-json.md).
+// Rangement des visites sur le téléphone, comme sur le Mac (D20) :
+// Documents/<visite>/<point>/photos/IMG_0001.jpg, Documents/<visite>/<point>/capture.json
+// (docs/capture-json.md), Documents/<visite>/visite.json et visite-app.json (VisitFile.swift).
+// Les points pris avec l'étape 5, hors de toute visite, sont restés dans Documents/<point>/.
 //
 // Le dossier Documents de l'app est visible dans l'app Fichiers et dans le Finder quand
 // l'iPhone est branché au Mac.
@@ -40,10 +42,17 @@ struct CaptureFile: Codable {
     var started: Date
     var frame = CaptureFile.frame
     var exposure: Exposure?
+    /// Absent des fichiers écrits avant le choix de l'objectif : ×1.
+    var lens: Lens?
+    /// Cap visé au verrouillage, dans le repère des rotations : le Mac en fait le centre du
+    /// panorama, et les flèches se mesurent depuis lui. Absent des fichiers de l'étape 5.
+    var startYaw: Double?
     var photos: [PhotoEntry] = []
 
     enum CodingKeys: String, CodingKey {
         case format, app
+        case lens = "objectif"
+        case startYaw = "cap_depart"
         case device = "appareil"
         case started = "debut"
         case frame = "repere"
@@ -64,12 +73,81 @@ struct PointFolder: Identifiable, Hashable {
         guard let data = try? Data(contentsOf: captureURL) else { return nil }
         return try? PointStore.decoder.decode(CaptureFile.self, from: data)
     }
+
+    /// Un point est pris dès qu'il a une photo notée dans capture.json.
+    var isTaken: Bool { !(load()?.photos.isEmpty ?? true) }
+}
+
+struct VisitFolder: Identifiable, Hashable {
+    let url: URL
+
+    var id: URL { url }
+    var folderName: String { url.lastPathComponent }
+    var appURL: URL { url.appendingPathComponent(VisitFile.appFileName) }
+    var macURL: URL { url.appendingPathComponent(VisitFile.macFileName) }
+
+    func load() -> VisitFile {
+        guard let data = try? Data(contentsOf: appURL),
+              let file = try? PointStore.decoder.decode(VisitFile.self, from: data)
+        else { return VisitFile(name: folderName) }
+        return file
+    }
+
+    func point(_ id: String) -> PointFolder {
+        PointFolder(url: url.appendingPathComponent(id, isDirectory: true))
+    }
+
+    func takenPoints(_ file: VisitFile) -> Set<String> {
+        Set(file.points.map(\.id).filter { point($0).isTaken })
+    }
+
+    /// Écrit visite-app.json et visite.json, chacun d'un coup.
+    func save(_ file: VisitFile) throws {
+        try PointStore.encoder.encode(file).write(to: appURL, options: .atomic)
+        let exported = file.exported(taken: takenPoints(file))
+        try PointStore.encoder.encode(exported).write(to: macURL, options: .atomic)
+    }
+
+    /// Lit, modifie et réécrit la visite.
+    @discardableResult
+    func update<T>(_ change: (inout VisitFile) throws -> T) throws -> T {
+        var file = load()
+        let result = try change(&file)
+        try save(file)
+        return result
+    }
+
+    /// Crée le dossier d'un point de la visite. id est celui d'une pièce annoncée par une
+    /// flèche, ou nil pour un nouveau point.
+    func createPoint(name: String, announced id: String?) throws -> PointFolder {
+        let pointID = try update { file -> String in
+            if let id, file.point(id) != nil { return id }
+            return file.addPoint(name: name)
+        }
+        let folder = point(pointID)
+        try FileManager.default.createDirectory(at: folder.photos, withIntermediateDirectories: true)
+        return folder
+    }
+
+    /// Supprime un point et ses photos du téléphone.
+    func deletePoint(_ id: String) throws {
+        try? FileManager.default.removeItem(at: point(id).url)
+        try update { $0.removePoint(id) }
+    }
+
+    /// Range dans la visite un point pris hors visite (étape 5).
+    func adopt(_ loose: PointFolder) throws {
+        var file = load()
+        let id = file.addPoint(name: loose.name)
+        try FileManager.default.moveItem(at: loose.url, to: point(id).url)
+        try save(file)
+    }
 }
 
 enum PointStore {
     static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         encoder.dateEncodingStrategy = .iso8601
         return encoder
     }()
@@ -84,8 +162,7 @@ enum PointStore {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
-    /// Points enregistrés, le plus récent en premier.
-    static func list() -> [PointFolder] {
+    private static func folders() -> [URL] {
         let keys: [URLResourceKey] = [.isDirectoryKey, .creationDateKey]
         let urls = (try? FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]
@@ -97,30 +174,39 @@ enum PointStore {
                 let b = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
                 return a > b
             }
+    }
+
+    /// Visites enregistrées, la plus récente en premier.
+    static func visits() -> [VisitFolder] {
+        folders()
+            .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent(VisitFile.appFileName).path) }
+            .map(VisitFolder.init)
+    }
+
+    /// Points pris avec l'étape 5, hors de toute visite.
+    static func loosePoints() -> [PointFolder] {
+        folders()
+            .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("photos").path) }
             .map(PointFolder.init)
     }
 
-    /// Nom de dossier sûr, comme ceux attendus sur le Mac : « Salon 2 » devient « salon-2 ».
-    static func folderName(from text: String) -> String {
-        let folded = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
-        let parts = folded.lowercased().unicodeScalars.split { !allowed.contains($0) || !$0.isASCII }
-        let name = parts.map { String(String.UnicodeScalarView($0)) }.joined(separator: "-")
-        return name.isEmpty ? "point" : name
-    }
-
-    /// Crée le dossier d'un nouveau point, avec un suffixe si le nom est déjà pris.
-    static func create(name: String) throws -> PointFolder {
-        let base = folderName(from: name)
+    /// Crée le dossier d'une nouvelle visite, avec un suffixe si le nom est déjà pris.
+    static func createVisit(name: String) throws -> VisitFolder {
+        let base = FolderName.make(from: name)
         var candidate = base
         var suffix = 2
         while FileManager.default.fileExists(atPath: root.appendingPathComponent(candidate).path) {
             candidate = "\(base)-\(suffix)"
             suffix += 1
         }
-        let point = PointFolder(url: root.appendingPathComponent(candidate, isDirectory: true))
-        try FileManager.default.createDirectory(at: point.photos, withIntermediateDirectories: true)
-        return point
+        let visit = VisitFolder(url: root.appendingPathComponent(candidate, isDirectory: true))
+        try FileManager.default.createDirectory(at: visit.url, withIntermediateDirectories: true)
+        try visit.save(VisitFile(name: name.trimmingCharacters(in: .whitespaces)))
+        return visit
+    }
+
+    static func deleteVisit(_ visit: VisitFolder) throws {
+        try FileManager.default.removeItem(at: visit.url)
     }
 
     /// Écrit capture.json d'un coup, pour ne jamais laisser un fichier à moitié écrit.
@@ -128,16 +214,16 @@ enum PointStore {
         try encoder.encode(file).write(to: point.captureURL, options: .atomic)
     }
 
-    /// Archive ZIP du dossier du point, à envoyer par AirDrop. Le système fabrique le ZIP
-    /// lui-même quand on lui demande de lire un dossier « pour envoi ».
-    static func archive(_ point: PointFolder) throws -> URL {
+    /// Archive ZIP d'un dossier (visite ou point), à envoyer par AirDrop. Le système fabrique
+    /// le ZIP lui-même quand on lui demande de lire un dossier « pour envoi ».
+    static func archive(_ folder: URL) throws -> URL {
         var coordinationError: NSError?
         var result: Result<URL, Error> = .failure(CocoaError(.fileReadUnknown))
         NSFileCoordinator().coordinate(
-            readingItemAt: point.url, options: [.forUploading], error: &coordinationError
+            readingItemAt: folder, options: [.forUploading], error: &coordinationError
         ) { zipped in
             let target = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(point.name).zip")
+                .appendingPathComponent("\(folder.lastPathComponent).zip")
             result = Result {
                 try? FileManager.default.removeItem(at: target)
                 try FileManager.default.copyItem(at: zipped, to: target)

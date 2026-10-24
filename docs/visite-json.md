@@ -1,6 +1,8 @@
 # Déclarer les liens d'une visite : `visite.json`
 
-Une visite de plusieurs points est un dossier `visites/<visite>/` qui contient un dossier par point (avec ses `photos/`) et un fichier `visite.json`. Ce fichier dit quels points existent et quelles flèches les relient. Jusqu'à l'étape 6, les liens se déclarent à la main (D14).
+Une visite de plusieurs points est un dossier `visites/<visite>/` qui contient un dossier par point (avec ses `photos/`) et un fichier `visite.json`. Ce fichier dit quels points existent et quelles flèches les relient.
+
+Une visite prise avec l'app arrive avec son `visite.json` : les flèches ont été visées sur place ([app.md](app.md), D26). Ce fichier ne se crée et ne s'écrit à la main que pour des photos prises sans l'app, ou pour corriger une flèche.
 
 ## Créer le fichier
 
@@ -39,9 +41,15 @@ L'`angle` est la direction de la flèche dans le panorama du point de départ, e
 
 Inutile de calculer : dans la visionneuse, tourne la vue vers la porte, puis lis le chiffre affiché en bas à gauche. « Centre » est la direction au milieu de l'écran, « clic » est la direction du dernier endroit où tu as cliqué. Recopie ce chiffre dans `angle`.
 
-## Champs prévus pour l'app (étape 6)
+## Fichier écrit par l'app
 
-`nord` (cap de la boussole vers lequel le panorama a été pris, en degrés) et `position` (`[x, y]` ou `[x, y, z]` en mètres) sont lus et vérifiés, mais pas encore utilisés. L'app les remplira plus tard, pour que les flèches se placent toutes seules.
+L'app écrit `version`, `nom`, `depart`, `points` (`id` et `nom`) et `liens` (`de`, `vers`, `angle`, `hauteur`). L'angle est mesuré depuis le cap de départ du point, centre de son panorama (`cap_depart` de [capture.json](capture-json.md)). La hauteur est l'inclinaison du téléphone quand on a visé la porte.
+
+Chaque envoi depuis l'app remplace `visite.json` sur le Mac. L'ancien est gardé à côté sous le nom `visite-avant-<date>.json` : une correction faite à la main s'y retrouve, à recopier si besoin.
+
+## Champs réservés
+
+`nord` (cap de la boussole vers lequel le panorama a été pris, en degrés) et `position` (`[x, y]` ou `[x, y, z]` en mètres) sont lus et vérifiés, mais pas utilisés. Ils étaient prévus pour placer les flèches par la réalité augmentée du téléphone, sortie du plan (D22, D26).
 
 ## Erreurs détectées
 

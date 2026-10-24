@@ -65,14 +65,14 @@ final class GeometryTests: XCTestCase {
     }
 
     func testRotationMatchesTargetDirection() {
-        let target = Target(id: 0, row: .haut, number: 3, yaw: 90, pitch: 45)
+        let target = Target(id: 0, row: .haut, number: 3, rowCount: 8, yaw: 90, pitch: 45)
         let rotation = world(aroundZ(-90) * aroundX(45) * upright)
         XCTAssertEqual(Orientation.angle(Orientation.forward(rotation), target.direction), 0, accuracy: 1e-9)
         XCTAssertTrue(Aiming().isAligned(target, rotation: rotation))
     }
 
     func testTiltedPhoneIsNotAligned() {
-        let target = Target(id: 0, row: .horizon, number: 1, yaw: 0, pitch: 0)
+        let target = Target(id: 0, row: .horizon, number: 1, rowCount: 12, yaw: 0, pitch: 0)
         // Penché de 20° sur le côté : rotation autour de l'axe de l'objectif (-Y).
         let tilted = simd_double3x3(simd_quatd(angle: 20 * .pi / 180, axis: SIMD3(0, 1, 0)))
         let rotation = world(tilted * upright)
@@ -81,14 +81,14 @@ final class GeometryTests: XCTestCase {
     }
 
     func testCeilingIgnoresRoll() {
-        let target = Target(id: 0, row: .plafond, number: 1, yaw: 0, pitch: 90)
+        let target = Target(id: 0, row: .plafond, number: 1, rowCount: 1, yaw: 0, pitch: 90)
         let rotation = world(aroundZ(70) * aroundX(90) * upright)
         XCTAssertNil(Orientation.roll(rotation))
         XCTAssertTrue(Aiming().isAligned(target, rotation: rotation))
     }
 
     func testPlanFollowsTheShootingGuide() {
-        let targets = Plan.targets(startYaw: 170)
+        let targets = Plan.targets(startYaw: 170, lens: .wide)
         XCTAssertEqual(targets.count, 30)
         XCTAssertEqual(targets.filter { $0.row == .horizon }.count, 12)
         XCTAssertEqual(targets[0].yaw, 170, accuracy: 1e-9)
@@ -96,8 +96,16 @@ final class GeometryTests: XCTestCase {
         XCTAssertEqual(targets.filter { $0.row.isOptional }.map(\.row), [.sol])
     }
 
+    func testUltraWidePlanNeedsFewerPhotos() {
+        let targets = Plan.targets(startYaw: 0, lens: .ultraWide)
+        XCTAssertEqual(targets.filter { !$0.row.isOptional }.count, 21)
+        XCTAssertEqual(targets.filter { $0.row == .horizon }.map(\.yaw)[1], 45, accuracy: 1e-9)
+        XCTAssertEqual(targets.first { $0.row == .haut }?.pitch, 50)
+        XCTAssertTrue(targets.allSatisfy { $0.rowCount == $0.row.count(.ultraWide) })
+    }
+
     func testNearestSkipsDoneTargets() {
-        let targets = Plan.targets(startYaw: 0)
+        let targets = Plan.targets(startYaw: 0, lens: .wide)
         let rotation = world(upright)
         XCTAssertEqual(Aiming().nearest(targets, done: [], rotation: rotation)?.target.id, 0)
         let next = Aiming().nearest(targets, done: [0], rotation: rotation)
