@@ -56,6 +56,7 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Décision provisoire :** la visite web s'appuie sur Pannellum, visionneuse 360° sous licence MIT.
 - **Alternative :** Marzipano, sous Apache 2.0.
 - **À confirmer à l'étape 3 :** fluidité sur téléphone, gestion des liens entre points, possibilité d'afficher un avant/après.
+- **Étape 4 (2026-10-24) :** les liens entre points passent par les scènes de Pannellum (`hotSpots` de type `scene`) et fonctionnent dans un navigateur de bureau. Reste à valider par le propriétaire le parcours sur son appartement, sur ordinateur et téléphone.
 - **Étape 3 (2026-10-24) :** Pannellum 2.5.7 est livré dans `visionneuse/pannellum/`, sans téléchargement depuis internet, pour que la visite marche hors ligne. Le panorama s'affiche correctement dans un navigateur de bureau. Restent à valider par le propriétaire : la fluidité sur téléphone, puis aux étapes 4 et 8 les liens entre points et l'avant/après. La décision reste provisoire jusque-là.
 
 ## D9 : modifications non destructives
@@ -187,3 +188,11 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Raisons :** pas de dépendance (D16), pas d'exposition du reste du disque, panorama d'origine jamais réécrit (D9). Beaucoup de téléphones limitent les images à 4096 px.
 - **Ajout :** si le panorama manque (ou avec `--force`), `serve` l'assemble dans un fil d'exécution en arrière-plan avec `stitch.stitch` et expose l'avancement (`/status.json`) à la page, qui l'interroge chaque seconde. L'avancement est déduit des messages de `stitch`, donc approximatif : l'alignement des photos n'a pas de message intermédiaire.
 - **Conséquence :** la visite est accessible à tout appareil du même Wi-Fi tant que le serveur tourne ; `--local` la réserve au Mac (D22).
+
+## D24 : `visite.json` en clés françaises, liens à la main, panoramas servis par numéro
+
+- **Date :** 2026-10-24
+- **Décision :** une visite de plusieurs points est décrite par `visite.json` (format dans `docs/visite-json.md`), validé strictement : clé inconnue, lien vers un point inexistant ou angle invalide arrêtent la commande avec un message en français. S'il manque, `serve` le crée avec un point par dossier et aucun lien, et ne réécrit jamais un fichier existant. Les angles sont ceux de Pannellum (0° au centre de l'image, positif vers la droite). La visionneuse affiche l'angle regardé et celui du dernier clic pour les lire sans calcul. Les panoramas sont servis sous `/p/<numéro du point>/`.
+- **Raisons :** D14 (liens à la main jusqu'à l'app, étape 6). Un fichier que l'utilisateur édite doit signaler une faute de frappe plutôt que l'ignorer. Un numéro dans l'URL évite d'exposer ou d'encoder des noms de dossier arbitraires et garde la liste de chemins servis fermée (D23).
+- **Prévu pour l'étape 6 :** les champs facultatifs `nord` et `position` sont déjà lus et vérifiés, pour que l'app puisse les remplir et que les liens se calculent sans saisie manuelle.
+- **Conséquence :** la visite n'est affichée que quand tous les panoramas existent. Les points sont assemblés l'un après l'autre.
