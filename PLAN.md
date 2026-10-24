@@ -25,7 +25,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 5 | App : capture guidée à un point | v0.1 | livrée |
 | 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | livrée |
 | J1 | **Jalon v0.1 : validation de la visite par le propriétaire** | — | livrée |
-| 7 | Sélection d'une surface au clic | v0.2 | en cours |
+| 7 | Sélection d'une surface au clic | v0.2 | livrée |
 | 8 | Changement de couleur | v0.2 | à faire |
 | 9 | Modification par génération d'image, en local | v0.2 | à faire |
 | J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | à faire |
