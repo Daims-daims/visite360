@@ -1,4 +1,4 @@
-// App de capture guidée d'un point (étape 5, D25).
+// App de capture guidée d'une visite (étapes 5 et 6, D25, D26).
 
 import SwiftUI
 
@@ -6,7 +6,7 @@ import SwiftUI
 struct Visite360CaptureApp: App {
     var body: some Scene {
         WindowGroup {
-            PointsView()
+            VisitsView()
         }
     }
 }

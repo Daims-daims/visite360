@@ -1,0 +1,167 @@
+import Foundation
+import XCTest
+import simd
+
+@testable import CaptureGeometry
+
+final class VisitTests: XCTestCase {
+    func testArrowAngleIsMeasuredFromTheStartHeading() {
+        XCTAssertEqual(ArrowAim.angle(yaw: 120, startYaw: 30), 90)
+        XCTAssertEqual(ArrowAim.angle(yaw: -170, startYaw: 170), 20)
+        XCTAssertEqual(ArrowAim.angle(yaw: 10, startYaw: -170), 180)
+        XCTAssertEqual(ArrowAim.angle(yaw: 12.345, startYaw: 0), 12.3)
+        XCTAssertEqual(ArrowAim.pitch(-75), -60)
+    }
+
+    func testFolderNamesAreSafe() {
+        XCTAssertEqual(FolderName.make(from: "Salle de bains 2"), "salle-de-bains-2")
+        XCTAssertEqual(FolderName.make(from: "Entrée"), "entree")
+        XCTAssertEqual(FolderName.make(from: "../.."), "point")
+    }
+
+    func testPointIdsAreUnique() {
+        var visit = VisitFile(name: "Appartement")
+        XCTAssertEqual(visit.addPoint(name: "Chambre"), "chambre")
+        XCTAssertEqual(visit.addPoint(name: "chambre"), "chambre-2")
+    }
+
+    func testExportKeepsTakenPointsAndTheirLinksOnly() throws {
+        var visit = VisitFile(name: "Appartement")
+        let salon = visit.addPoint(name: "Salon")
+        let cuisine = visit.addPoint(name: "Cuisine")
+        let chambre = visit.addPoint(name: "Chambre")  // annoncée, pas encore prise
+        visit.setLink(from: salon, to: cuisine, angle: 90, pitch: -5)
+        visit.setLink(from: salon, to: chambre, angle: -90, pitch: nil)
+        visit.setLink(from: salon, to: cuisine, angle: 95, pitch: -5)  // visée refaite
+
+        let exported = visit.exported(taken: [salon, cuisine])
+
+        XCTAssertEqual(exported.points.map(\.id), [salon, cuisine])
+        XCTAssertEqual(exported.links, [VisitLink(from: salon, to: cuisine, angle: 95, pitch: -5)])
+        XCTAssertEqual(exported.start, salon)
+        // Clés attendues par le Mac (src/visite360/visite.py), rien d'autre.
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(exported))
+        let object = try XCTUnwrap(json as? [String: Any])
+        XCTAssertEqual(Set(object.keys), ["version", "nom", "depart", "points", "liens"])
+        let link = try XCTUnwrap((object["liens"] as? [[String: Any]])?.first)
+        XCTAssertEqual(Set(link.keys), ["de", "vers", "angle", "hauteur"])
+    }
+
+    func testRemovedPointStaysAnnouncedWhileAnArrowLeadsToIt() {
+        var visit = VisitFile(name: "Appartement")
+        let salon = visit.addPoint(name: "Salon")
+        let cuisine = visit.addPoint(name: "Cuisine")
+        visit.setLink(from: salon, to: cuisine, angle: 90, pitch: nil)
+        visit.setLink(from: cuisine, to: salon, angle: -90, pitch: nil)
+
+        visit.removePoint(cuisine)
+        XCTAssertNotNil(visit.point(cuisine))
+        XCTAssertEqual(visit.links.count, 1)
+
+        visit.removePoint(salon)
+        XCTAssertNil(visit.point(salon))
+        XCTAssertTrue(visit.links.isEmpty)
+    }
+
+    func testManifestListsVisitFiles() throws {
+        let visit = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: visit) }
+        let photos = visit.appendingPathComponent("salon/photos", isDirectory: true)
+        try FileManager.default.createDirectory(at: photos, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: visit.appendingPathComponent("visite.json"))
+        try Data("{}".utf8).write(to: visit.appendingPathComponent("salon/capture.json"))
+        try Data("abc".utf8).write(to: photos.appendingPathComponent("IMG_0002.jpg"))
+        try Data("abc".utf8).write(to: photos.appendingPathComponent("IMG_0001.jpg"))
+        try Data().write(to: photos.appendingPathComponent(".DS_Store"))
+
+        let items = try Manifest.items(visit: visit, points: ["salon"])
+
+        XCTAssertEqual(items.map(\.path), [
+            "visite.json", "salon/capture.json", "salon/photos/IMG_0001.jpg",
+            "salon/photos/IMG_0002.jpg",
+        ])
+        XCTAssertEqual(items[2].size, 3)
+        // SHA-256 de « abc ».
+        XCTAssertEqual(
+            items[2].sha256, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        )
+    }
+}
+
+final class LensDriftTests: XCTestCase {
+    func testReferenceIsTheFirstTrackedPositionAfterStart() {
+        var drift = LensDrift()
+        drift.update(SIMD3(5, 0, 0), started: false)
+        XCTAssertNil(drift.reference)
+        drift.start()
+        drift.update(nil, started: true)  // ARKit ne suit pas encore
+        drift.update(SIMD3(1, 1.5, 0), started: true)
+        XCTAssertEqual(drift.reference, SIMD3(1, 1.5, 0))
+        XCTAssertEqual(drift.offset, 0)
+    }
+
+    func testAlertStartsAboveTheLimitAndClearsBelowTheLowerThreshold() {
+        var drift = LensDrift()
+        drift.start()
+        drift.update(SIMD3(0, 0, 0), started: true)
+        drift.update(SIMD3(0.04, 0, 0), started: true)
+        XCTAssertFalse(drift.isTooFar)
+        drift.update(SIMD3(0.03, 0, 0.04), started: true)  // 5 cm : à la limite, pas au-delà
+        XCTAssertFalse(drift.isTooFar)
+        drift.update(SIMD3(0.3, 0, 0), started: true)  // pivot sur les talons
+        XCTAssertTrue(drift.isTooFar)
+        XCTAssertEqual(drift.offset ?? 0, 0.3, accuracy: 1e-12)
+        drift.update(SIMD3(0.04, 0, 0), started: true)  // revenu, mais pas assez
+        XCTAssertTrue(drift.isTooFar)
+        drift.update(SIMD3(0.02, 0, 0), started: true)
+        XCTAssertFalse(drift.isTooFar)
+    }
+
+    func testLostTrackingKeepsTheAlertState() {
+        var drift = LensDrift()
+        drift.start()
+        drift.update(SIMD3(0, 0, 0), started: true)
+        drift.update(SIMD3(0, 0, 0.2), started: true)
+        drift.update(nil, started: true)
+        XCTAssertNil(drift.offset)
+        XCTAssertTrue(drift.isTooFar)
+    }
+
+    func testPlacementFollowsTheDirectionTheUserFaces() throws {
+        var drift = LensDrift()
+        drift.start()
+        drift.update(SIMD3(1, 1.4, 2), started: true)
+        // Le photographe vise -z (direction de départ d'ARKit) ; l'objectif est parti de 6 cm
+        // vers l'avant et de 2 cm vers la droite (+x).
+        let ahead = try XCTUnwrap(drift.placement(SIMD3(1.02, 1.4, 1.94), heading: SIMD3(0, -0.3, -1)))
+        XCTAssertEqual(ahead.forward, 0.06, accuracy: 1e-9)
+        XCTAssertEqual(ahead.right, 0.02, accuracy: 1e-9)
+        XCTAssertEqual(ahead.up, 0, accuracy: 1e-9)
+        // Même déplacement, photographe tourné d'un quart de tour vers la droite (vise +x) :
+        // l'objectif est maintenant 2 cm devant et 6 cm à gauche.
+        let turned = try XCTUnwrap(drift.placement(SIMD3(1.02, 1.4, 1.94), heading: SIMD3(1, 0, 0)))
+        XCTAssertEqual(turned.forward, 0.02, accuracy: 1e-9)
+        XCTAssertEqual(turned.right, -0.06, accuracy: 1e-9)
+        XCTAssertNil(drift.placement(SIMD3(1, 1.4, 2), heading: SIMD3(0, 1, 0)))  // vise le plafond
+    }
+
+    func testInstructionNamesTheTwoLargestCorrections() {
+        XCTAssertEqual(
+            Placement(right: 0.03, forward: 0.06, up: -0.01).instruction,
+            "Ramenez le téléphone vers vous de 6 cm, puis décalez-le vers la gauche de 3 cm."
+        )
+        XCTAssertEqual(
+            Placement(right: -0.09, forward: 0, up: 0.02).instruction,
+            "Décalez le téléphone vers la droite de 9 cm, puis baissez-le de 2 cm."
+        )
+        XCTAssertEqual(Placement(right: 0, forward: -0.04, up: 0).instruction, "Éloignez le téléphone de vous de 4 cm.")
+        XCTAssertEqual(Placement(right: 0.01, forward: 0, up: -0.005).instruction, "Objectif à sa place.")
+    }
+
+    func testTrackedSetupUsesTheMainLens() {
+        XCTAssertEqual(CaptureSetup.wideTracked.lens, .wide)
+        XCTAssertTrue(CaptureSetup.wideTracked.tracksPosition)
+        XCTAssertFalse(CaptureSetup.ultraWide.tracksPosition)
+    }
+}

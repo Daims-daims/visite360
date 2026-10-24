@@ -4,5 +4,16 @@
 <dict>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Le réseau local sert à trouver le Mac et à lui envoyer les visites.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_visite360._tcp</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

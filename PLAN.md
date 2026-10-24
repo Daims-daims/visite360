@@ -22,7 +22,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 3 | Visite d'un point | v0.1 | livrée |
 | 4 | Visite de plusieurs points | v0.1 | livrée |
 | 5 | App : capture guidée à un point | v0.1 | livrée |
-| 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | à faire |
+| 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | livrée |
 | J1 | **Jalon v0.1 : présentation locale de la visite** | — | à faire |
 | 7 | Sélection d'une surface au clic | v0.2 | à faire |
 | 8 | Changement de couleur | v0.2 | à faire |
@@ -86,6 +86,7 @@ Les étapes 1 à 4 valident l'assemblage et la visite avec des photos prises à 
 - **Tests automatiques :** réception d'une visite transférée, rangement dans `visites/<nom>/`, refus d'un envoi incomplet.
 - **Validation :** une visite de l'appartement du propriétaire prise avec l'app, transférée, assemblée et parcourue sur le Mac et le téléphone, sans manipuler de fichiers à la main.
 - **À trancher pendant l'étape :** suivi de position par la réalité augmentée du téléphone pour renseigner tout seul `position`, `nord` et les liens de `visite.json` (aujourd'hui à la main, D14, D24) ; quels points relier (par exemple ceux pris à la suite) ; moyen de transfert sans service payant : réception par le Mac sur le Wi-Fi local, AirDrop, ou câble.
+- **Tranché le 2026-10-24 (D26) :** pas de réalité augmentée ; les flèches se visent dans l'app à la fin de chaque point, vers la porte de la pièce d'arrivée, choisie par l'utilisateur ; transfert par le Wi-Fi local avec `visite360 receive` sur le Mac, AirDrop et câble en secours. Mode d'emploi dans `docs/app.md` et `docs/transfert.md`.
 
 ## Jalon v0.1 : présentation locale de la visite
 

@@ -12,27 +12,47 @@
 import Foundation
 import simd
 
-/// Rangées de docs/prise-de-vue.md.
+/// Objectif de l'iPhone utilisé pour un point.
+public enum Lens: String, Codable, CaseIterable, Sendable {
+    /// Grand-angle ×0,5 : environ 90° × 106° en portrait. Un objet proche tient plus souvent
+    /// dans une seule photo, et il y a moins de raccords.
+    case ultraWide = "x0.5"
+    /// Objectif principal ×1 : environ 54° × 70° en portrait (docs/prise-de-vue.md).
+    case wide = "x1"
+
+    public var label: String {
+        switch self {
+        case .ultraWide: "×0,5"
+        case .wide: "×1"
+        }
+    }
+}
+
+/// Rangées de la prise de vue.
 public enum Row: String, Codable, CaseIterable, Sendable {
     case horizon, haut, bas, plafond, sol
 
     /// Inclinaison de la rangée, en degrés (positif vers le haut).
-    public var pitch: Double {
-        switch self {
-        case .horizon: 0
-        case .haut: 45
-        case .bas: -45
-        case .plafond: 90
-        case .sol: -90
+    public func pitch(_ lens: Lens) -> Double {
+        switch (self, lens) {
+        case (.horizon, _): 0
+        case (.haut, .wide): 45
+        case (.haut, .ultraWide): 50
+        case (.bas, .wide): -45
+        case (.bas, .ultraWide): -50
+        case (.plafond, _): 90
+        case (.sol, _): -90
         }
     }
 
-    /// Nombre de photos de la rangée.
-    public var count: Int {
-        switch self {
-        case .horizon: 12
-        case .haut, .bas: 8
-        case .plafond, .sol: 1
+    /// Nombre de photos de la rangée. Deux photos voisines se recouvrent d'environ la moitié.
+    public func count(_ lens: Lens) -> Int {
+        switch (self, lens) {
+        case (.horizon, .wide): 12
+        case (.horizon, .ultraWide): 8
+        case (.haut, .wide), (.bas, .wide): 8
+        case (.haut, .ultraWide), (.bas, .ultraWide): 6
+        case (.plafond, _), (.sol, _): 1
         }
     }
 
@@ -55,8 +75,9 @@ public enum Row: String, Codable, CaseIterable, Sendable {
 public struct Target: Identifiable, Equatable, Sendable {
     public let id: Int
     public let row: Row
-    /// Numéro dans la rangée, à partir de 1.
+    /// Numéro dans la rangée, à partir de 1, sur rowCount photos.
     public let number: Int
+    public let rowCount: Int
     /// Cap en degrés, vers la droite, dans le repère du monde.
     public let yaw: Double
     public let pitch: Double
@@ -66,14 +87,16 @@ public struct Target: Identifiable, Equatable, Sendable {
 
 public enum Plan {
     /// Cibles de toutes les rangées, dans l'ordre de la fiche, la première face à startYaw.
-    public static func targets(startYaw: Double) -> [Target] {
+    public static func targets(startYaw: Double, lens: Lens) -> [Target] {
         var result: [Target] = []
         for row in Row.allCases {
-            for index in 0..<row.count {
-                let yaw = Orientation.wrap(startYaw + 360 * Double(index) / Double(row.count))
-                result.append(
-                    Target(id: result.count, row: row, number: index + 1, yaw: yaw, pitch: row.pitch)
-                )
+            let count = row.count(lens)
+            for index in 0..<count {
+                let yaw = Orientation.wrap(startYaw + 360 * Double(index) / Double(count))
+                result.append(Target(
+                    id: result.count, row: row, number: index + 1, rowCount: count,
+                    yaw: yaw, pitch: row.pitch(lens)
+                ))
             }
         }
         return result
@@ -205,5 +228,138 @@ public struct Aiming: Sendable {
         guard angle <= tolerance else { return false }
         guard let roll = Orientation.roll(rotation) else { return true }
         return abs(roll) <= rollTolerance
+    }
+}
+
+/// Réglage de prise de vue choisi sur l'écran d'accueil : un objectif, avec ou sans suivi de
+/// la position de l'objectif par ARKit (qui n'existe qu'au ×1).
+public enum CaptureSetup: String, CaseIterable, Sendable {
+    /// Réglage conseillé depuis les essais de l'étape 6 (D27).
+    case wideTracked = "x1-ar"
+    case wide = "x1"
+    case ultraWide = "x0.5"
+
+    public var lens: Lens {
+        self == .ultraWide ? .ultraWide : .wide
+    }
+
+    public var tracksPosition: Bool { self == .wideTracked }
+
+    public var label: String {
+        switch self {
+        case .ultraWide: "×0,5"
+        case .wide: "×1"
+        case .wideTracked: "×1 + AR"
+        }
+    }
+}
+
+/// Où se trouve l'objectif par rapport à sa place de départ, vu par le photographe, en
+/// mètres : à droite, devant (vers où vise le téléphone) et en haut.
+public struct Placement: Equatable, Sendable {
+    public let right: Double
+    public let forward: Double
+    public let up: Double
+
+    public init(right: Double, forward: Double, up: Double) {
+        self.right = right
+        self.forward = forward
+        self.up = up
+    }
+
+    /// Écart en dessous duquel on ne demande pas de corriger une direction, en mètres.
+    public static let negligible = 0.015
+
+    /// Consigne pour ramener l'objectif à sa place : les deux corrections les plus grandes,
+    /// arrondies au centimètre.
+    public var instruction: String {
+        var parts: [(size: Double, text: String)] = []
+        func centimeters(_ value: Double) -> Int { max(1, Int((abs(value) * 100).rounded())) }
+        if abs(forward) >= Self.negligible {
+            let n = centimeters(forward)
+            parts.append((abs(forward), forward > 0 ? "ramenez le téléphone vers vous de \(n) cm"
+                                                     : "éloignez le téléphone de vous de \(n) cm"))
+        }
+        if abs(right) >= Self.negligible {
+            let n = centimeters(right)
+            parts.append((abs(right), right > 0 ? "décalez-le vers la gauche de \(n) cm"
+                                                 : "décalez-le vers la droite de \(n) cm"))
+        }
+        if abs(up) >= Self.negligible {
+            let n = centimeters(up)
+            parts.append((abs(up), up > 0 ? "baissez-le de \(n) cm" : "montez-le de \(n) cm"))
+        }
+        let chosen = parts.sorted { $0.size > $1.size }.prefix(2).map(\.text)
+        guard let first = chosen.first else { return "Objectif à sa place." }
+        var sentence = chosen.count == 2 ? "\(first), puis \(chosen[1])" : first
+        // « décalez-le » n'a de sens qu'après « le téléphone » : on le nomme en tête de phrase.
+        sentence = sentence.replacingOccurrences(of: "^décalez-le", with: "décalez le téléphone", options: .regularExpression)
+            .replacingOccurrences(of: "^baissez-le", with: "baissez le téléphone", options: .regularExpression)
+            .replacingOccurrences(of: "^montez-le", with: "montez le téléphone", options: .regularExpression)
+        return sentence.prefix(1).uppercased() + sentence.dropFirst() + "."
+    }
+}
+
+/// Surveille le déplacement de l'objectif depuis sa place de départ, mesuré par ARKit.
+///
+/// Toutes les photos d'un point doivent être prises du même endroit : si l'objectif bouge,
+/// un objet proche ne se superpose plus au fond de la même façon d'une photo à l'autre
+/// (parallaxe) et les raccords se voient. Pour un objet à 1 m, 5 cm de déplacement font
+/// environ 3° d'écart.
+public struct LensDrift: Sendable {
+    /// Au-delà, la photo ne part pas et l'écran demande de revenir à sa place, en mètres.
+    public var limit = 0.05
+    /// En dessous, l'alerte s'efface. Plus bas que limit, pour qu'elle ne clignote pas.
+    public var clear = 0.035
+
+    public private(set) var reference: SIMD3<Double>?
+    public private(set) var offset: Double?
+    public private(set) var isTooFar = false
+
+    public init() {}
+
+    /// Place de départ : la position de l'objectif au verrouillage, ou la première position
+    /// connue après lui si ARKit ne la suivait pas encore.
+    public mutating func start() {
+        reference = nil
+        offset = nil
+        isTooFar = false
+    }
+
+    /// Nouvelle position mesurée (nil si ARKit ne la suit pas). Ne fait rien avant start().
+    public mutating func update(_ position: SIMD3<Double>?, started: Bool) {
+        guard started, let position else {
+            offset = nil
+            return
+        }
+        guard let reference else {
+            self.reference = position
+            offset = 0
+            return
+        }
+        let distance = simd_length(position - reference)
+        offset = distance
+        if distance > limit {
+            isTooFar = true
+        } else if distance < clear {
+            isTooFar = false
+        }
+    }
+
+    /// Déplacement depuis la place de départ, en mètres, à noter avec une photo.
+    public func displacement(_ position: SIMD3<Double>?) -> SIMD3<Double>? {
+        guard let position, let reference else { return nil }
+        return position - reference
+    }
+
+    /// Place de l'objectif vue par le photographe. heading est la direction horizontale visée
+    /// par le téléphone, dans le repère d'ARKit (y vers le haut).
+    public func placement(_ position: SIMD3<Double>?, heading: SIMD3<Double>?) -> Placement? {
+        guard let d = displacement(position), let heading else { return nil }
+        let flat = SIMD3(heading.x, 0, heading.z)
+        guard simd_length(flat) > 1e-6 else { return nil }
+        let forward = simd_normalize(flat)
+        let right = simd_cross(forward, SIMD3(0, 1, 0))
+        return Placement(right: simd_dot(d, right), forward: simd_dot(d, forward), up: d.y)
     }
 }

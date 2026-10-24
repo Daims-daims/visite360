@@ -35,6 +35,10 @@ class Capture:
     path: Path
     rotations: dict[str, np.ndarray]
     device: str | None = None
+    # Cap de la direction visée au début de la prise de vue, en degrés, dans le même repère que
+    # les rotations. Le panorama la place en son centre, pour que les flèches visées dans l'app
+    # (étape 6) tombent au bon endroit. Absent des fichiers de l'étape 5.
+    start_yaw: float | None = None
 
 
 def find(point: Path) -> Path | None:
@@ -90,7 +94,19 @@ def parse(data: Any, path: Path) -> Capture:
             raise CaptureError(f"{where} : la photo {file} est déclarée deux fois.")
         rotations[file] = _rotation(photo.get("rotation"), f"{where} ({file})")
     device = data.get("appareil")
-    return Capture(path, rotations, device if isinstance(device, str) else None)
+    start_yaw = data.get("cap_depart")
+    if start_yaw is not None and (
+        isinstance(start_yaw, bool)
+        or not isinstance(start_yaw, int | float)
+        or not -360 <= start_yaw <= 360
+    ):
+        raise CaptureError(f"{name} : « cap_depart » doit être un angle en degrés.")
+    return Capture(
+        path,
+        rotations,
+        device if isinstance(device, str) else None,
+        None if start_yaw is None else float(start_yaw),
+    )
 
 
 def load(path: Path) -> Capture:
