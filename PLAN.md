@@ -19,7 +19,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 0 | Cadrage du dépôt | — | livrée |
 | 1 | Contrôle de l'installation et protocole de prise de vue | v0.1 | livrée |
 | 2 | Assemblage d'un panorama | v0.1 | livrée |
-| 3 | Visite d'un point | v0.1 | en cours |
+| 3 | Visite d'un point | v0.1 | livrée |
 | 4 | Visite de plusieurs points | v0.1 | à faire |
 | 5 | App : capture guidée à un point | v0.1 | à faire |
 | 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | à faire |
