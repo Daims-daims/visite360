@@ -38,7 +38,8 @@ Presque tout est en anglais, sauf le TP de l'ENSTA.
 
 ### Étape 8 : changer une couleur
 
-- [Wikipédia, « L*a*b* CIE 1976 »](https://fr.wikipedia.org/wiki/L*a*b*_CIE_1976) : l'espace de couleur qui sépare la clarté d'un pixel de sa teinte, utilisé pour repeindre sans effacer les ombres.
+- [Wikipédia, « sRGB »](https://fr.wikipedia.org/wiki/SRGB) : pourquoi les valeurs d'une photo ne sont pas proportionnelles à la lumière, et comment on revient à la lumière linéaire pour repeindre sans effacer les ombres.
+- [He, Sun et Tang, « Guided Image Filtering » (2010)](https://people.csail.mit.edu/kaiming/eccv10/index.html) : le filtre qui recale le contour sur les bords de la photo. Les figures suffisent pour l'idée.
 
 ### Étape 10 : dimensions des pièces
 

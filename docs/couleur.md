@@ -21,17 +21,15 @@ La première ouverture après un changement prend quelques secondes : le serveur
 
 ## Comment c'est calculé
 
-Chaque pixel est décrit par sa clarté (du noir au blanc) et sa teinte, dans l'espace de couleur Lab.
-
-- **Clarté :** on mesure la clarté typique de la surface, puis on multiplie la clarté de chaque pixel par un même facteur, choisi pour que la surface prenne la clarté de la couleur choisie. Une ombre deux fois plus sombre que le reste du mur le reste après.
-- **Teinte :** chaque pixel prend la teinte choisie, plus 30 % de son écart de teinte d'origine, pour que le reflet chaud d'une lampe reste visible.
-- **Bord :** sur deux pixels à l'intérieur du contour, le changement s'adoucit pour éviter un bord en escalier. Hors de la sélection, aucun pixel ne change.
+1. **Le contour est recalé sur les bords réels.** Le contour de l'étape 7 suit mal un bord peu marqué (porte blanche sur mur blanc) et, reporté dans le panorama, il est agrandi en marches d'escalier. Un « filtre guidé » le recale sur le bord visible le plus proche de la photo (ligne d'ombre, cadre de porte, angle avec le plafond), dans un rayon de 1,4° (32 pixels sur un panorama de 8192). Au-delà, rien ne change. La sélection enregistrée n'est pas modifiée : le recalage est refait à chaque calcul.
+2. **La couleur est changée en lumière linéaire.** Les valeurs d'une photo sont compressées pour l'œil ; on les ramène à la quantité de lumière reçue. Un pixel du mur vaut alors « couleur de la peinture × éclairage ». On divise par la couleur typique du mur, ce qui laisse l'éclairage seul (ombres, reflets, teinte chaude d'une lampe), puis on multiplie par la couleur choisie. C'est ce que ferait la lumière sur un mur vraiment repeint.
+3. **Le bord s'adoucit** sur deux pixels à l'intérieur du contour recalé.
 
 ## Ce qui marche bien, ce qui marche mal
 
 - **Bien :** un mur clair repeint en une couleur moyenne ou foncée ; un mur coloré repeint dans une autre couleur de même clarté.
 - **Moins bien :** un mur foncé repeint en clair. La clarté est très agrandie : le grain de la photo ressort, et les zones déjà claires (reflet de fenêtre) deviennent blanc pur. C'est la limite connue de D11.
-- **Mal :** un bord de couleur qui déborde sur un meuble ou s'arrête avant la plinthe. La cause est la sélection (étape 7), pas la couleur : corriger la sélection avec des clics « + » et « − », puis repeindre.
+- **Mal :** une bande de couleur sur une porte, ou un mur qui s'arrête bien avant la plinthe. Le recalage ne corrige que les écarts de moins de 1,4° : au-delà, la cause est la sélection (étape 7). La corriger avec des clics « + » et « − », de préférence avec une vue rapprochée (une sélection faite à 120° de champ est plus grossière), puis repeindre.
 - La couleur à l'écran n'est pas celle d'un pot de peinture : elle dépend de l'éclairage au moment de la photo et de l'écran. Choisir la couleur à l'œil, sur l'aperçu.
 
 ## Où sont rangées les recolorations

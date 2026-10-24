@@ -1,16 +1,19 @@
 """Étape 8 : changement de couleur d'une surface sélectionnée, sans IA générative (D11, D30).
 
-Le calcul se fait dans l'espace de couleur Lab, qui sépare la clarté d'un pixel (L, de 0 pour le
-noir à 100 pour le blanc) de sa teinte (a : du vert au rouge, b : du bleu au jaune). Sur la
-surface sélectionnée :
+Deux temps :
 
-- la clarté de chaque pixel est multipliée par un même facteur, choisi pour que la clarté typique
-  de la surface (sa médiane) devienne celle de la couleur choisie. Un pixel deux fois plus sombre
-  que le reste du mur, dans une ombre, le reste : ombres, lumière et texture sont conservées ;
-- la teinte devient celle de la couleur choisie, plus une petite part des écarts de teinte
-  d'origine (le reflet chaud d'une lampe reste visible) ;
-- au bord du masque, le changement s'adoucit sur deux pixels, vers l'intérieur seulement : aucun
-  pixel hors de la sélection ne change.
+1. **Accrocher le contour aux bords réels.** Le contour trouvé à l'étape 7 suit mal les bords peu
+   marqués (porte blanche sur mur blanc) et, reporté dans le panorama, il est agrandi en marches
+   d'escalier. Un « filtre guidé » le recale sur les bords visibles de la photo (ligne d'ombre,
+   cadre de porte) : autour de chaque point du contour, dans un rayon de 1,4° (32 pixels sur un
+   panorama de 8192), il cherche quelle limite de clarté explique le mieux le masque. Au-delà de
+   ce rayon, rien ne bouge.
+2. **Repeindre en lumière linéaire.** Les valeurs d'un JPEG sont compressées pour l'œil ; on les
+   ramène d'abord à la quantité de lumière reçue par le capteur. Chaque pixel du mur y vaut
+   « couleur de la peinture × éclairage reçu ». On divise par la couleur typique du mur (sa
+   médiane, canal par canal), ce qui laisse l'éclairage seul, avec ses ombres, ses reflets et la
+   teinte des lampes, puis on multiplie par la couleur choisie. Le changement s'adoucit sur deux
+   pixels à l'intérieur du contour.
 
 Une recoloration est une opération enregistrée dans `<point>/modifications/` (D9) : une fiche
 `couleur-<n>.json` qui désigne une sélection de l'étape 7 et la couleur choisie. Le panorama
@@ -37,10 +40,14 @@ from visite360 import selection
 from visite360.opencv import load_cv2
 
 FORMAT_VERSION = 1
+# À augmenter quand le calcul change : les panoramas modifiés déjà fabriqués sont alors refaits.
+ALGORITHM_VERSION = 2
 ID_PATTERN = re.compile(r"^couleur-(\d+)$")
 HEX_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
-# Part des écarts de teinte d'origine gardée autour de la teinte choisie.
-TINT_KEEP = 0.3
+# Rayon de l'accrochage du contour aux bords, en degrés de panorama (32 pixels sur 8192).
+SNAP_DEGREES = 1.4
+# Plus il est petit, plus un bord peu contrasté (blanc sur blanc) suffit à retenir le contour.
+SNAP_EPS = 1e-4
 # Largeur, en pixels, de l'adoucissement à l'intérieur du bord du masque.
 FEATHER = 2.0
 AFTER_NAME = "apres.jpg"
@@ -60,25 +67,73 @@ def parse_color(value: Any) -> tuple[int, int, int]:
     return int(value[1:3], 16), int(value[3:5], 16), int(value[5:7], 16)
 
 
-def _to_lab(bgr: np.ndarray) -> np.ndarray:
+def _to_linear(srgb: np.ndarray) -> np.ndarray:
+    """Valeurs sRGB de 0 à 1 vers la lumière linéaire (norme sRGB)."""
+    return np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
+
+
+def _to_srgb(linear: np.ndarray) -> np.ndarray:
+    linear = np.clip(linear, 0.0, 1.0)
+    return np.where(linear <= 0.0031308, linear * 12.92, 1.055 * linear ** (1 / 2.4) - 0.055)
+
+
+def snap_radius(width: int) -> int:
+    """Rayon d'accrochage en pixels pour un panorama de largeur `width`."""
+    return max(2, round(width * SNAP_DEGREES / 360.0))
+
+
+def _guided_filter(guide: np.ndarray, source: np.ndarray, radius: int) -> np.ndarray:
+    """Filtre guidé (He, Sun et Tang, 2010) : lisse `source` en suivant les bords de `guide`.
+
+    Dans chaque fenêtre, le résultat est une fonction affine de la clarté du guide : il ne peut
+    changer brusquement que là où la photo change brusquement.
+    """
     cv2 = load_cv2()
-    return cv2.cvtColor(bgr.astype(np.float32) / 255.0, cv2.COLOR_BGR2Lab)
+    size = (2 * radius + 1, 2 * radius + 1)
+
+    def box(values: np.ndarray) -> np.ndarray:
+        return cv2.boxFilter(values, -1, size, borderType=cv2.BORDER_REFLECT)
+
+    mean_g, mean_s = box(guide), box(source)
+    slope = (box(guide * source) - mean_g * mean_s) / (box(guide * guide) - mean_g**2 + SNAP_EPS)
+    offset = mean_s - slope * mean_g
+    return box(slope) * guide + box(offset)
 
 
-def _from_lab(lab: np.ndarray) -> np.ndarray:
+def snap_mask(image: np.ndarray, mask: np.ndarray, radius: int) -> np.ndarray:
+    """Recale le contour de `mask` (uint8) sur les bords de `image` (BGR), à `radius` près."""
     cv2 = load_cv2()
-    return cv2.cvtColor(lab.astype(np.float32), cv2.COLOR_Lab2BGR) * 255.0
+    selected = mask > 0
+    rows, cols = np.flatnonzero(selected.any(axis=1)), np.flatnonzero(selected.any(axis=0))
+    if not len(rows):
+        return np.zeros_like(mask)
+    height, width = mask.shape
+    top, bottom = max(0, rows[0] - 2 * radius), min(height, rows[-1] + 1 + 2 * radius)
+    left, right = max(0, cols[0] - 2 * radius), min(width, cols[-1] + 1 + 2 * radius)
+    crop = image[top:bottom, left:right]
+    guide = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+    source = selected[top:bottom, left:right].astype(np.float32)
+    snapped = _guided_filter(guide, source, radius) >= 0.5
+    out = np.zeros_like(mask)
+    out[top:bottom, left:right] = np.where(snapped, 255, 0).astype(np.uint8)
+    return out
 
 
-def recolor(image: np.ndarray, mask: np.ndarray, rgb: tuple[int, int, int]) -> np.ndarray:
+def recolor(
+    image: np.ndarray, mask: np.ndarray, rgb: tuple[int, int, int], snap: bool = True
+) -> np.ndarray:
     """Repeint la surface `mask` (uint8, blanc = sélectionné) de `image` (BGR) en `rgb`.
 
-    Renvoie une nouvelle image ; `image` n'est pas modifiée. Hors du masque, les pixels sont
-    identiques à ceux d'origine.
+    Renvoie une nouvelle image ; `image` n'est pas modifiée. Avec `snap`, le contour est d'abord
+    recalé sur les bords de la photo (voir `snap_mask`) : seuls les pixels à moins de
+    `snap_radius` du masque peuvent alors changer en dehors de lui. Sans `snap`, les pixels hors
+    du masque sont identiques à ceux d'origine.
     """
     cv2 = load_cv2()
     if mask.shape != image.shape[:2]:
         raise ColorError("Le masque n'a pas la taille du panorama.")
+    if snap:
+        mask = snap_mask(image, mask, snap_radius(image.shape[1]))
     out = image.copy()
     selected = mask > 0
     rows, cols = np.flatnonzero(selected.any(axis=1)), np.flatnonzero(selected.any(axis=0))
@@ -88,14 +143,10 @@ def recolor(image: np.ndarray, mask: np.ndarray, rgb: tuple[int, int, int]) -> n
     crop = image[top:bottom, left:right]
     inside = selected[top:bottom, left:right]
 
-    lab = _to_lab(crop)
-    target = _to_lab(np.array([[rgb[::-1]]], dtype=np.uint8))[0, 0]
-    reference = np.median(lab[inside], axis=0)
-    new = np.empty_like(lab)
-    new[..., 0] = lab[..., 0] * (target[0] / max(float(reference[0]), 1.0))
-    new[..., 1:] = target[1:] + TINT_KEEP * (lab[..., 1:] - reference[1:])
-    new[..., 0] = np.clip(new[..., 0], 0.0, 100.0)
-    painted = _from_lab(new)
+    linear = _to_linear(crop.astype(np.float32) / 255.0)
+    reference = np.maximum(np.median(linear[inside], axis=0), 1e-4)
+    target = _to_linear(np.array(rgb[::-1], dtype=np.float32) / 255.0)
+    painted = _to_srgb(linear / reference * target) * 255.0
 
     # Distance au bord, à l'intérieur du masque : 1 sur le premier pixel, 0 dehors.
     padded = np.pad(inside.astype(np.uint8), 1)
@@ -257,7 +308,7 @@ def signature(panorama: Path, ops: Sequence[Operation]) -> str | None:
     """
     if not ops:
         return None
-    digest = hashlib.sha256()
+    digest = hashlib.sha256(f"calcul {ALGORITHM_VERSION};".encode())
     for path in (panorama, *(op.mask_path for op in ops)):
         stat = path.stat()
         digest.update(f"{path.name}:{stat.st_size}:{stat.st_mtime_ns};".encode())

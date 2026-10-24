@@ -52,32 +52,37 @@ def test_parse_color_rejects_the_rest(value: object) -> None:
         couleur.parse_color(value)
 
 
-def test_relative_lightness_is_kept() -> None:
+def linear(image: np.ndarray) -> np.ndarray:
+    srgb = image.astype(np.float64) / 255.0
+    return np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
+
+
+def test_lighting_is_kept() -> None:
     image = wall()
     mask = rect_mask(image.shape, 20, 180, 20, 280)
 
-    out = couleur.recolor(image, mask, couleur.parse_color(SAGE))
+    out = couleur.recolor(image, mask, couleur.parse_color(SAGE), snap=False)
 
-    before, after = lab(image), lab(out)
     inner = rect_mask(image.shape, 30, 170, 30, 270) > 0  # loin du bord adouci
-    ratio = after[..., 0][inner] / before[..., 0][inner]
-    # Un même facteur pour tous les pixels : l'ombre reste une ombre, de même profondeur relative.
-    assert np.std(ratio) / np.mean(ratio) < 0.02
-    target = lab(np.array([[[0x8A, 0xA5, 0x8F]]], dtype=np.uint8))[0, 0]
-    assert np.median(after[..., 0][inner]) == pytest.approx(target[0], abs=1.5)
-    # La teinte est celle choisie, partout sur la surface.
-    assert np.median(after[..., 1][inner]) == pytest.approx(target[1], abs=1.5)
-    assert np.median(after[..., 2][inner]) == pytest.approx(target[2], abs=1.5)
+    ratio = linear(out)[inner] / linear(image)[inner]
+    # Un même facteur pour tous les pixels de chaque canal : l'ombre garde sa profondeur.
+    assert np.all(np.std(ratio, axis=0) / np.mean(ratio, axis=0) < 0.03)
+    # La couleur typique de la surface est celle choisie.
+    assert np.allclose(np.median(out[inner], axis=0), [0x8A, 0xA5, 0x8F], atol=2)
+    # Le côté sombre reste plus sombre que le côté éclairé, dans le même rapport.
+    left, right = linear(image)[100, 40].mean(), linear(image)[100, 260].mean()
+    new_left, new_right = linear(out)[100, 40].mean(), linear(out)[100, 260].mean()
+    assert new_left / new_right == pytest.approx(left / right, rel=0.1)
 
 
-def test_pixels_outside_the_mask_are_untouched() -> None:
+def test_pixels_outside_the_mask_are_untouched_without_snapping() -> None:
     rng = np.random.default_rng(2)
     image = rng.integers(0, 256, (240, 320, 3), dtype=np.uint8)
     mask = np.zeros((240, 320), dtype=np.uint8)
     cv2.circle(mask, (150, 110), 70, 255, -1)
     cv2.circle(mask, (150, 110), 20, 0, -1)  # un trou, comme une prise électrique
 
-    out = couleur.recolor(image, mask, couleur.parse_color(TERRACOTTA))
+    out = couleur.recolor(image, mask, couleur.parse_color(TERRACOTTA), snap=False)
 
     outside = mask == 0
     assert np.array_equal(out[outside], image[outside])
@@ -85,11 +90,49 @@ def test_pixels_outside_the_mask_are_untouched() -> None:
     assert out is not image
 
 
+def test_snapping_changes_nothing_beyond_its_radius() -> None:
+    rng = np.random.default_rng(3)
+    image = rng.integers(0, 256, (400, 2048, 3), dtype=np.uint8)
+    mask = np.zeros((400, 2048), dtype=np.uint8)
+    cv2.circle(mask, (1000, 200), 120, 255, -1)
+    radius = couleur.snap_radius(2048)
+
+    out = couleur.recolor(image, mask, couleur.parse_color(TERRACOTTA))
+
+    size = 2 * radius + 3
+    near = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))) > 0
+    assert np.array_equal(out[~near], image[~near])
+
+
+def test_snapping_follows_a_faint_edge() -> None:
+    """Porte blanche sur mur blanc : le contour approximatif se recale sur le vrai bord."""
+    rng = np.random.default_rng(4)
+    height, width, edge = 200, 2048, 1000
+    image = np.full((height, width, 3), 205.0)
+    image[:, edge:] = 188.0
+    image = np.clip(image + rng.normal(0.0, 2.0, (height, width, 1)), 0, 255).astype(np.uint8)
+    radius = couleur.snap_radius(width)
+    mask = np.zeros((height, width), dtype=np.uint8)
+    for row in range(height):
+        mask[row, 200 : edge + int(rng.integers(-radius // 2, radius // 2 + 1))] = 255
+
+    snapped = couleur.snap_mask(image, mask, radius)
+
+    boundaries = np.array([np.flatnonzero(snapped[row])[-1] + 1 for row in range(height)])
+    assert np.mean(np.abs(boundaries - edge) <= 1) > 0.95
+    assert (
+        np.abs(boundaries - edge).mean()
+        < np.abs(
+            np.array([np.flatnonzero(mask[row])[-1] + 1 for row in range(height)]) - edge
+        ).mean()
+    )
+
+
 def test_edge_is_softened_inside_only() -> None:
     image = np.full((60, 60, 3), 230, dtype=np.uint8)
     mask = rect_mask(image.shape, 10, 50, 10, 50)
 
-    out = couleur.recolor(image, mask, (40, 60, 160)).astype(int)
+    out = couleur.recolor(image, mask, (40, 60, 160), snap=False).astype(int)
 
     change = np.abs(out - image.astype(int)).sum(axis=2)
     assert change[30, 9] == 0
