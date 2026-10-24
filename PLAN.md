@@ -22,7 +22,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 3 | Visite d'un point | v0.1 | livrée |
 | 4 | Visite de plusieurs points | v0.1 | livrée |
 | 5 | App : capture guidée à un point | v0.1 | livrée |
-| 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | à faire |
+| 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | en cours |
 | J1 | **Jalon v0.1 : présentation locale de la visite** | — | à faire |
 | 7 | Sélection d'une surface au clic | v0.2 | à faire |
 | 8 | Changement de couleur | v0.2 | à faire |

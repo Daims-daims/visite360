@@ -267,6 +267,7 @@ def _align(
     scales: dict[int, float],
     features: dict[int, Any],
     sensors: dict[int, np.ndarray] | None,
+    start_yaw: float | None = None,
 ) -> tuple[list[Camera], list[int], list[int]]:
     """Renvoie les caméras, les photos écartées et celles placées par les seuls capteurs."""
     numbers = sorted(images)
@@ -335,7 +336,7 @@ def _align(
             [r.astype(np.float32) for r in adjustment.rotations], cv2.detail.WAVE_CORRECT_HORIZ
         )
         rotations = [np.asarray(r, dtype=np.float64) for r in corrected]
-    rotations = level_and_anchor(rotations)
+    rotations = level_and_anchor(rotations, start_yaw if sensors else None)
 
     result = []
     for number, rotation in zip(kept, rotations, strict=True):
@@ -354,6 +355,7 @@ def align(
     images: dict[int, np.ndarray],
     scales: dict[int, float],
     sensors: dict[int, np.ndarray] | None = None,
+    start_yaw: float | None = None,
 ) -> tuple[list[Camera], list[int], list[int], str | None]:
     """Aligne des photos réduites. Renvoie les caméras retenues, les photos écartées, celles
     placées par les seuls capteurs faute de points communs et, si les orientations du téléphone
@@ -362,31 +364,41 @@ def align(
     images associe à chaque numéro de photo sa copie réduite, scales le facteur de réduction,
     sensors l'orientation mesurée par le téléphone (une pour chaque photo, ou None). Si les
     capteurs ne collent pas aux photos, l'alignement est refait à partir des seules photos.
+    start_yaw, cap de départ de la prise de vue dans le repère des capteurs, est placé au centre
+    du panorama quand les capteurs servent ; sinon c'est la première photo.
     """
     finder = cv2.SIFT_create()
     features = {n: cv2.detail.computeImageFeatures2(finder, images[n]) for n in sorted(images)}
     if sensors is None:
         return *_align(cv2, images, scales, features, None), None
     try:
-        return *_align(cv2, images, scales, features, sensors), None
+        return *_align(cv2, images, scales, features, sensors, start_yaw), None
     except (StitchError, SensorMismatch) as error:
         reason = str(error)
     return *_align(cv2, images, scales, features, None), reason
 
 
-def level_and_anchor(rotations: list[np.ndarray]) -> list[np.ndarray]:
-    """Remet le panorama à l'endroit et oriente la première photo vers la longitude 0.
+def level_and_anchor(
+    rotations: list[np.ndarray], start_yaw: float | None = None
+) -> list[np.ndarray]:
+    """Remet le panorama à l'endroit et oriente la longitude 0 vers le cap start_yaw (degrés),
+    ou à défaut vers la première photo.
 
     La correction d'horizon d'OpenCV laisse le haut et le bas indéterminés : on retourne
-    l'ensemble si le haut des photos pointe en moyenne vers le bas du monde.
+    l'ensemble si le haut des photos pointe en moyenne vers le bas du monde. Le cap de départ
+    noté par l'app ne dépend pas des photos retenues : les flèches visées dans l'app gardent
+    leur angle même si la première photo est écartée.
     """
     image_up = np.array([0.0, -1.0, 0.0])
     world_up = np.array([0.0, -1.0, 0.0])
     if np.mean([(R @ image_up) @ world_up for R in rotations]) < 0:
         flip = np.diag([-1.0, -1.0, 1.0])
         rotations = [flip @ R for R in rotations]
-    axis = rotations[0] @ np.array([0.0, 0.0, 1.0])
-    yaw = math.atan2(axis[0], axis[2])
+    if start_yaw is None:
+        axis = rotations[0] @ np.array([0.0, 0.0, 1.0])
+        yaw = math.atan2(axis[0], axis[2])
+    else:
+        yaw = math.radians(start_yaw)
     turn = rotation_y(-yaw)
     return [turn @ R for R in rotations]
 
@@ -866,15 +878,16 @@ CAPTURE_IGNORED = "orientations du téléphone ignorées"
 
 def phone_orientations(
     folders: Folders, paths: list[Path], images: dict[int, np.ndarray]
-) -> tuple[dict[int, np.ndarray] | None, dict[str, str | None]]:
-    """Orientations de `capture.json` par numéro de photo lisible, et leur description.
+) -> tuple[dict[int, np.ndarray] | None, dict[str, str | None], float | None]:
+    """Orientations de `capture.json` par numéro de photo lisible, leur description et le cap
+    de départ de la prise de vue.
 
     Elles ne servent que si chaque photo lisible en a une : sinon l'alignement se fait à partir
     des seules photos, comme sans app.
     """
     path = capture.find(folders.point)
     if path is None:
-        return None, {"source": SOURCE_IMAGES, "detail": None}
+        return None, {"source": SOURCE_IMAGES, "detail": None}, None
     try:
         found = capture.load(path)
     except capture.CaptureError as error:
@@ -884,9 +897,9 @@ def phone_orientations(
     missing = [paths[n].name for n in sorted(images) if paths[n].name not in found.rotations]
     if missing:
         detail = f"{CAPTURE_IGNORED} : {len(missing)} photo(s) absente(s) de {path.name}"
-        return None, {"source": SOURCE_IMAGES, "detail": detail}
+        return None, {"source": SOURCE_IMAGES, "detail": detail}, None
     sensors = {n: found.rotations[paths[n].name] for n in images}
-    return sensors, {"source": SOURCE_SENSORS, "detail": None}
+    return sensors, {"source": SOURCE_SENSORS, "detail": None}, found.start_yaw
 
 
 def describe_orientations(orientations: dict[str, str | None]) -> str:
@@ -924,9 +937,9 @@ def stitch(folders: Folders, width: int, force: bool, out: TextIO) -> dict[str, 
     if len(images) < 2:
         raise StitchError("Il faut au moins 2 photos lisibles pour assembler un panorama.")
 
-    sensors, orientations = phone_orientations(folders, paths, images)
+    sensors, orientations, start_yaw = phone_orientations(folders, paths, images)
     print("  Alignement des photos", file=out, flush=True)
-    cameras, unmatched, placed, ignored = align(cv2, images, scales, sensors)
+    cameras, unmatched, placed, ignored = align(cv2, images, scales, sensors, start_yaw)
     if ignored:
         orientations = {"source": SOURCE_IMAGES, "detail": f"{CAPTURE_IGNORED} : {ignored}"}
     print(f"  Orientations : {describe_orientations(orientations)}", file=out, flush=True)
