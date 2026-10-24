@@ -47,7 +47,7 @@ CONF_THRESH = 1.0
 # Angle de vue horizontal plausible de l'objectif principal d'un téléphone, tenu en portrait
 # ou en paysage.
 MIN_FOV_DEG = 30.0
-MAX_FOV_DEG = 90.0
+MAX_FOV_DEG = 125
 
 # Rendu.
 ANALYSIS_WIDTH = 1024
