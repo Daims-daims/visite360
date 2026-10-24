@@ -70,6 +70,10 @@ bash scripts/installer-sam2.sh
 
 Les sélections sont enregistrées dans `visites/<visite>/<point>/modifications/`, sans toucher au panorama. Mode d'emploi : [docs/selection.md](docs/selection.md).
 
+## Changer la couleur d'une surface
+
+Dans la liste **Sélections**, le bouton **Repeindre** change la couleur d'une surface sélectionnée, en gardant ses ombres et sa lumière. **Voir l'original** et **Voir les modifications** comparent avant et après. Rien à installer : c'est un calcul, sans IA. Mode d'emploi : [docs/couleur.md](docs/couleur.md).
+
 ## Organisation du dépôt
 
 ```
@@ -84,6 +88,7 @@ visite360/
 │   ├── transfert.md   envoyer une visite de l'iPhone au Mac
 │   ├── visite-json.md  points et flèches d'une visite
 │   ├── selection.md   sélectionner une surface au clic, format des sélections
+│   ├── couleur.md     repeindre une surface, format des recolorations
 │   ├── prise-de-vue.md  comment photographier un point
 │   └── ressources.md  ce qu'il faut lire ou regarder pour comprendre chaque étape
 ├── app/               app iPhone de capture guidée (SwiftUI, D25)

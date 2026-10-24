@@ -306,3 +306,25 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - un mur à motifs demande plusieurs clics « en plus » ;
   - sur une zone floue du panorama, le contour est mauvais : la cause est l'assemblage ;
   - les routes de sélection du serveur acceptent les requêtes de tout appareil du Wi-Fi, comme la visite elle-même. Elles n'écrivent que dans `modifications/` et `cache/`, avec des noms choisis par le serveur. À revoir avant tout hébergement (v1).
+
+## D30 : recoloration dans l'espace Lab, panorama modifié fabriqué à la demande
+
+- **Date :** 2026-10-25
+- **Décision :**
+  - le calcul se fait dans l'espace de couleur Lab (OpenCV, conversion sRGB standard). Sur la surface, la clarté de chaque pixel est multipliée par un même facteur, choisi pour que la clarté médiane de la surface devienne celle de la couleur choisie. Chaque pixel prend la teinte choisie, plus 30 % de son écart de teinte à la teinte médiane de la surface. Le changement s'adoucit sur deux pixels à l'intérieur du masque, jamais au-dehors ;
+  - une recoloration est une fiche `couleur-<n>.json` dans `<point>/modifications/`, qui désigne une sélection de l'étape 7 et une couleur `#rrggbb` (format dans `docs/couleur.md`). Une sélection a au plus une couleur : la repeindre remplace sa fiche, qui garde son numéro. Les fiches s'appliquent par numéro croissant. Supprimer une sélection supprime sa fiche ;
+  - le panorama modifié, toutes recolorations du point appliquées, est fabriqué à la demande dans `cache/apres.jpg`, avec sa copie pour téléphone. Une empreinte des fiches, des masques et du panorama (taille et date de chaque fichier) dit s'il est à jour ;
+  - dans la visionneuse : « Repeindre » dans la liste des sélections, avec un aperçu du panorama réduit à 4096 pixels qui n'enregistre rien ; la visite s'ouvre sur le panorama modifié, et un bouton bascule entre avant et après ;
+  - aucune nouvelle dépendance : NumPy et OpenCV, déjà présents.
+- **Raisons :**
+  - multiplier la clarté plutôt que la décaler garde la profondeur relative des ombres, ce que demande D11. Une ombre à 50 % de la clarté du mur reste à 50 % ;
+  - la médiane plutôt que la moyenne : une affiche oubliée dans la sélection ou un reflet de fenêtre ne déplace pas la couleur obtenue ;
+  - garder une part des écarts de teinte conserve les reflets colorés (lampe chaude, lumière du jour bleutée). 30 % est un premier réglage, à revoir sur les murs du propriétaire ;
+  - l'adoucissement vers l'intérieur seulement garantit que les pixels hors de la sélection sont identiques à l'original ;
+  - une couleur par sélection évite d'empiler des couches invisibles sur la même surface ; l'annulation est la suppression d'une fiche, et le panorama modifié se refait sans elle (D9).
+- **Limites :**
+  - passer d'une surface foncée à une couleur claire agrandit beaucoup la clarté : grain visible, reflets qui saturent en blanc (D11) ;
+  - une couleur très saturée sur un mur blanc peut sortir des couleurs affichables : elle est alors rabattue, un peu moins vive que demandé ;
+  - la couleur choisie à l'écran dépend de l'éclairage de la photo. Ce n'est pas une référence de peinture ;
+  - un mur visible depuis plusieurs points se repeint dans chaque point ;
+  - comme les routes de sélection (D29), les routes de couleur acceptent les requêtes de tout appareil du Wi-Fi et n'écrivent que dans `modifications/` et `cache/`, avec des noms choisis par le serveur. À revoir avant tout hébergement (v1).

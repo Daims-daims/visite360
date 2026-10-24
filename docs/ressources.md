@@ -36,6 +36,10 @@ Presque tout est en anglais, sauf le TP de l'ENSTA.
 
 - [Article de recherche sur SAM 2](https://arxiv.org/abs/2408.00714) et [dépôt officiel](https://github.com/facebookresearch/sam2).
 
+### Étape 8 : changer une couleur
+
+- [Wikipédia, « L*a*b* CIE 1976 »](https://fr.wikipedia.org/wiki/L*a*b*_CIE_1976) : l'espace de couleur qui sépare la clarté d'un pixel de sa teinte, utilisé pour repeindre sans effacer les ombres.
+
 ### Étape 10 : dimensions des pièces
 
 - [HorizonNet](https://arxiv.org/abs/1901.03861) : comment un modèle retrouve la forme d'une pièce à partir d'un panorama.
