@@ -67,8 +67,8 @@ struct CaptureView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var confirmStop = false
 
-    init(point: PointFolder) {
-        _model = StateObject(wrappedValue: CaptureModel(point: point))
+    init(point: PointFolder, lens: Lens) {
+        _model = StateObject(wrappedValue: CaptureModel(point: point, lens: lens))
     }
 
     var body: some View {
@@ -125,7 +125,7 @@ struct CaptureView: View {
                 Text("L'exposition sera la même pour toutes les photos du point.")
                     .font(.footnote)
             } else if let target = model.suggested {
-                Text("\(target.row.label) : photo \(target.number) sur \(target.row.count)")
+                Text("\(target.row.label) : photo \(target.number) sur \(target.rowCount)")
                     .font(.headline)
                 Text(hint(for: target))
                 Text("Tournez autour du téléphone, pas sur vous-même.").font(.footnote)

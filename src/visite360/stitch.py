@@ -67,7 +67,10 @@ SOURCE_SENSORS = "capteurs"
 
 # Rendu.
 ANALYSIS_WIDTH = 1024
-SEAM_WIDTH = 512
+# Largeur du panorama réduit où se cherchent les raccords : assez fine pour voir les petits
+# décalages des objets proches et les contourner (essai sur le salon, 2026-10-24). Au plus la
+# moitié de la largeur du panorama demandé.
+SEAM_WIDTH = 1536
 # Bonus de poids d'une photo dans la zone que la recherche de raccords lui attribue.
 SEAM_PRIORITY = 10.0
 # Priorité à l'horizon : là où l'œil se pose en premier. Une photo dont l'axe est à moins de
@@ -78,7 +81,9 @@ HORIZON_MAX_PITCH_DEG = 20.0
 HORIZON_INNER_MARGIN = 0.12
 FOOTPRINT_WIDTH = 512
 RENDER_OVERSAMPLE = 1.5
-BLEND_STRENGTH = 0.05
+# Largeur de la fusion des raccords : étroite, pour ne pas montrer deux versions décalées
+# d'un même objet en transparence.
+BLEND_STRENGTH = 0.012
 GAIN_ALPHA = 0.01
 GAIN_BETA = 100.0
 GAIN_LIMITS = (0.5, 2.0)
@@ -929,7 +934,8 @@ def stitch(folders: Folders, width: int, force: bool, out: TextIO) -> dict[str, 
         reasons[number] = REJECTED_UNMATCHED
     print("  Exposition et raccords", file=out, flush=True)
     gains = compute_gains(cameras, low_res_warps(cv2, cameras, images, scales, ANALYSIS_WIDTH))
-    seams = find_seams(cv2, cameras, low_res_warps(cv2, cameras, images, scales, SEAM_WIDTH), gains)
+    seam_width = min(SEAM_WIDTH, width // 2)
+    seams = find_seams(cv2, cameras, low_res_warps(cv2, cameras, images, scales, seam_width), gains)
     images.clear()
 
     panorama, covered = render(cv2, cameras, photos, gains, seams, width, out)

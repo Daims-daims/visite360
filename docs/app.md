@@ -21,12 +21,17 @@ Il faut Xcode sur le Mac et un identifiant Apple, sans abonnement développeur.
 
 Les conseils de [prise-de-vue.md](prise-de-vue.md) restent valables : objectif immobile au-dessus d'une marque au sol, portes et lumières fixées, personne qui bouge.
 
-1. **Nouveau point**, puis donner le nom de la pièce (`salon`, `cuisine`…). Ce sera le nom du dossier sur le Mac.
-2. **Viser un mur moyennement éclairé** (pas une fenêtre), puis **Verrouiller et commencer**. L'exposition, la mise au point et la couleur sont figées pour tout le point. La direction visée devient la première photo de l'horizon.
-3. **Suivre les ronds :** chaque direction à photographier est un rond dans l'image. Le rond orange est le prochain conseillé. Amener le rond dans le cercle blanc du centre et ne plus bouger : la photo part toute seule (petite vibration) et le rond devient vert. On peut aussi prendre les ronds dans un autre ordre.
-4. **Consignes à l'écran :** « Tournez vers la droite », « Inclinez vers le haut », « Tenez le téléphone droit » (téléphone penché sur le côté), « Ne bougez plus ».
-5. **Refaire la dernière** supprime la dernière photo pour la reprendre.
-6. **Terminer** apparaît quand les rangées horizon, haut, bas et plafond sont complètes (29 photos). La photo du sol est facultative.
+1. **Choisir l'objectif** en haut de l'écran d'accueil :
+   - **×0,5 (conseillé)** : 21 photos (8 à l'horizon, 6 en haut, 6 en bas, le plafond). Chaque photo voit plus large : un objet proche (frigo, table, chaise) tient plus souvent dans une seule photo, et il y a moins de raccords pour le couper ;
+   - **×1** : 29 photos (12, 8, 8 et le plafond), plus de détail mais plus de raccords.
+   
+   Le choix est gardé pour les points suivants.
+2. **Nouveau point**, puis donner le nom de la pièce (`salon`, `cuisine`…). Ce sera le nom du dossier sur le Mac.
+3. **Viser un mur moyennement éclairé** (pas une fenêtre), puis **Verrouiller et commencer**. L'exposition, la mise au point et la couleur sont figées pour tout le point. La direction visée devient la première photo de l'horizon.
+4. **Suivre les ronds :** chaque direction à photographier est un rond dans l'image. Le rond orange est le prochain conseillé. Amener le rond dans le cercle blanc du centre et ne plus bouger : la photo part toute seule (petite vibration) et le rond devient vert. On peut aussi prendre les ronds dans un autre ordre.
+5. **Consignes à l'écran :** « Tournez vers la droite », « Inclinez vers le haut », « Tenez le téléphone droit » (téléphone penché sur le côté), « Ne bougez plus ».
+6. **Refaire la dernière** supprime la dernière photo pour la reprendre.
+7. **Terminer** apparaît quand les rangées horizon, haut, bas et plafond sont complètes. La photo du sol est facultative.
 
 Un point se prend d'une traite. Quitter l'écran de prise de vue termine le point : pour reprendre, créer un nouveau point. Le cap 0 des capteurs change à chaque démarrage, des photos de deux séances ne s'assembleraient pas avec leurs orientations.
 

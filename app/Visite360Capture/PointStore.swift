@@ -40,10 +40,13 @@ struct CaptureFile: Codable {
     var started: Date
     var frame = CaptureFile.frame
     var exposure: Exposure?
+    /// Absent des fichiers écrits avant le choix de l'objectif : ×1.
+    var lens: Lens?
     var photos: [PhotoEntry] = []
 
     enum CodingKeys: String, CodingKey {
         case format, app
+        case lens = "objectif"
         case device = "appareil"
         case started = "debut"
         case frame = "repere"
