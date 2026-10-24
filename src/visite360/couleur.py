@@ -54,6 +54,7 @@ AFTER_NAME = "apres.jpg"
 AFTER_MOBILE_NAME = "apres-mobile.jpg"
 AFTER_STATE = "apres.json"
 JPEG_QUALITY = 92
+MAX_SHADE = 40
 
 
 class ColorError(Exception):
@@ -212,14 +213,17 @@ def _check_selection(point: Path, selection_id: Any) -> str:
     return selection_id
 
 
-def save(point: Path, selection_id: Any, color: Any) -> dict[str, Any]:
+def save(point: Path, selection_id: Any, color: Any, shade: Any = None) -> dict[str, Any]:
     """Repeint une sélection et renvoie la fiche de l'opération.
 
-    Une sélection n'a qu'une couleur : la repeindre remplace sa recoloration précédente, qui
-    garde son numéro et donc sa place dans l'ordre d'application.
+    `shade` est le nom de la teinte du nuancier (« Vert sauge »), absent pour une couleur
+    personnalisée. Une sélection n'a qu'une couleur : la repeindre remplace sa recoloration
+    précédente, qui garde son numéro et donc sa place dans l'ordre d'application.
     """
     selection_id = _check_selection(point, selection_id)
     parse_color(color)
+    if shade is not None and (not isinstance(shade, str) or len(shade.strip()) > MAX_SHADE):
+        raise ColorError("Nom de teinte invalide.")
     folder = point / selection.FOLDER
     previous = [op.record for op in operations(point) if op.record["selection"] == selection_id]
     if previous and ID_PATTERN.match(str(previous[0].get("id"))):
@@ -232,6 +236,7 @@ def save(point: Path, selection_id: Any, color: Any) -> dict[str, Any]:
         "id": color_id,
         "selection": selection_id,
         "couleur": color.lower(),
+        **({"teinte": shade.strip()} if shade and shade.strip() else {}),
         "creee_le": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
     selection.write_atomic(

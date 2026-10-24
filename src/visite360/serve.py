@@ -265,6 +265,7 @@ def viewer_assets() -> dict[str, Asset]:
         "/pannellum/pannellum.css": Asset(
             viewer / "pannellum" / "pannellum.css", "text/css; charset=utf-8"
         ),
+        "/nuancier.json": Asset(viewer / "nuancier.json", JSON),
     }
 
 
@@ -336,7 +337,9 @@ def handle_color(
         )
         return image, "image/jpeg"
     if route == "appliquer":
-        result: Any = couleur.save(folders.point, body.get("selection"), body.get("couleur"))
+        result: Any = couleur.save(
+            folders.point, body.get("selection"), body.get("couleur"), body.get("teinte")
+        )
     elif route == "annuler":
         couleur.delete(folders.point, body.get("id"))
         result = {"annulee": body.get("id")}

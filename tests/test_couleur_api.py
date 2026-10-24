@@ -68,6 +68,19 @@ def test_full_color_round(server: ThreadingHTTPServer, folders: stitch.Folders) 
     assert folders.panorama.read_bytes() == original
 
 
+def test_palette_is_served_and_shade_is_saved(server: ThreadingHTTPServer) -> None:
+    status, body, kind = request(server, "/nuancier.json")
+    assert status == 200 and kind.startswith("application/json")
+    first = json.loads(body)["familles"][0]["teintes"][0]
+
+    trial = {"point": 0, "selection": "selection-1", "couleur": first["couleur"]}
+    status, body, _ = request(server, "/api/couleur/appliquer", {**trial, "teinte": first["nom"]})
+
+    assert status == 200 and json.loads(body)["teinte"] == first["nom"]
+    state = json.loads(request(server, "/p/0/couleurs.json")[1])
+    assert state["couleurs"][0]["teinte"] == first["nom"]
+
+
 def test_deleting_a_selection_removes_its_color(
     server: ThreadingHTTPServer, folders: stitch.Folders
 ) -> None:

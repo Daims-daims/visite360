@@ -7,7 +7,7 @@
 1. Lancer la visite : `visite360 serve visites/<visite>`, puis ouvrir l'adresse affichée.
 2. Sélectionner la surface si ce n'est pas déjà fait (**Sélectionner une surface**).
 3. **Sélections**, puis **Repeindre** sur la ligne de la surface.
-4. Choisir une couleur dans la barre du bas. Un aperçu du panorama entier s'affiche au bout d'une seconde environ : on peut tourner autour pour juger.
+4. Choisir une teinte dans le nuancier, en bas de l'écran. Les teintes sont rangées par famille (blancs, gris, beiges, verts, bleus, roses) ; passer la souris sur une pastille donne son nom. La case **+** de « Sur mesure » ouvre un sélecteur libre pour n'importe quelle autre couleur. Un aperçu du panorama entier s'affiche au bout d'une seconde environ : on peut tourner autour pour juger.
 5. **Appliquer** enregistre la couleur. **Annuler** ou la touche Échap reviennent à la visite sans rien enregistrer.
 
 Une fois la couleur appliquée, la visite montre le panorama modifié, sur le Mac comme sur le téléphone. Le bouton **Voir l'original** montre le panorama d'origine, et **Voir les modifications** y revient : c'est la comparaison avant et après.
@@ -32,6 +32,10 @@ La première ouverture après un changement prend quelques secondes : le serveur
 - **Mal :** une bande de couleur sur une porte, ou un mur qui s'arrête bien avant la plinthe. Le recalage ne corrige que les écarts de moins de 1,4° : au-delà, la cause est la sélection (étape 7). La corriger avec des clics « + » et « − », de préférence avec une vue rapprochée (une sélection faite à 120° de champ est plus grossière), puis repeindre.
 - La couleur à l'écran n'est pas celle d'un pot de peinture : elle dépend de l'éclairage au moment de la photo et de l'écran. Choisir la couleur à l'œil, sur l'aperçu.
 
+## Modifier le nuancier
+
+Le nuancier est le fichier `visionneuse/nuancier.json` : des familles, chacune avec des teintes (un nom de 40 caractères au plus, une couleur `#rrggbb`). On peut y ajouter, retirer ou renommer des teintes à la main, puis relancer `visite360 serve`. Les noms et les valeurs sont propres au projet, sans référence à une marque de peinture.
+
 ## Où sont rangées les recolorations
 
 Dans le dossier du point, `visites/<visite>/<point>/modifications/`, une fiche par surface repeinte :
@@ -42,13 +46,15 @@ Dans le dossier du point, `visites/<visite>/<point>/modifications/`, une fiche p
   "type": "couleur",
   "id": "couleur-1",
   "selection": "selection-2",
-  "couleur": "#8fa58a",
+  "couleur": "#a3b09a",
+  "teinte": "Vert sauge",
   "creee_le": "2026-10-25T16:20:03+02:00"
 }
 ```
 
 - `selection` : la sélection repeinte. Son masque `selection-2.png` dit quels pixels changent.
 - `couleur` : la couleur choisie, en code hexadécimal (rouge, vert, bleu).
+- `teinte` : le nom de la teinte du nuancier. Absent pour une couleur choisie sur mesure.
 - Le numéro de `id` donne l'ordre d'application.
 
 Le panorama modifié est une image fabriquée à partir du panorama d'origine et de ces fiches. Il est rangé dans `cache/` du point : `apres.jpg`, sa copie réduite pour téléphone `apres-mobile.jpg`, et `apres.json`, qui sert à savoir s'il est à jour. Ces trois fichiers peuvent être effacés sans risque : ils sont refaits à la demande. Le panorama d'origine n'est jamais modifié (D9).

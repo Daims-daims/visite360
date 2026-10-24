@@ -315,6 +315,7 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - la couleur est changée en lumière linéaire (norme sRGB) : chaque canal de chaque pixel est divisé par la médiane de la surface dans ce canal, puis multiplié par la couleur choisie. Le changement s'adoucit sur deux pixels à l'intérieur du contour recalé ;
   - une recoloration est une fiche `couleur-<n>.json` dans `<point>/modifications/`, qui désigne une sélection de l'étape 7 et une couleur `#rrggbb` (format dans `docs/couleur.md`). Une sélection a au plus une couleur : la repeindre remplace sa fiche, qui garde son numéro. Les fiches s'appliquent par numéro croissant. Supprimer une sélection supprime sa fiche ;
   - le panorama modifié, toutes recolorations du point appliquées, est fabriqué à la demande dans `cache/apres.jpg`, avec sa copie pour téléphone. Une empreinte des fiches, des masques et du panorama (taille et date de chaque fichier) dit s'il est à jour ;
+  - un nuancier de 24 teintes murales en six familles, dans `visionneuse/nuancier.json`, modifiable à la main, avec une case « sur mesure » pour une couleur libre. Le nom de la teinte est gardé dans la fiche (`teinte`), pour le chiffrage de l'étape 11. Noms et valeurs propres au projet : aucune donnée de fabricant, donc aucune licence à vérifier ;
   - dans la visionneuse : « Repeindre » dans la liste des sélections, avec un aperçu du panorama réduit à 4096 pixels qui n'enregistre rien ; la visite s'ouvre sur le panorama modifié, et un bouton bascule entre avant et après ;
   - aucune nouvelle dépendance : NumPy et OpenCV, déjà présents.
 - **Raisons :**
@@ -322,6 +323,7 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - le recalage par filtre guidé redresse le bord de la porte et l'angle avec le plafond sur ce même mur, en un dixième de seconde, sans nouvelle dépendance. Il se fait au moment de peindre, pour servir aussi aux sélections déjà enregistrées ;
   - en lumière linéaire, « couleur du mur × éclairage » est le modèle physique d'un mur mat : diviser puis multiplier garde exactement les ombres, la lueur d'une lampe et sa teinte. Sur le même mur, le relief de la lumière y est nettement plus visible qu'avec Lab ;
   - la médiane plutôt que la moyenne : une affiche oubliée dans la sélection ou un reflet de fenêtre ne déplace pas la couleur obtenue ;
+  - un nuancier plutôt qu'un sélecteur seul, à la demande du propriétaire : un sélecteur libre pousse vers des couleurs très saturées (l'ocre du premier essai) que peu de peintures murales atteignent ;
   - une couleur par sélection évite d'empiler des couches invisibles sur la même surface ; l'annulation est la suppression d'une fiche, et le panorama modifié se refait sans elle (D9).
 - **Limites :**
   - le recalage peut changer des pixels jusqu'à 1,4° hors de la sélection, pour atteindre un bord réel ; au-delà, aucun pixel ne change. Il ne corrige pas une grosse erreur de sélection (une bande de porte prise pour du mur) ;

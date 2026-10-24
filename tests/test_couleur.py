@@ -292,3 +292,30 @@ def test_preview_tries_a_color_without_saving(tmp_path: Path) -> None:
     )
     assert [op.record["couleur"] for op in couleur.operations(point)] == [SAGE]
     assert not (point / "cache" / couleur.AFTER_NAME).exists()
+
+
+def test_palette_file_is_valid() -> None:
+    palette = json.loads(
+        (Path(__file__).parents[1] / "visionneuse" / "nuancier.json").read_text(encoding="utf-8")
+    )
+
+    shades = [shade for family in palette["familles"] for shade in family["teintes"]]
+    assert palette["version"] == 1 and len(shades) >= 12
+    for shade in shades:
+        couleur.parse_color(shade["couleur"])
+        assert 0 < len(shade["nom"]) <= couleur.MAX_SHADE
+    assert len({shade["nom"] for shade in shades}) == len(shades)
+    assert len({shade["couleur"].lower() for shade in shades}) == len(shades)
+
+
+def test_save_keeps_the_shade_name_only_when_given(tmp_path: Path) -> None:
+    point, panorama = make_point(tmp_path)
+    wall_id = add_selection(point, panorama, (100, 300, 100, 400))
+
+    named = couleur.save(point, wall_id, SAGE, "Vert sauge")
+    assert named["teinte"] == "Vert sauge"
+    custom = couleur.save(point, wall_id, "#123456")
+    assert "teinte" not in custom and custom["id"] == named["id"]
+    for bad in (12, "x" * (couleur.MAX_SHADE + 1)):
+        with pytest.raises(ColorError):
+            couleur.save(point, wall_id, SAGE, bad)

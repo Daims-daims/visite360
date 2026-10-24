@@ -50,11 +50,23 @@
     #liste .perimee { color: #ffb84d; font-size: 12px; }
     /* Étape 8 : changement de couleur. */
     #peinture { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%);
-      margin: 12px; padding: 8px 12px; border-radius: 8px; background: rgba(0, 0, 0, .75); display: none;
-      gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 48px); }
+      margin: 12px 0; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .8); display: none;
+      flex-direction: column; gap: 8px; width: min(560px, calc(100vw - 24px)); box-sizing: border-box;
+      font-size: 14px; }
+    #peinture .entete { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #peinture .entete span { flex: 1; min-width: 140px; }
     #peinture button { padding: 8px 12px; border-radius: 8px; border: 0; background: #333; color: #fff; }
     #peinture button.principal { background: #4da3ff; }
-    #peinture input { width: 48px; height: 36px; border: 0; padding: 0; background: none; }
+    #nuancier { max-height: 26vh; overflow-y: auto; }
+    #nuancier .famille { color: #aaa; font-size: 12px; margin: 6px 0 4px; }
+    #nuancier .teintes { display: flex; flex-wrap: wrap; gap: 6px; }
+    #nuancier .teinte { position: relative; width: 34px; height: 34px; padding: 0; border-radius: 6px;
+      border: 2px solid rgba(255, 255, 255, .25); cursor: pointer; }
+    #nuancier .teinte.actif { border-color: #4da3ff; box-shadow: 0 0 0 2px #4da3ff; }
+    #nuancier .perso { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;
+      background: conic-gradient(#e05a4f, #e0c14f, #5ac46a, #4fa3e0, #9b5ae0, #e05a4f); }
+    #nuancier .perso input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
+      border: 0; padding: 0; }
     .pastille { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border-radius: 3px;
       border: 1px solid #fff; vertical-align: -2px; }
   </style>
@@ -68,10 +80,12 @@
   <div id="apercu"><span id="apercu-nom"></span><button id="retour">Revenir à la visite</button></div>
   <div id="liste"></div>
   <div id="peinture">
-    <span id="peinture-nom"></span>
-    <input id="teinte" type="color" value="#e8e2d6" aria-label="Couleur">
-    <button id="appliquer" class="principal">Appliquer</button>
-    <button id="renoncer">Annuler</button>
+    <div class="entete">
+      <span><span id="peinture-nom"></span> <span id="teinte-choisie"></span></span>
+      <button id="appliquer" class="principal">Appliquer</button>
+      <button id="renoncer">Annuler</button>
+    </div>
+    <div id="nuancier"></div>
   </div>
   <div id="outils">
     <button id="choisir" hidden>Sélectionner une surface</button>
@@ -436,8 +450,15 @@
             const swatch = document.createElement("span");
             swatch.className = "pastille";
             swatch.style.background = painted.couleur;
-            swatch.title = "Repeinte en " + painted.couleur;
+            swatch.title = "Repeinte en " + (painted.teinte || painted.couleur);
             label.prepend(swatch);
+            if (painted.teinte) {
+              const shade = document.createElement("div");
+              shade.className = "perimee";
+              shade.style.color = "#bbb";
+              shade.textContent = painted.teinte;
+              label.appendChild(shade);
+            }
           }
           const see = document.createElement("button");
           see.textContent = "Voir";
@@ -527,25 +548,88 @@
 
       let trial = 0, timer = null;
       const blobs = [];
+      const swatches = [];
+
+      // Nuancier : teintes murales de visionneuse/nuancier.json, plus une case « Personnaliser ».
+      const custom = document.createElement("label");
+      custom.className = "teinte perso";
+      custom.title = "Personnaliser : choisir n'importe quelle couleur";
+      custom.innerHTML = "<span aria-hidden=\"true\">+</span>";
+      const picker = document.createElement("input");
+      picker.type = "color";
+      picker.value = "#e8e2d6";
+      picker.setAttribute("aria-label", "Couleur personnalisée");
+      custom.appendChild(picker);
+
+      fetch("/nuancier.json").then((r) => r.ok ? r.json() : { familles: [] }).catch(() => ({ familles: [] }))
+        .then((palette) => {
+          const box = $("nuancier");
+          for (const family of palette.familles || []) {
+            const title = document.createElement("div");
+            title.className = "famille";
+            title.textContent = family.nom;
+            const row = document.createElement("div");
+            row.className = "teintes";
+            for (const shade of family.teintes || []) {
+              const button = document.createElement("button");
+              button.className = "teinte";
+              button.style.background = shade.couleur;
+              button.title = shade.nom;
+              button.setAttribute("aria-label", shade.nom);
+              button.onclick = () => choose(shade.couleur, shade.nom, true);
+              swatches.push({ button, couleur: shade.couleur.toLowerCase(), nom: shade.nom });
+              row.appendChild(button);
+            }
+            box.append(title, row);
+          }
+          const title = document.createElement("div");
+          title.className = "famille";
+          title.textContent = "Sur mesure";
+          const row = document.createElement("div");
+          row.className = "teintes";
+          row.appendChild(custom);
+          box.append(title, row);
+        });
+
+      // Choisit une couleur ; `shade` est le nom de la teinte du nuancier, null pour une couleur libre.
+      function choose(color, shade, now) {
+        if (!paint) return;
+        paint.color = color.toLowerCase();
+        paint.shade = shade;
+        for (const swatch of swatches) {
+          swatch.button.classList.toggle("actif", shade !== null && swatch.couleur === paint.color);
+        }
+        custom.classList.toggle("actif", shade === null);
+        if (shade === null) custom.style.background = paint.color;
+        $("teinte-choisie").textContent = "· " + (shade || "Personnalisée " + paint.color);
+        clearTimeout(timer);
+        timer = setTimeout(tryColor, now ? 0 : 300);
+      }
 
       function startPaint(index, record) {
         const painted = colorOf(index, record.id);
-        paint = { index, record };
-        $("teinte").value = painted ? painted.couleur : "#e8e2d6";
-        $("peinture-nom").textContent = record.nom + " :";
+        paint = { index, record, color: null, shade: null };
+        $("peinture-nom").textContent = record.nom;
+        $("teinte-choisie").textContent = "· choisir une teinte";
+        custom.style.background = "";
+        custom.classList.remove("actif");
+        for (const swatch of swatches) swatch.button.classList.remove("actif");
         $("outils").style.display = "none";
         $("peinture").style.display = "flex";
-        say("Choisir une couleur : l'aperçu se met à jour dans la visite.");
-        tryColor();
+        say("Choisir une teinte : l'aperçu s'affiche dans la visite.");
+        if (painted) {
+          picker.value = painted.couleur;
+          choose(painted.couleur, painted.teinte || null, true);
+        }
       }
 
       async function tryColor() {
-        if (!paint) return;
+        if (!paint || !paint.color) return;
         const ticket = ++trial;
-        const { index, record } = paint;
+        const { index, record, color, shade } = paint;
         try {
           const response = await postJson("/api/couleur/apercu", {
-            point: index, selection: record.id, couleur: $("teinte").value,
+            point: index, selection: record.id, couleur: color,
           });
           const url = URL.createObjectURL(await response.blob());
           blobs.push(url);
@@ -554,7 +638,7 @@
           viewer.addScene("apercu:peinture", { type: "equirectangular", panorama: url });
           viewer.loadScene("apercu:peinture", viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
           previewOf = { pointId };
-          say("Aperçu en " + $("teinte").value + ". Appliquer pour l'enregistrer.");
+          say("Aperçu : " + (shade || color) + ". Appliquer pour l'enregistrer.");
         } catch (error) {
           say(error.message);
         }
@@ -569,17 +653,15 @@
         setTimeout(() => { while (blobs.length) URL.revokeObjectURL(blobs.pop()); }, 2000);
       }
 
-      $("teinte").addEventListener("input", () => {
-        clearTimeout(timer);
-        timer = setTimeout(tryColor, 300);
-      });
+      picker.addEventListener("input", () => choose(picker.value, null, false));
       $("renoncer").onclick = () => { endPaint(); say(""); };
       $("appliquer").onclick = async () => {
         if (!paint) return;
-        const { index, record } = paint;
+        if (!paint.color) { say("Choisir d'abord une teinte dans le nuancier."); return; }
+        const { index, record, color, shade } = paint;
         try {
           await postJson("/api/couleur/appliquer", {
-            point: index, selection: record.id, couleur: $("teinte").value,
+            point: index, selection: record.id, couleur: color, teinte: shade,
           });
           look.after = true;
           say("Recoloration enregistrée. Préparation du panorama modifié...");

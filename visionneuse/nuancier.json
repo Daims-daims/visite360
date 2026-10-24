@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "familles": [
+    {
+      "nom": "Blancs et crèmes",
+      "teintes": [
+        { "nom": "Blanc pur", "couleur": "#f4f4f0" },
+        { "nom": "Blanc cassé", "couleur": "#efeadf" },
+        { "nom": "Crème", "couleur": "#ece3cc" },
+        { "nom": "Lin", "couleur": "#e2d8c3" }
+      ]
+    },
+    {
+      "nom": "Gris",
+      "teintes": [
+        { "nom": "Gris perle", "couleur": "#d9d9d4" },
+        { "nom": "Gris galet", "couleur": "#b8b5ad" },
+        { "nom": "Gris ardoise", "couleur": "#6e7276" },
+        { "nom": "Anthracite", "couleur": "#44474a" }
+      ]
+    },
+    {
+      "nom": "Beiges et terres",
+      "teintes": [
+        { "nom": "Grège", "couleur": "#c9bda9" },
+        { "nom": "Sable", "couleur": "#d8c3a0" },
+        { "nom": "Taupe", "couleur": "#8f8073" },
+        { "nom": "Ocre doux", "couleur": "#c9a15a" },
+        { "nom": "Terracotta", "couleur": "#b8694a" }
+      ]
+    },
+    {
+      "nom": "Verts",
+      "teintes": [
+        { "nom": "Vert d'eau", "couleur": "#c5d6c8" },
+        { "nom": "Vert sauge", "couleur": "#a3b09a" },
+        { "nom": "Vert olive", "couleur": "#7d7f56" },
+        { "nom": "Vert forêt", "couleur": "#3f5245" }
+      ]
+    },
+    {
+      "nom": "Bleus",
+      "teintes": [
+        { "nom": "Bleu brume", "couleur": "#c7d3db" },
+        { "nom": "Bleu gris", "couleur": "#8a9ba8" },
+        { "nom": "Bleu canard", "couleur": "#2f5d62" },
+        { "nom": "Bleu nuit", "couleur": "#2c3a4f" }
+      ]
+    },
+    {
+      "nom": "Roses et rouges",
+      "teintes": [
+        { "nom": "Rose poudré", "couleur": "#e2c4bb" },
+        { "nom": "Vieux rose", "couleur": "#c08f88" },
+        { "nom": "Bordeaux", "couleur": "#6e2f35" }
+      ]
+    }
+  ]
+}
