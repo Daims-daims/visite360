@@ -18,7 +18,7 @@ struct VisitsView: View {
     @State private var adopting: PointFolder?
     @State private var deleting: VisitFolder?
     @State private var problem: String?
-    @AppStorage("reglage") private var setup: CaptureSetup = .ultraWide
+    @AppStorage("reglage") private var setup: CaptureSetup = .wideTracked
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -36,15 +36,16 @@ struct VisitsView: View {
                     }
                 } footer: {
                     switch setup {
-                    case .ultraWide:
-                        Text("×0,5 : 21 photos par point. Moins de raccords, conseillé près des meubles.")
-                    case .wide:
-                        Text("×1 : 29 photos par point, plus de détail.")
                     case .wideTracked:
                         Text(
-                            "×1 + AR (essai) : 29 photos. ARKit suit la position de l'objectif et "
-                                + "bloque la photo s'il s'éloigne de plus de 5 cm de sa place."
+                            "×1 + AR (conseillé) : 29 photos par point. ARKit suit l'objectif, montre "
+                                + "où le tenir et suspend les photos s'il s'éloigne de plus de 8 cm "
+                                + "de sa place."
                         )
+                    case .wide:
+                        Text("×1 : 29 photos par point, sans suivi de l'objectif.")
+                    case .ultraWide:
+                        Text("×0,5 : 21 photos par point, sans suivi de l'objectif.")
                     }
                 }
                 Section("Visites") {

@@ -249,21 +249,24 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - une flèche visée au jugé tombe à quelques degrés près. Si l'assemblage ignore les orientations du téléphone (écart de plus de 10°), le centre redevient la première photo et les flèches de ce point peuvent être décalées ;
   - une flèche ne se vise que pendant la prise de vue du point. Pour la refaire, reprendre le point ou corriger `visite.json` sur le Mac.
 
-## D27 : essai d'un mode « ×1 + AR » qui suit la position de l'objectif
+## D27 : réglage « ×1 + AR » qui suit la position de l'objectif
 
 - **Date :** 2026-10-24
 - **Décision :**
   - l'app propose un troisième réglage, « ×1 + AR », à côté de ×0,5 et ×1. ARKit (réalité augmentée d'Apple) pilote la caméra pendant tout le point, prend les photos en pleine résolution et mesure la position de l'objectif ;
-  - la place de départ est la position de l'objectif au verrouillage. Au-delà de 5 cm de déplacement, l'écran passe au rouge, le téléphone vibre et la photo ne part pas. L'alerte s'efface sous 3,5 cm ;
+  - la place de départ est la position de l'objectif au verrouillage. Au-delà de 8 cm de déplacement, l'écran passe au rouge, le téléphone vibre et la photo ne part pas. L'alerte s'efface sous 6 cm ;
+  - un guide de placement montre en permanence, vu de dessus et dans le sens où vise le photographe, où est l'objectif par rapport à sa place, avec une jauge de hauteur et une consigne en centimètres (« ramenez le téléphone vers vous de 5 cm ») ;
   - l'orientation des photos vient toujours de Core Motion, comme dans les autres réglages (D25). ARKit ne fournit que la position ;
   - le déplacement de chaque photo est noté dans `capture.json` (`suivi_position`, `deplacement_m`), sans être utilisé par l'assemblage.
 - **Raisons :**
   - demande du propriétaire, qui veut prévenir la parallaxe pendant la prise de vue. ARKit mesure la position en croisant caméra et capteurs : c'est plus fiable qu'une estimation tirée des seuls capteurs de mouvement, envisagée puis écartée pour ce motif ;
   - garder l'orientation de Core Motion évite de revérifier sans téléphone les conventions de repère d'ARKit. Une distance, elle, ne dépend pas du repère ;
-  - 5 cm : pour un objet à 1 m, l'écart entre deux photos reste sous 3°. Seuil à régler sur de vraies pièces.
+  - premiers essais du propriétaire (2026-10-24) : raccords bien meilleurs au « ×1 + AR » qu'aux autres réglages. Le seuil d'abord fixé à 5 cm bloquait trop souvent, et l'alerte ne disait pas où aller : seuil passé à 8 cm (environ 4,5° d'écart pour un objet à 1 m) et guide ajouté ;
+  - un réglage « ×0,5 + capteurs » a aussi été essayé : gyroscope et accéléromètre estimaient la distance entre le téléphone et l'axe de rotation. Mesure instable et raccords moyens à l'essai : il est retiré. Son code reste dans l'historique git (commit fe3acfa) pour une amélioration ultérieure.
 - **Limites :**
-  - ARKit garde la caméra pour lui et n'utilise que l'objectif ×1 : pas de suivi au ×0,5, le réglage conseillé jusqu'ici ;
+  - ARKit garde la caméra pour lui et n'utilise que l'objectif ×1 : pas de suivi au ×0,5 ;
   - sans repères visuels (démarrage, mur uni), ARKit ne suit pas la position et les photos partent sans contrôle ;
   - les photos d'ARKit ne passent pas par la chaîne photo habituelle d'iOS : rendu et netteté à comparer avec le ×1 normal.
-- **À décider après essai :** garder ce mode, le retirer, ou en faire le réglage par défaut.
+- **Décision du propriétaire (2026-10-24) :** « ×1 + AR » devient le réglage conseillé et le réglage par défaut de l'app. ×1 et ×0,5 restent proposés, sans suivi.
+- **Modifie :** D25, où le ×0,5 était le réglage par défaut.
 

@@ -38,6 +38,8 @@ final class CaptureModel: ObservableObject {
     @Published private(set) var arrows: [VisitLink] = []
     /// Déplacement de l'objectif depuis sa place de départ (mode « ×1 + AR »).
     @Published private(set) var drift = LensDrift()
+    /// Place de l'objectif par rapport à sa place de départ, vue par le photographe.
+    @Published private(set) var placement: Placement?
     @Published var problem: String?
 
     private var file: CaptureFile
@@ -69,6 +71,7 @@ final class CaptureModel: ObservableObject {
             guard let self else { return }
             let wasTooFar = drift.isTooFar
             drift.update(position, started: phase == .shooting)
+            placement = drift.placement(position, heading: tracker?.heading)
             if drift.isTooFar, !wasTooFar {
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
             }

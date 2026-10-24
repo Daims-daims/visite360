@@ -21,6 +21,9 @@ final class ARCameraController: NSObject, ObservableObject, ARSessionDelegate, P
     /// Position de l'objectif en mètres dans le repère d'ARKit, ou nil si ARKit ne suit pas la
     /// position en ce moment (démarrage, mur uni, mouvement trop rapide).
     private(set) var position: SIMD3<Double>?
+    /// Direction horizontale visée par le téléphone dans le repère d'ARKit (y vers le haut).
+    /// Quand il vise le plafond ou le sol, c'est la dernière direction horizontale connue.
+    private(set) var heading: SIMD3<Double>?
     /// Appelé sur le fil principal à chaque image, avec la position (ou nil).
     var onPosition: ((SIMD3<Double>?) -> Void)?
 
@@ -100,6 +103,10 @@ final class ARCameraController: NSObject, ObservableObject, ARSessionDelegate, P
         if case .normal = camera.trackingState {
             let t = camera.transform.columns.3
             position = SIMD3(Double(t.x), Double(t.y), Double(t.z))
+            // L'objectif vise l'axe -z de la caméra d'ARKit, quel que soit le sens du téléphone.
+            let z = camera.transform.columns.2
+            let flat = SIMD3(-Double(z.x), 0, -Double(z.z))
+            if simd_length(flat) > 0.3 { heading = simd_normalize(flat) }
         } else {
             position = nil
         }

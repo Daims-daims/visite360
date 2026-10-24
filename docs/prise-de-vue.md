@@ -2,7 +2,7 @@
 
 Cette fiche décrit comment photographer un point de la visite avec l'appareil photo du téléphone, sans app dédiée.
 
-**Avec l'app de capture** (étape 5, [app.md](app.md)) : les rangées, le nombre de photos, le recouvrement et le verrouillage de l'exposition sont gérés par l'app. Elle utilise par défaut le grand-angle ×0,5, qui donne moins de raccords près des meubles. Les conseils sur le logement, l'emplacement et le geste (objectif immobile) restent à suivre. Elle sera ajustée à l'étape 2 selon la qualité de l'assemblage sur de vraies photos.
+**Avec l'app de capture** (étape 5, [app.md](app.md)) : les rangées, le nombre de photos, le recouvrement et le verrouillage de l'exposition sont gérés par l'app. Son réglage par défaut, « ×1 + AR », suit la position de l'objectif et montre où tenir le téléphone pour qu'il ne bouge pas (D27). Les conseils sur le logement, l'emplacement et le geste (objectif immobile) restent à suivre. Elle sera ajustée à l'étape 2 selon la qualité de l'assemblage sur de vraies photos.
 
 Un point est un endroit du logement d'où l'on regarde tout autour de soi. Une pièce moyenne en demande un, une grande pièce ou une pièce en L deux.
 

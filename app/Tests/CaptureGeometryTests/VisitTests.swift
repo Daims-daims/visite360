@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import simd
 
 @testable import CaptureGeometry
 
@@ -104,16 +105,16 @@ final class LensDriftTests: XCTestCase {
         var drift = LensDrift()
         drift.start()
         drift.update(SIMD3(0, 0, 0), started: true)
-        drift.update(SIMD3(0.04, 0, 0), started: true)
+        drift.update(SIMD3(0.07, 0, 0), started: true)
         XCTAssertFalse(drift.isTooFar)
-        drift.update(SIMD3(0.03, 0, 0.04), started: true)  // 5 cm : à la limite, pas au-delà
+        drift.update(SIMD3(0.048, 0, 0.064), started: true)  // 8 cm : à la limite, pas au-delà
         XCTAssertFalse(drift.isTooFar)
         drift.update(SIMD3(0.3, 0, 0), started: true)  // pivot sur les talons
         XCTAssertTrue(drift.isTooFar)
         XCTAssertEqual(drift.offset ?? 0, 0.3, accuracy: 1e-12)
-        drift.update(SIMD3(0.04, 0, 0), started: true)  // revenu, mais pas assez
+        drift.update(SIMD3(0.07, 0, 0), started: true)  // revenu, mais pas assez
         XCTAssertTrue(drift.isTooFar)
-        drift.update(SIMD3(0.02, 0, 0), started: true)
+        drift.update(SIMD3(0.05, 0, 0), started: true)
         XCTAssertFalse(drift.isTooFar)
     }
 
@@ -125,6 +126,37 @@ final class LensDriftTests: XCTestCase {
         drift.update(nil, started: true)
         XCTAssertNil(drift.offset)
         XCTAssertTrue(drift.isTooFar)
+    }
+
+    func testPlacementFollowsTheDirectionTheUserFaces() throws {
+        var drift = LensDrift()
+        drift.start()
+        drift.update(SIMD3(1, 1.4, 2), started: true)
+        // Le photographe vise -z (direction de départ d'ARKit) ; l'objectif est parti de 6 cm
+        // vers l'avant et de 2 cm vers la droite (+x).
+        let ahead = try XCTUnwrap(drift.placement(SIMD3(1.02, 1.4, 1.94), heading: SIMD3(0, -0.3, -1)))
+        XCTAssertEqual(ahead.forward, 0.06, accuracy: 1e-9)
+        XCTAssertEqual(ahead.right, 0.02, accuracy: 1e-9)
+        XCTAssertEqual(ahead.up, 0, accuracy: 1e-9)
+        // Même déplacement, photographe tourné d'un quart de tour vers la droite (vise +x) :
+        // l'objectif est maintenant 2 cm devant et 6 cm à gauche.
+        let turned = try XCTUnwrap(drift.placement(SIMD3(1.02, 1.4, 1.94), heading: SIMD3(1, 0, 0)))
+        XCTAssertEqual(turned.forward, 0.02, accuracy: 1e-9)
+        XCTAssertEqual(turned.right, -0.06, accuracy: 1e-9)
+        XCTAssertNil(drift.placement(SIMD3(1, 1.4, 2), heading: SIMD3(0, 1, 0)))  // vise le plafond
+    }
+
+    func testInstructionNamesTheTwoLargestCorrections() {
+        XCTAssertEqual(
+            Placement(right: 0.03, forward: 0.06, up: -0.01).instruction,
+            "Ramenez le téléphone vers vous de 6 cm, puis décalez-le vers la gauche de 3 cm."
+        )
+        XCTAssertEqual(
+            Placement(right: -0.09, forward: 0, up: 0.02).instruction,
+            "Décalez le téléphone vers la droite de 9 cm, puis baissez-le de 2 cm."
+        )
+        XCTAssertEqual(Placement(right: 0, forward: -0.04, up: 0).instruction, "Éloignez le téléphone de vous de 4 cm.")
+        XCTAssertEqual(Placement(right: 0.01, forward: 0, up: -0.005).instruction, "Objectif à sa place.")
     }
 
     func testTrackedSetupUsesTheMainLens() {
