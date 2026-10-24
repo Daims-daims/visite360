@@ -21,7 +21,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 2 | Assemblage d'un panorama | v0.1 | livrée |
 | 3 | Visite d'un point | v0.1 | livrée |
 | 4 | Visite de plusieurs points | v0.1 | livrée |
-| 5 | App : capture guidée à un point | v0.1 | à faire |
+| 5 | App : capture guidée à un point | v0.1 | en cours |
 | 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | à faire |
 | J1 | **Jalon v0.1 : présentation locale de la visite** | — | à faire |
 | 7 | Sélection d'une surface au clic | v0.2 | à faire |
