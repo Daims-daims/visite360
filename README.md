@@ -1,6 +1,6 @@
 # visite360
 
-Transforme des photos prises en tournant sur soi-même avec un téléphone en visite 360° d'un logement, puis permet de repeindre un mur et de voir la visite mise à jour.
+Transforme des photos prises en tournant sur soi-même avec un téléphone en visite 360° d'un logement, puis permet de modifier ce qu'on voit (couleur d'un mur, modifications générées par IA) et de chiffrer ces modifications. Feuille de route par versions dans [PLAN.md](PLAN.md).
 
 **État :** étape 2 livrée (assemblage d'un panorama). L'avancement est dans [PLAN.md](PLAN.md).
 

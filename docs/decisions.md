@@ -160,3 +160,21 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Raisons :** sur le premier vrai jeu de photos (chambre, 33 photos à main levée), l'ajusteur d'OpenCV échouait ou donnait des focales de 113 à 787 pixels pour un même objectif. La parallaxe des objets proches produit des correspondances qu'aucune rotation n'explique, et ces correspondances faisaient diverger le calcul. Avec notre ajustement, la focale trouvée (640 pixels à l'échelle de travail) correspond aux 26 mm annoncés par l'iPhone 15, et la moitié des paires s'aligne à moins de 2,6 pixels près.
 - **Remplace :** la partie « ajustement » de D19.
 - **Limite :** la parallaxe elle-même ne se corrige pas. Les raccords l'évitent quand ils le peuvent. Un objet proche vu de deux positions différentes peut rester dédoublé.
+
+## D22 : feuille de route par versions, tout en local jusqu'à la v1
+
+- **Date :** 2026-10-24
+- **Décision :**
+  - le plan est découpé en versions : v0.1 prise et consultation d'une visite avec une app de capture, v0.2 modification par génération d'images, v0.3 chiffrage, v1 partage par lien et retours d'engagement pour l'agent ;
+  - jusqu'à la v1, tout fonctionne en local : traitement et visite sur le Mac, transfert depuis l'app sans service payant. Hébergement, serveur, lien de partage et comptes arrivent en v1 ;
+  - les présentations avant la v1 se font en local. Aucun utilisateur extérieur n'a accès au produit avant la v1 ;
+  - en v0.2, on génère au maximum sans coût : recoloration calculée (D11) pour la peinture, modèle d'IA qui tourne sur le Mac pour le reste. Le coût d'une API payante est estimé, pas engagé ;
+  - suivi de position par réalité augmentée, modèle 3D commun, propagation d'une modification entre panoramas et suppression de cloison sortent du plan.
+- **Raisons :** feuille de route fixée par le propriétaire avant les premières présentations. Le partage impose des coûts d'hébergement qu'on ne veut payer qu'au déploiement.
+- **Remplace :** D12. L'app de capture passe avant la démo aux agents, puisque la démo de la v0.1 se fait avec elle. Le jalon A devient le jalon v0.1.
+- **Modifie :**
+  - D14 : la mesure du déplacement par le téléphone est reportée hors plan. L'app de l'étape 6 déclare les liens à la main ;
+  - D15 : l'app mobile arrive dans `app/` à l'étape 5.
+- **Conséquences :**
+  - un modèle de génération d'image local doit avoir code, poids et données d'entraînement sous licence autorisée et tenir dans les 24 Go du Mac (D3, D5). Si aucun ne convient, le propriétaire décide d'une API payante ;
+  - le chiffrage a besoin de surfaces en m², donc des dimensions des pièces (D13) et d'une mesure réelle pour l'échelle.

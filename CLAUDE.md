@@ -1,6 +1,6 @@
 # visite360
 
-Outil qui transforme des photos prises en tournant sur soi-même avec un téléphone en panoramas 360°, assemblés en visite virtuelle d'un logement, puis permet de modifier ce qu'on voit (couleur d'un mur, plus tard meubles et cloisons). Produit destiné aux agents immobiliers : l'usage final sera commercial.
+Outil qui transforme des photos prises en tournant sur soi-même avec un téléphone en panoramas 360°, assemblés en visite virtuelle d'un logement, puis permet de modifier ce qu'on voit (couleur d'un mur, modifications générées par IA) et de chiffrer ces modifications. À terme, la visite se partage par lien avec les clients de l'agent. Produit destiné aux agents immobiliers : l'usage final sera commercial.
 
 Ce projet remplace le projet `scene3d` (reconstruction par Gaussian splatting), mis en pause. Raisons dans `docs/decisions.md`, décision D1.
 
@@ -50,7 +50,7 @@ Ces trois vérifications doivent passer avant tout commit.
 - Les programmes externes sont appelés par `subprocess` avec une liste d'arguments, jamais avec `shell=True`.
 - L'absence ou l'échec d'un outil externe produit un message clair en français et un code de sortie non nul, pas une trace Python.
 - Pas de dépendance Python d'exécution sans raison écrite dans la pull request.
-- Organisation du dépôt (D15) : traitement Python dans `src/visite360/`, visionneuse web dans un dossier dédié à créer à l'étape 3, app mobile dans `app/` à partir de la phase 3.
+- Organisation du dépôt (D15) : traitement Python dans `src/visite360/`, visionneuse web dans un dossier dédié à créer à l'étape 3, app mobile dans `app/` à partir de l'étape 5.
 
 ## Conventions
 
@@ -63,9 +63,9 @@ Ces trois vérifications doivent passer avant tout commit.
 ## Matériel de référence
 
 - Traitement : MacBook Air M4, 24 Go de mémoire partagée, sans ventilateur, sans CUDA.
-- Prise de vue : le téléphone du propriétaire. Modèle à préciser avant la phase 3.
+- Prise de vue : le téléphone du propriétaire. Modèle à préciser avant l'étape 5.
 
 ## Hors périmètre
 
-- Jusqu'au jalon A : app mobile, serveur, API, comptes utilisateurs.
+- Jusqu'à la v1 (D22) : hébergement, serveur distant, lien de partage, comptes utilisateurs, tout service payant. Le produit tourne en local, sur le Mac et le téléphone.
 - Toute la durée du plan actuel : plan du logement, Gaussian splatting.
