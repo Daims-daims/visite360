@@ -149,3 +149,14 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - panorama de 8192 × 4096 pixels par défaut, modifiable avec `--largeur` ;
   - les trous qui touchent le sol ou le plafond et restent à moins de 45° du pôle sont bouchés par un flou. Les autres restent en gris. Tous sont décrits dans le rapport.
 - **Raisons :** 8192 pixels de large suffisent pour une visite web et restent lisibles par les visionneuses sur téléphone. Les photos permettraient environ 20 000 pixels. Le flou sous le photographe est accepté à ce stade (PLAN.md, étape 2). Un grand trou flouté ferait croire à une vraie surface, d'où le gris.
+
+## D21 : ajustement des photos par notre code, raccords placés par coupe minimale
+
+- **Date :** 2026-10-24
+- **Décision :**
+  - l'orientation des photos et la focale sont ajustées par notre code (`src/visite360/adjust.py`) et non plus par l'ajusteur d'OpenCV. Une seule focale pour toutes les photos, écarts mesurés en pixels, poids réduit pour les correspondances aberrantes, puis mise à l'écart des paires de photos incohérentes. OpenCV reste utilisé pour les points caractéristiques, l'appariement et la correction de l'horizon ;
+  - le point de départ est calculé paire par paire (rotation qui superpose au mieux les points communs), en enchaînant les paires les plus riches ;
+  - les raccords sont placés par la coupe minimale d'OpenCV (`GraphCutSeamFinder`) sur un panorama réduit : ils passent là où les photos voisines se ressemblent.
+- **Raisons :** sur le premier vrai jeu de photos (chambre, 33 photos à main levée), l'ajusteur d'OpenCV échouait ou donnait des focales de 113 à 787 pixels pour un même objectif. La parallaxe des objets proches produit des correspondances qu'aucune rotation n'explique, et ces correspondances faisaient diverger le calcul. Avec notre ajustement, la focale trouvée (640 pixels à l'échelle de travail) correspond aux 26 mm annoncés par l'iPhone 15, et la moitié des paires s'aligne à moins de 2,6 pixels près.
+- **Remplace :** la partie « ajustement » de D19.
+- **Limite :** la parallaxe elle-même ne se corrige pas. Les raccords l'évitent quand ils le peuvent. Un objet proche vu de deux positions différentes peut rester dédoublé.

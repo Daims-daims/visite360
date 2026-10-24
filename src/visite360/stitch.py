@@ -25,6 +25,7 @@ from typing import Any, TextIO
 import numpy as np
 
 from visite360 import __version__
+from visite360.adjust import PairMatches, adjust, initial_rotations
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import Photo, PhotoError, list_photos, prepare_photos
 from visite360.spherical import (
@@ -43,9 +44,16 @@ REPORT_FORMAT = 1
 WORK_MEGAPIX = 0.6
 MATCH_CONF = 0.3
 CONF_THRESH = 1.0
+# Angle de vue horizontal plausible de l'objectif principal d'un téléphone, tenu en portrait
+# ou en paysage.
+MIN_FOV_DEG = 30.0
+MAX_FOV_DEG = 90.0
 
 # Rendu.
 ANALYSIS_WIDTH = 1024
+SEAM_WIDTH = 512
+# Bonus de poids d'une photo dans la zone que la recherche de raccords lui attribue.
+SEAM_PRIORITY = 10.0
 FOOTPRINT_WIDTH = 512
 RENDER_OVERSAMPLE = 1.5
 BLEND_STRENGTH = 0.05
@@ -137,6 +145,32 @@ def _match(cv2: Any, features: list[Any]) -> list[Any]:
     return pairwise
 
 
+def _pair_matches(
+    features: list[Any], pairwise: list[Any], sizes: list[tuple[int, int]]
+) -> list[PairMatches]:
+    """Points appariés retenus par OpenCV (inliers), origine au centre de chaque image."""
+    points = [
+        np.array([kp.pt for kp in f.getKeypoints()], dtype=np.float64).reshape(-1, 2)
+        for f in features
+    ]
+    centers = [np.array([w / 2, h / 2]) for w, h in sizes]
+    pairs = []
+    for info in pairwise:
+        i, j = info.src_img_idx, info.dst_img_idx
+        if i < 0 or j <= i or info.confidence <= CONF_THRESH:
+            continue
+        inliers = np.ravel(info.getInliers()).astype(bool)
+        matches = [m for m, keep in zip(info.getMatches(), inliers, strict=True) if keep]
+        if not matches:
+            continue
+        query = np.array([m.queryIdx for m in matches])
+        train = np.array([m.trainIdx for m in matches])
+        pairs.append(
+            PairMatches(i, j, points[i][query] - centers[i], points[j][train] - centers[j])
+        )
+    return pairs
+
+
 def align(
     cv2: Any, images: dict[int, np.ndarray], scales: dict[int, float]
 ) -> tuple[list[Camera], list[int]]:
@@ -166,28 +200,42 @@ def align(
     ok, cameras = estimator.apply(features, pairwise, None)
     if not ok:
         raise StitchError("L'estimation de l'orientation des photos a échoué.")
-    for camera in cameras:
-        camera.R = camera.R.astype(np.float32)
-    adjuster = cv2.detail_BundleAdjusterRay()
-    adjuster.setConfThresh(CONF_THRESH)
-    adjuster.setRefinementMask(np.ones((3, 3), np.uint8))
-    ok, cameras = adjuster.apply(features, pairwise, cameras)
-    if not ok or not all(np.isfinite(c.focal) and c.focal > 0 for c in cameras):
+    sizes = [(images[n].shape[1], images[n].shape[0]) for n in kept]
+    pairs = _pair_matches(features, pairwise, sizes)
+    focal = float(np.median([c.focal for c in cameras]))
+    adjustment = adjust(pairs, initial_rotations(pairs, len(kept), focal), focal)
+    if not (np.isfinite(adjustment.focal) and adjustment.focal > 0):
         raise StitchError("L'ajustement de l'orientation des photos a échoué.")
+    fov = 2 * math.degrees(math.atan(max(sizes[0]) / 2 / adjustment.focal))
+    if not MIN_FOV_DEG <= fov <= MAX_FOV_DEG:
+        raise StitchError(
+            f"L'ajustement donne un angle de vue de {fov:.0f}°, invraisemblable pour l'objectif "
+            "principal d'un téléphone. Les photos se recouvrent probablement trop peu."
+        )
+    rejected += [
+        kept[position] for position in range(len(kept)) if position not in adjustment.connected
+    ]
+    kept = [kept[position] for position in adjustment.connected]
+    if len(kept) < 2:
+        raise StitchError(
+            "Les photos n'ont pas assez de points communs cohérents pour être assemblées."
+        )
 
     rotations = cv2.detail.waveCorrect(
-        [np.copy(c.R) for c in cameras], cv2.detail.WAVE_CORRECT_HORIZ
+        [r.astype(np.float32) for r in adjustment.rotations], cv2.detail.WAVE_CORRECT_HORIZ
     )
     rotations = level_and_anchor([np.asarray(r, dtype=np.float64) for r in rotations])
 
     result = []
-    for number, camera, rotation in zip(kept, cameras, rotations, strict=True):
-        K_work = np.asarray(camera.K(), dtype=np.float64)
-        K_full = np.diag([1 / scales[number], 1 / scales[number], 1.0]) @ K_work
+    for number, rotation in zip(kept, rotations, strict=True):
         height, width = images[number].shape[:2]
+        K_work = np.array(
+            [[adjustment.focal, 0, width / 2], [0, adjustment.focal, height / 2], [0, 0, 1.0]]
+        )
+        K_full = np.diag([1 / scales[number], 1 / scales[number], 1.0]) @ K_work
         size = (round(width / scales[number]), round(height / scales[number]))
         result.append(Camera(number, K_full, rotation, size))
-    return result, rejected
+    return result, sorted(rejected)
 
 
 def level_and_anchor(rotations: list[np.ndarray]) -> list[np.ndarray]:
@@ -283,14 +331,23 @@ def _warp(cv2: Any, image: np.ndarray, x: np.ndarray, y: np.ndarray) -> np.ndarr
     return cv2.remap(image, x, y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
 
-def compute_gains(
-    cv2: Any, cameras: list[Camera], images: dict[int, np.ndarray], scales: dict[int, float]
-) -> dict[int, np.ndarray]:
-    """Gain par photo et par canal qui égalise l'exposition dans les recouvrements.
+@dataclass
+class LowRes:
+    """Photos projetées dans un panorama réduit, pour les calculs d'ensemble."""
 
-    Même modèle que le GainCompensator d'OpenCV, calculé sur un panorama réduit.
-    """
-    width = min(ANALYSIS_WIDTH, FOOTPRINT_WIDTH * 2)
+    width: int
+    warped: list[np.ndarray]
+    masks: list[np.ndarray]
+
+
+def low_res_warps(
+    cv2: Any,
+    cameras: list[Camera],
+    images: dict[int, np.ndarray],
+    scales: dict[int, float],
+    width: int,
+) -> LowRes:
+    """Projette chaque photo réduite dans un panorama de largeur width."""
     height = width // 2
     directions = equirect_directions(width, height, np.arange(height), np.arange(width))
     warped, masks = [], []
@@ -300,8 +357,16 @@ def compute_gains(
         x, y, front = project(directions, K_small, camera.R)
         image = images[camera.index]
         masks.append(_visible(x, y, front, (image.shape[1], image.shape[0])))
-        warped.append(_warp(cv2, image, x, y).astype(np.float64))
+        warped.append(_warp(cv2, image, x, y).astype(np.float32))
+    return LowRes(width, warped, masks)
 
+
+def compute_gains(cameras: list[Camera], low: LowRes) -> dict[int, np.ndarray]:
+    """Gain par photo et par canal qui égalise l'exposition dans les recouvrements.
+
+    Même modèle que le GainCompensator d'OpenCV, calculé sur un panorama réduit.
+    """
+    warped, masks = low.warped, low.masks
     n = len(cameras)
     counts = np.zeros((n, n))
     means = np.zeros((n, n, 3))
@@ -331,11 +396,50 @@ def compute_gains(
     return {camera.index: gains[k] for k, camera in enumerate(cameras)}
 
 
+def find_seams(
+    cv2: Any, cameras: list[Camera], low: LowRes, gains: dict[int, np.ndarray]
+) -> list[np.ndarray]:
+    """Zone attribuée à chaque photo, avec des raccords qui passent là où les photos voisines
+    se ressemblent le plus (coupe minimale d'OpenCV, sur le panorama réduit).
+
+    Le panorama est prolongé d'une marge de chaque côté pour que les raccords restent
+    cohérents à la longitude 180°.
+    """
+    margin = low.width // 8
+    images, masks, corners, boxes = [], [], [], []
+    for camera, warped, mask in zip(cameras, low.warped, low.masks, strict=True):
+        image = warped * gains[camera.index].astype(np.float32)
+        image = np.concatenate([image[:, -margin:], image, image[:, :margin]], axis=1)
+        wrapped = np.concatenate([mask[:, -margin:], mask, mask[:, :margin]], axis=1)
+        # Chaque photo est recadrée sur sa zone visible : OpenCV ne compare alors que les
+        # photos dont les zones se touchent.
+        rows, cols = np.flatnonzero(wrapped.any(axis=1)), np.flatnonzero(wrapped.any(axis=0))
+        box = (rows[0], rows[-1] + 1, cols[0], cols[-1] + 1)
+        images.append(np.ascontiguousarray(image[box[0] : box[1], box[2] : box[3]]))
+        crop = wrapped[box[0] : box[1], box[2] : box[3]].astype(np.uint8) * 255
+        masks.append(cv2.UMat(np.ascontiguousarray(crop)))
+        corners.append((int(box[2]), int(box[0])))
+        boxes.append(box)
+    finder = cv2.detail_GraphCutSeamFinder("COST_COLOR_GRAD")
+    found = finder.find(images, corners, masks)
+    seams = []
+    for mask, box in zip(found, boxes, strict=True):
+        full = np.zeros((low.width // 2, low.width + 2 * margin), bool)
+        full[box[0] : box[1], box[2] : box[3]] = np.asarray(mask.get()) > 0
+        # Les marges reviennent sur les bords opposés du panorama.
+        seam = full[:, margin:-margin].copy()
+        seam[:, :margin] |= full[:, -margin:]
+        seam[:, -margin:] |= full[:, :margin]
+        seams.append(seam)
+    return seams
+
+
 def render(
     cv2: Any,
     cameras: list[Camera],
     photos: list[Photo],
     gains: dict[int, np.ndarray],
+    seams: list[np.ndarray],
     width: int,
     out: TextIO,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -343,15 +447,19 @@ def render(
     height = width // 2
     windows = {camera.index: footprint(camera, width) for camera in cameras}
 
-    # Pour chaque pixel, la photo qui le voit le plus près de son centre.
+    # Pour chaque pixel, la photo à qui la recherche de raccords l'a attribué. Là où elle ne le
+    # voit pas (bords, à pleine résolution), celle qui le voit le plus près de son centre.
     best_weight = np.zeros((height, width), np.float32)
     owner = np.full((height, width), -1, np.int16)
-    for camera in cameras:
+    seam_h, seam_w = seams[0].shape
+    for camera, seam in zip(cameras, seams, strict=True):
         window = windows[camera.index]
         if window is None:
             continue
         _, _, _, weight = camera_maps(camera, camera.K, window, width)
         cols = window.cols(width)
+        seam_rows = np.arange(window.row0, window.row1) * seam_h // height
+        weight = weight * (1.0 + SEAM_PRIORITY * seam[np.ix_(seam_rows, cols * seam_w // width)])
         current = best_weight[window.row0 : window.row1][:, cols]
         better = weight > current
         best_weight[window.row0 : window.row1, cols] = np.where(better, weight, current)
@@ -560,6 +668,8 @@ def _write_atomic(path: Path, data: bytes) -> None:
 
 
 def _percent(value: float) -> str:
+    if 0 < value < 0.001:
+        return "moins de 0,1 %"
     return f"{value * 100:.1f}".replace(".", ",") + " %"
 
 
@@ -609,10 +719,12 @@ def stitch(folders: Folders, width: int, force: bool, out: TextIO) -> dict[str, 
     cameras, unmatched = align(cv2, images, scales)
     for number in unmatched:
         reasons[number] = REJECTED_UNMATCHED
-    gains = compute_gains(cv2, cameras, images, scales)
+    print("  Exposition et raccords", file=out, flush=True)
+    gains = compute_gains(cameras, low_res_warps(cv2, cameras, images, scales, ANALYSIS_WIDTH))
+    seams = find_seams(cv2, cameras, low_res_warps(cv2, cameras, images, scales, SEAM_WIDTH), gains)
     images.clear()
 
-    panorama, covered = render(cv2, cameras, photos, gains, width, out)
+    panorama, covered = render(cv2, cameras, photos, gains, seams, width, out)
     holes, blur = find_holes(cv2, covered)
     panorama = fill_holes(cv2, panorama, covered, blur)
     coverage = 1.0 - float(((~covered).mean(axis=1) * latitude_weights(width // 2)).sum())

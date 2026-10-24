@@ -60,6 +60,14 @@ Repères pratiques :
 - dans le doute, prendre une photo de plus plutôt qu'une de moins : une photo en trop ne gêne pas l'assemblage, un trou ne se rattrape pas ;
 - le sol sous le photographe sera flou ou manquant : c'est accepté à ce stade.
 
+## Murs unis et objets proches
+
+Premier essai réel (chambre, octobre 2026) :
+
+- une photo qui ne montre qu'un mur blanc ou un plafond lisse n'offre presque aucun repère : elle est **rejetée** et laisse un trou gris. Cadrer chaque photo pour qu'elle contienne un **bord** : un angle de mur, une plinthe, un cadre de porte, un meuble, une prise ;
+- pour le plafond, prendre la photo verticale en gardant un **morceau de mur** ou la **lampe et un angle** dans le cadre ;
+- les objets à moins d'un mètre (porte ouverte, chaise, lit) se dédoublent facilement au raccord. Placer le point **au milieu de l'espace libre**, et soigner particulièrement le geste (objectif immobile) quand un objet est proche.
+
 ## Exposition et netteté
 
 - Avant la première photo, viser une zone moyennement éclairée (un mur, pas une fenêtre) et **verrouiller l'exposition et la mise au point**. Sur iPhone : appui long sur l'écran jusqu'à « Verrouillage AE/AF ».
