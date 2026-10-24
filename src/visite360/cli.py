@@ -50,15 +50,20 @@ def build_parser() -> argparse.ArgumentParser:
         "serve",
         help="sert la visite d'un point dans le navigateur",
         description=(
-            "Sert le panorama d'un point dans une visionneuse 360°, à ouvrir sur le Mac "
-            "ou sur un téléphone connecté au même Wi-Fi. Si le panorama n'existe pas encore, "
-            "il est assemblé à partir des photos du point pendant que la page affiche l'avancement."
+            "Sert une visite (un point, ou plusieurs points reliés par des flèches) dans une "
+            "visionneuse 360°, à ouvrir sur le Mac ou sur un téléphone connecté au même Wi-Fi. "
+            "Les panoramas qui n'existent pas encore sont assemblés à partir des photos pendant "
+            "que la page affiche l'avancement. Pour une visite de plusieurs points, "
+            "visite.json est créé s'il manque ; les liens s'y déclarent à la main."
         ),
     )
     serve_parser.add_argument(
         "dossier",
         type=Path,
-        help="dossier du point (visites/<visite>/<point>/) ou son dossier photos/",
+        help=(
+            "dossier d'une visite (visites/<visite>/), d'un point (visites/<visite>/<point>/) "
+            "ou son dossier photos/"
+        ),
     )
     serve_parser.add_argument(
         "--port",

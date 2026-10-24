@@ -1,15 +1,15 @@
-"""Étape 3 : sert en local la visite d'un point, à ouvrir dans un navigateur.
+"""Étapes 3 et 4 : sert en local la visite d'un ou de plusieurs points, dans un navigateur.
 
 Le serveur ne distribue que des fichiers connus : la page de la visionneuse (dossier
-`visionneuse/`), la bibliothèque Pannellum, le panorama du point et deux petites fiches,
-`status.json` (avancement) et `info.json` (tailles du panorama). Tout autre chemin reçoit une
-erreur 404, pour ne jamais exposer le reste du Mac.
+`visionneuse/`), la bibliothèque Pannellum, les panoramas des points (`/p/<numéro>/...`) et deux
+petites fiches, `status.json` (avancement) et `info.json` (points, liens, tailles des
+panoramas). Tout autre chemin reçoit une erreur 404, pour ne jamais exposer le reste du Mac.
 
-Si le panorama n'existe pas (ou avec `--force`), il est assemblé en arrière-plan par
-`stitch.stitch` pendant que la page affiche une barre d'avancement.
+Les panoramas qui n'existent pas (ou tous, avec `--force`) sont assemblés en arrière-plan, un
+point après l'autre, par `stitch.stitch`, pendant que la page affiche une barre d'avancement.
 
-Le panorama d'origine n'est jamais modifié (D9). Une copie réduite pour les téléphones est
-fabriquée dans `cache/` du point.
+Les panoramas d'origine ne sont jamais modifiés (D9). Une copie réduite pour les téléphones est
+fabriquée dans `cache/` de chaque point.
 """
 
 from __future__ import annotations
@@ -20,12 +20,13 @@ import re
 import socket
 import sys
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
 
-from visite360 import stitch
+from visite360 import stitch, visite
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import PhotoError
 
@@ -37,7 +38,7 @@ JSON = "application/json; charset=utf-8"
 
 
 class ServeError(Exception):
-    """Le point ne peut pas être servi (panorama absent, port occupé, visionneuse introuvable)."""
+    """La visite ne peut pas être servie (panorama absent, port occupé, visionneuse introuvable)."""
 
 
 @dataclass(frozen=True)
@@ -83,9 +84,10 @@ class ProgressWriter:
     """Flux de texte qui reçoit les messages de `stitch.stitch` et en déduit un avancement.
 
     L'assemblage écrit des lignes comme « Alignement des photos » ou « Rendu de la photo 3 sur
-    12 ». Chaque ligne reconnue fait avancer la barre, et le texte est aussi recopié sur `echo`
-    (le terminal). L'avancement est une estimation : l'alignement est une longue étape sans
-    message intermédiaire, la barre y reste donc immobile un moment.
+    12 ». Chaque ligne reconnue fait avancer la barre (via `report`, qui reçoit un avancement de
+    0 à 1 et un message), et le texte est aussi recopié sur `echo` (le terminal). L'avancement
+    est une estimation : l'alignement est une longue étape sans message intermédiaire, la barre
+    y reste donc immobile un moment.
     """
 
     STEPS = (
@@ -95,30 +97,34 @@ class ProgressWriter:
     )
     RENDER = re.compile(r"Rendu de la photo (\d+) sur (\d+)")
 
-    def __init__(self, visit: Visit, echo: TextIO) -> None:
-        self.visit = visit
+    def __init__(self, report: Callable[[float, str], None], echo: TextIO) -> None:
+        self.report = report
         self.echo = echo
 
     def write(self, text: str) -> int:
         self.echo.write(text)
         for marker, progress, message in self.STEPS:
             if marker in text:
-                self.visit.update(progress, message)
+                self.report(progress, message)
         match = self.RENDER.search(text)
         if match:
             number, total = int(match.group(1)), int(match.group(2))
-            self.visit.update(0.6 + 0.35 * number / max(total, 1), "Rendu du panorama")
+            self.report(0.6 + 0.35 * number / max(total, 1), "Rendu du panorama")
         return len(text)
 
     def flush(self) -> None:
         self.echo.flush()
 
 
-class Visit:
-    """État de la visite d'un point : en cours de génération, prête, ou en erreur."""
+def needs_generation(folders: stitch.Folders, force: bool) -> bool:
+    return force or not folders.panorama.is_file()
 
-    def __init__(self, folders: stitch.Folders) -> None:
-        self.folders = folders
+
+class Visit:
+    """État de la visite : en cours de génération, prête, ou en erreur."""
+
+    def __init__(self, tour: visite.Tour) -> None:
+        self.tour = tour
         self._lock = threading.Lock()
         self._status = "generating"
         self._progress = 0.0
@@ -149,29 +155,46 @@ class Visit:
             return None, self._assets.get(path)
 
     def prepare(self) -> None:
-        """Construit la table des chemins autorisés, quand le panorama existe."""
-        assets, info = build_assets(self.folders)
+        """Construit la table des chemins autorisés, quand tous les panoramas existent."""
+        assets, info = build_assets(self.tour)
         with self._lock:
             self._assets, self._info = assets, info
-            self._status, self._progress, self._message = "ready", 1.0, "Panorama prêt"
+            self._status, self._progress, self._message = "ready", 1.0, "Visite prête"
 
     def fail(self, message: str) -> None:
         with self._lock:
             self._status, self._error = "error", message
 
     def generate(self, force: bool, echo: TextIO) -> None:
-        """Assemble le panorama (dans un fil à part), puis passe la visite à « prête »."""
+        """Assemble les panoramas manquants puis passe la visite à « prête »."""
+        points = self.tour.points
+        count = len(points)
+        current = points[0]
         try:
-            report = stitch.stitch(
-                self.folders, stitch.DEFAULT_WIDTH, force, ProgressWriter(self, echo)
-            )
-            if report is not None:
-                stitch.print_report(report, self.folders, echo)
+            for index, current in enumerate(points):
+                if not needs_generation(current.folders, force):
+                    self.update((index + 1) / count, "Panorama déjà prêt")
+                    continue
+                label = f"Point {index + 1} sur {count} ({current.name}) : " if count > 1 else ""
+
+                def report(
+                    progress: float, message: str, index: int = index, label: str = label
+                ) -> None:
+                    self.update((index + progress) / count, label + message)
+
+                if count > 1:
+                    print(f"=== Point {index + 1} sur {count} : {current.name} ===", file=echo)
+                result = stitch.stitch(
+                    current.folders, stitch.DEFAULT_WIDTH, force, ProgressWriter(report, echo)
+                )
+                if result is not None:
+                    stitch.print_report(result, current.folders, echo)
+                self.update((index + 1) / count, label + "Panorama assemblé")
             self.update(0.97, "Finalisation")
             self.prepare()
         except (stitch.StitchError, PhotoError, OpenCVError, ServeError) as error:
             print(f"Erreur : {error}", file=sys.stderr)
-            self.fail(str(error))
+            self.fail(f"Point « {current.name} » : {error}" if count > 1 else str(error))
         except (
             Exception
         ) as error:  # le fil ne doit jamais mourir en silence : la page attendrait sans fin
@@ -179,24 +202,42 @@ class Visit:
             self.fail(f"Erreur inattendue pendant l'assemblage : {error}")
 
 
-def build_assets(folders: stitch.Folders) -> tuple[dict[str, Asset], bytes]:
+def build_assets(tour: visite.Tour) -> tuple[dict[str, Asset], bytes]:
     """Table des chemins autorisés et contenu de `info.json`."""
-    if not folders.panorama.is_file():
-        raise ServeError(f"Pas de panorama pour ce point ({folders.panorama}).")
     try:
         cv2 = load_cv2()
     except OpenCVError as error:
         raise ServeError(str(error)) from error
-    mobile, full_width, mobile_width = mobile_copy(cv2, folders.panorama, folders.cache)
-    assets = {
-        "/panorama.jpg": Asset(folders.panorama, "image/jpeg"),
-        "/panorama-mobile.jpg": Asset(mobile, "image/jpeg"),
-    }
-    info = {
-        "name": folders.point.resolve().name,
-        "full": {"url": "/panorama.jpg", "width": full_width},
-        "mobile": {"url": "/panorama-mobile.jpg", "width": mobile_width},
-    }
+    assets: dict[str, Asset] = {}
+    points = []
+    for index, point in enumerate(tour.points):
+        folders = point.folders
+        if not folders.panorama.is_file():
+            raise ServeError(
+                f"Pas de panorama pour le point « {point.name} » ({folders.panorama})."
+            )
+        mobile, full_width, mobile_width = mobile_copy(cv2, folders.panorama, folders.cache)
+        prefix = f"/p/{index}"
+        assets[f"{prefix}/panorama.jpg"] = Asset(folders.panorama, "image/jpeg")
+        assets[f"{prefix}/panorama-mobile.jpg"] = Asset(mobile, "image/jpeg")
+        points.append(
+            {
+                "id": point.id,
+                "name": point.name,
+                "full": {"url": f"{prefix}/panorama.jpg", "width": full_width},
+                "mobile": {"url": f"{prefix}/panorama-mobile.jpg", "width": mobile_width},
+                "links": [
+                    {
+                        "to": link.target,
+                        "angle": link.angle,
+                        "pitch": link.pitch,
+                        "text": link.text,
+                    }
+                    for link in tour.links_from(point.id)
+                ],
+            }
+        )
+    info = {"name": tour.name, "start": tour.start, "points": points}
     return assets, json.dumps(info, ensure_ascii=False).encode("utf-8")
 
 
@@ -214,22 +255,25 @@ def viewer_assets() -> dict[str, Asset]:
     }
 
 
-def needs_generation(folders: stitch.Folders, force: bool) -> bool:
-    return force or not folders.panorama.is_file()
+def tour_needs_generation(tour: visite.Tour, force: bool) -> bool:
+    return any(needs_generation(point.folders, force) for point in tour.points)
 
 
 def make_server(
-    folders: stitch.Folders, host: str, port: int, force: bool = False
+    tour: visite.Tour, host: str, port: int, force: bool = False
 ) -> ThreadingHTTPServer:
-    """Prépare le serveur d'un point, sans le lancer.
+    """Prépare le serveur d'une visite, sans le lancer.
 
-    Si le panorama manque (ou avec `force`), la visite reste « en cours de génération » : c'est
+    Si un panorama manque (ou avec `force`), la visite reste « en cours de génération » : c'est
     à l'appelant de lancer `server.visit.generate(...)`. Sinon elle est prête tout de suite.
     """
-    visit = Visit(folders)
+    visit = Visit(tour)
     fixed = viewer_assets()
-    if needs_generation(folders, force):
-        stitch.list_photos(folders.photos)  # échoue tout de suite s'il n'y a rien à assembler
+    if tour_needs_generation(tour, force):
+        for point in tour.points:
+            if needs_generation(point.folders, force):
+                # Échoue tout de suite s'il n'y a rien à assembler.
+                stitch.list_photos(point.folders.photos)
     else:
         visit.prepare()
 
@@ -291,11 +335,22 @@ def run(
     """Point d'entrée de `visite360 serve`. Renvoie le code de sortie."""
     out = out or sys.stdout
     try:
-        folders = stitch.resolve_folders(target)
-        server = make_server(folders, "127.0.0.1" if local_only else "0.0.0.0", port, force)
-    except (stitch.StitchError, PhotoError, ServeError) as error:
+        tour, created = visite.open_tour(target)
+        server = make_server(tour, "127.0.0.1" if local_only else "0.0.0.0", port, force)
+    except (stitch.StitchError, visite.VisiteError, PhotoError, ServeError) as error:
         print(f"Erreur : {error}", file=sys.stderr)
         return 1
+    if created:
+        print(
+            f"{visite.FILE_NAME} créé avec {len(tour.points)} point(s) et aucun lien. "
+            "Ajouter les liens à la main (voir docs/visite-json.md), puis relancer.",
+            file=out,
+        )
+    if tour.ignored:
+        print(
+            f"Dossiers ignorés (absents de {visite.FILE_NAME}) : {', '.join(tour.ignored)}",
+            file=out,
+        )
     actual_port = server.server_address[1]
     print(f"Visite servie. Sur ce Mac : http://localhost:{actual_port}", file=out)
     if not local_only:
@@ -307,8 +362,8 @@ def run(
             )
     print("Ctrl+C pour arrêter.", file=out)
     visit: Visit = server.visit  # type: ignore[attr-defined]
-    if needs_generation(folders, force):
-        print("Génération du panorama en cours, la page affiche l'avancement.", file=out)
+    if tour_needs_generation(tour, force):
+        print("Génération des panoramas en cours, la page affiche l'avancement.", file=out)
         threading.Thread(target=visit.generate, args=(force, out), daemon=True).start()
     try:
         server.serve_forever()

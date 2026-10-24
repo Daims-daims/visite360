@@ -20,7 +20,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 1 | Contrôle de l'installation et protocole de prise de vue | v0.1 | livrée |
 | 2 | Assemblage d'un panorama | v0.1 | livrée |
 | 3 | Visite d'un point | v0.1 | livrée |
-| 4 | Visite de plusieurs points | v0.1 | à faire |
+| 4 | Visite de plusieurs points | v0.1 | livrée |
 | 5 | App : capture guidée à un point | v0.1 | à faire |
 | 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | à faire |
 | J1 | **Jalon v0.1 : présentation locale de la visite** | — | à faire |
@@ -68,7 +68,7 @@ Les étapes 1 à 4 valident l'assemblage et la visite avec des photos prises à 
 
 ### Étape 4 : visite de plusieurs points
 
-- **Contenu :** plusieurs panoramas reliés par des flèches cliquables. Les liens et l'orientation de chaque point sont déclarés à la main dans `visite.json` (D14).
+- **Contenu :** plusieurs panoramas reliés par des flèches cliquables. Les liens et l'orientation de chaque point sont déclarés à la main dans `visite.json` (D14, format dans `docs/visite-json.md`). `visite360 serve <visite>` assemble les panoramas manquants, crée `visite.json` s'il manque et sert la visite. La déclaration automatique des liens par l'app est prévue à l'étape 6.
 - **Tests automatiques :** lecture et validation de `visite.json`, détection des liens vers un point inexistant.
 - **Validation :** parcours de l'appartement du propriétaire sur 4 à 8 points, sur ordinateur et téléphone.
 
@@ -84,7 +84,7 @@ Les étapes 1 à 4 valident l'assemblage et la visite avec des photos prises à 
 - **Contenu :** dans l'app, enchaîner les points d'une visite, les nommer et déclarer à la main les liens entre eux (D14). Transfert des photos et de `visite.json` vers le Mac, qui assemble et sert la visite des étapes 2 à 4.
 - **Tests automatiques :** réception d'une visite transférée, rangement dans `visites/<nom>/`, refus d'un envoi incomplet.
 - **Validation :** une visite de l'appartement du propriétaire prise avec l'app, transférée, assemblée et parcourue sur le Mac et le téléphone, sans manipuler de fichiers à la main.
-- **À trancher pendant l'étape :** moyen de transfert sans service payant : réception par le Mac sur le Wi-Fi local, AirDrop, ou câble.
+- **À trancher pendant l'étape :** suivi de position par la réalité augmentée du téléphone pour renseigner tout seul `position`, `nord` et les liens de `visite.json` (aujourd'hui à la main, D14, D24) ; quels points relier (par exemple ceux pris à la suite) ; moyen de transfert sans service payant : réception par le Mac sur le Wi-Fi local, AirDrop, ou câble.
 
 ## Jalon v0.1 : présentation locale de la visite
 

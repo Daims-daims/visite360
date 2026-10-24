@@ -41,13 +41,16 @@ visite360 stitch visites/<visite>/<point>
 
 Le panorama `panorama.jpg` (8192 × 4096 par défaut, option `--largeur`) et le rapport `rapport.json` sont écrits dans le dossier du point. Une relance ne refait rien si les photos n'ont pas changé, sauf avec `--force`.
 
-## Parcourir la visite d'un point
+## Parcourir une visite
 
 ```bash
-visite360 serve visites/<visite>/<point>
+visite360 serve visites/<visite>            # tous les points, reliés par des flèches
+visite360 serve visites/<visite>/<point>    # un seul point
 ```
 
-La commande affiche deux adresses : une pour le Mac, une pour un téléphone connecté au même Wi-Fi. Si le panorama n'existe pas encore, il est assemblé à partir des photos du point pendant que la page affiche une barre d'avancement, puis la visite s'ouvre toute seule. `Ctrl+C` arrête le serveur. L'option `--local` réserve la visite au Mac, `--port` change le port, `--force` recalcule le panorama même s'il existe.
+La commande affiche deux adresses : une pour le Mac, une pour un téléphone connecté au même Wi-Fi. Les panoramas qui n'existent pas encore sont assemblés à partir des photos, un point après l'autre, pendant que la page affiche une barre d'avancement, puis la visite s'ouvre toute seule. `Ctrl+C` arrête le serveur. L'option `--local` réserve la visite au Mac, `--port` change le port, `--force` recalcule les panoramas même s'ils existent.
+
+Pour une visite de plusieurs points, `visite.json` est créé tout seul avec un point par dossier et aucun lien. Les flèches s'y ajoutent à la main : voir [docs/visite-json.md](docs/visite-json.md).
 
 ## Organisation du dépôt
 

@@ -14,10 +14,21 @@
     #fill { height: 100%; width: 0; background: #4da3ff; transition: width .6s ease; }
     #bar, #detail { display: none; }
     #detail { color: #aaa; font-size: 14px; }
+    #points, #cap { position: fixed; z-index: 10; margin: 12px; padding: 6px 10px; border-radius: 8px;
+      background: rgba(0, 0, 0, .55); color: #fff; font-size: 14px; border: 0; }
+    #points { top: 0; right: 0; display: none; max-width: 60vw; }
+    #cap { bottom: 0; left: 0; font-variant-numeric: tabular-nums; pointer-events: none; }
+    /* Flèche vers un autre point : un rond blanc cliquable avec une flèche. */
+    .pnlm-hotspot-base.fleche { width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 255, 255, .85);
+      background-image: none; box-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
+    .pnlm-hotspot-base.fleche::before { content: "\2191"; display: block; text-align: center;
+      line-height: 48px; font-size: 30px; color: #111; }
   </style>
 </head>
 <body>
   <div id="panorama"></div>
+  <select id="points" aria-label="Aller à un point"></select>
+  <div id="cap"></div>
   <div id="message">
     <div id="text"></div>
     <div id="bar"><div id="fill"></div></div>
@@ -51,21 +62,74 @@
       box.style.display = "flex";
     }
 
+    function normalize(angle) {
+      const wrapped = ((angle + 180) % 360 + 360) % 360 - 180;
+      return Math.round(wrapped === -180 ? 180 : wrapped);
+    }
+
+    // Une scène Pannellum par point, avec une flèche cliquable par lien déclaré dans visite.json.
+    function buildScenes(info, useFull) {
+      const scenes = {};
+      for (const point of info.points) {
+        const choice = useFull ? point.full : point.mobile;
+        scenes[point.id] = {
+          title: point.name,
+          type: "equirectangular",
+          panorama: choice.url,
+          hotSpots: point.links.map((link) => ({
+            type: "scene",
+            sceneId: link.to,
+            text: link.text,
+            yaw: link.angle,
+            pitch: link.pitch,
+            cssClass: "fleche",
+            targetYaw: "same",
+            targetPitch: "same",
+          })),
+        };
+      }
+      return scenes;
+    }
+
     function startViewer() {
       fetch("/info.json")
         .then((response) => response.json())
         .then((info) => {
           box.style.display = "none";
           document.title = info.name + " — visite 360°";
-          const useFull = maxTextureSize() >= info.full.width;
-          const choice = useFull ? info.full : info.mobile;
-          pannellum.viewer("panorama", {
-            type: "equirectangular",
-            panorama: choice.url,
-            autoLoad: true,
+          const useFull = info.points.every((point) => maxTextureSize() >= point.full.width);
+          const viewer = pannellum.viewer("panorama", {
+            default: { firstScene: info.start, sceneFadeDuration: 800, autoLoad: true, hfov: 100 },
+            scenes: buildScenes(info, useFull),
             showControls: true,
-            hfov: 100,
           });
+
+          const menu = document.getElementById("points");
+          if (info.points.length > 1) {
+            for (const point of info.points) {
+              menu.add(new Option(point.name, point.id));
+            }
+            menu.value = info.start;
+            menu.style.display = "block";
+            menu.onchange = () => viewer.loadScene(menu.value);
+            viewer.on("scenechange", (id) => { menu.value = id; });
+          }
+
+          // Aide pour déclarer un lien : l'angle du centre de l'écran et du dernier clic,
+          // à recopier dans visite.json (« angle »).
+          const cap = document.getElementById("cap");
+          let click = null;
+          const refresh = () => {
+            let text = "Centre : " + normalize(viewer.getYaw()) + "°";
+            if (click !== null) text += " · clic : " + click + "°";
+            cap.textContent = text;
+          };
+          document.getElementById("panorama").addEventListener("click", (event) => {
+            click = normalize(viewer.mouseEventToCoords(event)[1]);
+            refresh();
+          });
+          viewer.on("scenechange", () => { click = null; });
+          setInterval(refresh, 200);
         })
         .catch(() => show("Impossible de charger la visite.", null, ""));
     }
@@ -80,7 +144,7 @@
           } else if (state.status === "error") {
             show("L'assemblage du panorama a échoué : " + state.error, null, "");
           } else {
-            show("Génération du panorama en cours", state.progress, state.message);
+            show("Génération de la visite en cours", state.progress, state.message);
             setTimeout(poll, 1000);
           }
         })
