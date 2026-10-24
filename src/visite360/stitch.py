@@ -3,7 +3,9 @@
 Deux temps :
 
 1. alignement avec les briques d'OpenCV (points SIFT, appariement, ajustement des rotations
-   et de la focale, correction de l'horizon) sur des copies réduites des photos ;
+   et de la focale, correction de l'horizon) sur des copies réduites des photos. Si l'app de
+   capture a laissé `capture.json`, les orientations mesurées par le téléphone servent de
+   départ, limitent l'appariement aux photos voisines et donnent l'horizon (D25) ;
 2. rendu par notre code : chaque pixel du panorama 2:1 va chercher la photo qui le voit le
    mieux. Les écarts d'exposition sont compensés et les raccords fondus par bandes de
    fréquences. Les trous près du sol et du plafond sont bouchés par un flou, les autres
@@ -24,8 +26,8 @@ from typing import Any, TextIO
 
 import numpy as np
 
-from visite360 import __version__
-from visite360.adjust import PairMatches, adjust, initial_rotations
+from visite360 import __version__, capture
+from visite360.adjust import PairMatches, adjust, initial_rotations, relative_rotation
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import Photo, PhotoError, list_photos, prepare_photos
 from visite360.spherical import (
@@ -38,7 +40,7 @@ from visite360.spherical import (
 DEFAULT_WIDTH = 8192
 MIN_WIDTH = 256
 MAX_WIDTH = 32768
-REPORT_FORMAT = 1
+REPORT_FORMAT = 2
 
 # Alignement, réglages de l'exemple stitching_detailed d'OpenCV adaptés à SIFT.
 WORK_MEGAPIX = 0.6
@@ -48,6 +50,13 @@ CONF_THRESH = 1.0
 # ou en paysage.
 MIN_FOV_DEG = 30.0
 MAX_FOV_DEG = 125
+# Orientations mesurées par le téléphone (D25). Deux photos dont les axes sont plus écartés
+# ne peuvent pas se recouvrir : on ne cherche pas de points communs entre elles.
+NEIGHBOUR_MAX_ANGLE_DEG = 75.0
+# Au-delà de cet écart médian entre capteurs et photos, les capteurs sont ignorés.
+SENSOR_MAX_ERROR_DEG = 10.0
+SOURCE_IMAGES = "photos"
+SOURCE_SENSORS = "capteurs"
 
 # Rendu.
 ANALYSIS_WIDTH = 1024
@@ -72,6 +81,10 @@ REJECTED_UNMATCHED = "pas assez de points communs avec les autres photos"
 
 class StitchError(Exception):
     """Échec de l'assemblage, avec un message en français."""
+
+
+class SensorMismatch(Exception):
+    """Les orientations mesurées par le téléphone ne correspondent pas aux photos."""
 
 
 @dataclass
@@ -136,11 +149,15 @@ def _work_scale(size: tuple[int, int]) -> float:
     return min(1.0, math.sqrt(WORK_MEGAPIX * 1e6 / (size[0] * size[1])))
 
 
-def _match(cv2: Any, features: list[Any]) -> list[Any]:
+def _match(cv2: Any, features: list[Any], mask: np.ndarray | None = None) -> list[Any]:
+    """Apparie les photos deux à deux, seulement les paires autorisées par mask s'il est donné."""
     for number, feature in enumerate(features):
         feature.img_idx = number
     matcher = cv2.detail_BestOf2NearestMatcher(False, MATCH_CONF)
-    pairwise = matcher.apply2(features)
+    if mask is None:
+        pairwise = matcher.apply2(features)
+    else:
+        pairwise = matcher.apply2(features, cv2.UMat(mask))
     matcher.collectGarbage()
     return pairwise
 
@@ -171,19 +188,54 @@ def _pair_matches(
     return pairs
 
 
-def align(
-    cv2: Any, images: dict[int, np.ndarray], scales: dict[int, float]
-) -> tuple[list[Camera], list[int]]:
-    """Aligne des photos réduites. Renvoie les caméras retenues et les photos écartées.
+def neighbour_mask(
+    rotations: list[np.ndarray], max_angle_deg: float = NEIGHBOUR_MAX_ANGLE_DEG
+) -> np.ndarray:
+    """Paires de photos dont les axes sont à moins de max_angle_deg (1) ou non (0)."""
+    axes = np.array([R[:, 2] for R in rotations])
+    return (axes @ axes.T >= math.cos(math.radians(max_angle_deg))).astype(np.uint8)
 
-    images associe à chaque numéro de photo sa copie réduite, scales le facteur de réduction.
+
+def sensor_errors_deg(
+    pairs: list[PairMatches], rotations: list[np.ndarray], focal: float
+) -> list[float]:
+    """Écart (degrés) entre la rotation mesurée par le téléphone et celle vue sur les photos.
+
+    Pour chaque paire, compare la rotation qui superpose les points communs des deux photos à
+    celle que donnent les capteurs.
     """
+    errors = []
+    for pair in pairs:
+        seen = relative_rotation(pair, focal)
+        measured = rotations[pair.j].T @ rotations[pair.i]
+        cosine = (np.trace(seen @ measured.T) - 1) / 2
+        errors.append(math.degrees(math.acos(float(np.clip(cosine, -1.0, 1.0)))))
+    return errors
+
+
+def align_to_sensors(rotations: list[np.ndarray], sensors: list[np.ndarray]) -> list[np.ndarray]:
+    """Tourne l'ensemble des photos ajustées pour coller au mieux aux capteurs.
+
+    Les capteurs connaissent la verticale (par la gravité) : le panorama hérite de leur horizon.
+    """
+    U, _, Vt = np.linalg.svd(sum(S @ R.T for S, R in zip(sensors, rotations, strict=True)))
+    turn = U @ np.diag([1.0, 1.0, np.sign(np.linalg.det(U @ Vt))]) @ Vt
+    return [turn @ R for R in rotations]
+
+
+def _align(
+    cv2: Any,
+    images: dict[int, np.ndarray],
+    scales: dict[int, float],
+    features: dict[int, Any],
+    sensors: dict[int, np.ndarray] | None,
+) -> tuple[list[Camera], list[int]]:
     numbers = sorted(images)
-    finder = cv2.SIFT_create()
-    features = [cv2.detail.computeImageFeatures2(finder, images[n]) for n in numbers]
-    pairwise = _match(cv2, features)
+    found = [features[n] for n in numbers]
+    mask = neighbour_mask([sensors[n] for n in numbers]) if sensors else None
+    pairwise = _match(cv2, found, mask)
     kept_positions = [
-        int(i) for i in np.ravel(cv2.detail.leaveBiggestComponent(features, pairwise, CONF_THRESH))
+        int(i) for i in np.ravel(cv2.detail.leaveBiggestComponent(found, pairwise, CONF_THRESH))
     ]
     if len(kept_positions) < 2:
         raise StitchError(
@@ -193,17 +245,26 @@ def align(
     rejected = [n for position, n in enumerate(numbers) if position not in kept_positions]
     kept = [numbers[position] for position in kept_positions]
     if rejected:
-        features = [features[position] for position in kept_positions]
-        pairwise = _match(cv2, features)
+        found = [found[position] for position in kept_positions]
+        if mask is not None:
+            mask = mask[np.ix_(kept_positions, kept_positions)]
+        pairwise = _match(cv2, found, mask)
 
     estimator = cv2.detail_HomographyBasedEstimator()
-    ok, cameras = estimator.apply(features, pairwise, None)
+    ok, cameras = estimator.apply(found, pairwise, None)
     if not ok:
         raise StitchError("L'estimation de l'orientation des photos a échoué.")
     sizes = [(images[n].shape[1], images[n].shape[0]) for n in kept]
-    pairs = _pair_matches(features, pairwise, sizes)
+    pairs = _pair_matches(found, pairwise, sizes)
     focal = float(np.median([c.focal for c in cameras]))
-    adjustment = adjust(pairs, initial_rotations(pairs, len(kept), focal), focal)
+    if sensors:
+        start = [sensors[n] for n in kept]
+        error = float(np.median(sensor_errors_deg(pairs, start, focal)))
+        if error > SENSOR_MAX_ERROR_DEG:
+            raise SensorMismatch(f"elles s'écartent de {error:.0f}° de ce que montrent les photos")
+    else:
+        start = initial_rotations(pairs, len(kept), focal)
+    adjustment = adjust(pairs, start, focal)
     if not (np.isfinite(adjustment.focal) and adjustment.focal > 0):
         raise StitchError("L'ajustement de l'orientation des photos a échoué.")
     fov = 2 * math.degrees(math.atan(max(sizes[0]) / 2 / adjustment.focal))
@@ -221,10 +282,14 @@ def align(
             "Les photos n'ont pas assez de points communs cohérents pour être assemblées."
         )
 
-    rotations = cv2.detail.waveCorrect(
-        [r.astype(np.float32) for r in adjustment.rotations], cv2.detail.WAVE_CORRECT_HORIZ
-    )
-    rotations = level_and_anchor([np.asarray(r, dtype=np.float64) for r in rotations])
+    if sensors:
+        rotations = align_to_sensors(adjustment.rotations, [sensors[n] for n in kept])
+    else:
+        corrected = cv2.detail.waveCorrect(
+            [r.astype(np.float32) for r in adjustment.rotations], cv2.detail.WAVE_CORRECT_HORIZ
+        )
+        rotations = [np.asarray(r, dtype=np.float64) for r in corrected]
+    rotations = level_and_anchor(rotations)
 
     result = []
     for number, rotation in zip(kept, rotations, strict=True):
@@ -236,6 +301,30 @@ def align(
         size = (round(width / scales[number]), round(height / scales[number]))
         result.append(Camera(number, K_full, rotation, size))
     return result, sorted(rejected)
+
+
+def align(
+    cv2: Any,
+    images: dict[int, np.ndarray],
+    scales: dict[int, float],
+    sensors: dict[int, np.ndarray] | None = None,
+) -> tuple[list[Camera], list[int], str | None]:
+    """Aligne des photos réduites. Renvoie les caméras retenues, les photos écartées et, si
+    les orientations du téléphone ont été écartées, la raison.
+
+    images associe à chaque numéro de photo sa copie réduite, scales le facteur de réduction,
+    sensors l'orientation mesurée par le téléphone (une pour chaque photo, ou None). Si les
+    capteurs ne collent pas aux photos, l'alignement est refait à partir des seules photos.
+    """
+    finder = cv2.SIFT_create()
+    features = {n: cv2.detail.computeImageFeatures2(finder, images[n]) for n in sorted(images)}
+    if sensors is None:
+        return *_align(cv2, images, scales, features, None), None
+    try:
+        return *_align(cv2, images, scales, features, sensors), None
+    except (StitchError, SensorMismatch) as error:
+        reason = str(error)
+    return *_align(cv2, images, scales, features, None), reason
 
 
 def level_and_anchor(rotations: list[np.ndarray]) -> list[np.ndarray]:
@@ -688,6 +777,41 @@ def describe_hole(hole: Hole) -> str:
     return f"{where} ({_percent(hole.part)} de la sphère), {fill}"
 
 
+CAPTURE_IGNORED = "orientations du téléphone ignorées"
+
+
+def phone_orientations(
+    folders: Folders, paths: list[Path], images: dict[int, np.ndarray]
+) -> tuple[dict[int, np.ndarray] | None, dict[str, str | None]]:
+    """Orientations de `capture.json` par numéro de photo lisible, et leur description.
+
+    Elles ne servent que si chaque photo lisible en a une : sinon l'alignement se fait à partir
+    des seules photos, comme sans app.
+    """
+    path = capture.find(folders.point)
+    if path is None:
+        return None, {"source": SOURCE_IMAGES, "detail": None}
+    try:
+        found = capture.load(path)
+    except capture.CaptureError as error:
+        raise StitchError(
+            f"{error} Supprimer {path} pour assembler sans les orientations du téléphone."
+        ) from error
+    missing = [paths[n].name for n in sorted(images) if paths[n].name not in found.rotations]
+    if missing:
+        detail = f"{CAPTURE_IGNORED} : {len(missing)} photo(s) absente(s) de {path.name}"
+        return None, {"source": SOURCE_IMAGES, "detail": detail}
+    sensors = {n: found.rotations[paths[n].name] for n in images}
+    return sensors, {"source": SOURCE_SENSORS, "detail": None}
+
+
+def describe_orientations(orientations: dict[str, str | None]) -> str:
+    """Origine des orientations de départ, en clair."""
+    if orientations["source"] == SOURCE_SENSORS:
+        return f"mesurées par le téléphone ({capture.FILE_NAME})"
+    return orientations["detail"] or "déduites des photos"
+
+
 def stitch(folders: Folders, width: int, force: bool, out: TextIO) -> dict[str, Any] | None:
     """Assemble le panorama d'un point. Renvoie le rapport, ou None s'il était déjà à jour."""
     if width % 2 or not MIN_WIDTH <= width <= MAX_WIDTH:
@@ -695,7 +819,8 @@ def stitch(folders: Folders, width: int, force: bool, out: TextIO) -> dict[str, 
             f"Largeur invalide : {width}. Donner un nombre pair entre {MIN_WIDTH} et {MAX_WIDTH}."
         )
     paths = list_photos(folders.photos)
-    if not force and is_up_to_date(folders, paths, width):
+    inputs = paths + [path for path in [capture.find(folders.point)] if path]
+    if not force and is_up_to_date(folders, inputs, width):
         return None
     cv2 = load_cv2()
 
@@ -715,8 +840,12 @@ def stitch(folders: Folders, width: int, force: bool, out: TextIO) -> dict[str, 
     if len(images) < 2:
         raise StitchError("Il faut au moins 2 photos lisibles pour assembler un panorama.")
 
+    sensors, orientations = phone_orientations(folders, paths, images)
     print("  Alignement des photos", file=out, flush=True)
-    cameras, unmatched = align(cv2, images, scales)
+    cameras, unmatched, ignored = align(cv2, images, scales, sensors)
+    if ignored:
+        orientations = {"source": SOURCE_IMAGES, "detail": f"{CAPTURE_IGNORED} : {ignored}"}
+    print(f"  Orientations : {describe_orientations(orientations)}", file=out, flush=True)
     for number in unmatched:
         reasons[number] = REJECTED_UNMATCHED
     print("  Exposition et raccords", file=out, flush=True)
@@ -736,12 +865,13 @@ def stitch(folders: Folders, width: int, force: bool, out: TextIO) -> dict[str, 
 
     report = {
         "settings": _settings(width),
-        "inputs": _inputs(paths),
+        "inputs": _inputs(inputs),
         "panorama": {"file": folders.panorama.name, "width": width, "height": width // 2},
         "photos": [
             {"file": path.name, "used": number not in reasons, "reason": reasons.get(number)}
             for number, path in enumerate(paths)
         ],
+        "orientations": orientations,
         "coverage": round(coverage, 4),
         "missing_areas": [asdict(hole) for hole in holes],
     }
@@ -759,6 +889,7 @@ def print_report(report: dict[str, Any], folders: Folders, out: TextIO) -> None:
     for photo in report["photos"]:
         if not photo["used"]:
             print(f"  Rejetée : {photo['file']} ({photo['reason']})", file=out)
+    print(f"Orientations : {describe_orientations(report['orientations'])}", file=out)
     print(f"Couverture : {_percent(report['coverage'])} de la sphère", file=out)
     holes = [Hole(**hole) for hole in report["missing_areas"]]
     if holes:
