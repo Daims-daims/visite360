@@ -1,6 +1,8 @@
 # Prise de vue d'un point
 
-Cette fiche décrit comment photographer un point de la visite avec l'appareil photo du téléphone, sans app dédiée. Elle sera ajustée à l'étape 2 selon la qualité de l'assemblage sur de vraies photos.
+Cette fiche décrit comment photographer un point de la visite avec l'appareil photo du téléphone, sans app dédiée.
+
+**Avec l'app de capture** (étape 5, [app.md](app.md)) : les rangées, le nombre de photos, le recouvrement et le verrouillage de l'exposition sont gérés par l'app. Les conseils sur le logement, l'emplacement et le geste (objectif immobile) restent à suivre. Elle sera ajustée à l'étape 2 selon la qualité de l'assemblage sur de vraies photos.
 
 Un point est un endroit du logement d'où l'on regarde tout autour de soi. Une pièce moyenne en demande un, une grande pièce ou une pièce en L deux.
 
@@ -64,7 +66,7 @@ Repères pratiques :
 
 Premier essai réel (chambre, octobre 2026) :
 
-- une photo qui ne montre qu'un mur blanc ou un plafond lisse n'offre presque aucun repère : elle est **rejetée** et laisse un trou gris. Cadrer chaque photo pour qu'elle contienne un **bord** : un angle de mur, une plinthe, un cadre de porte, un meuble, une prise ;
+- une photo qui ne montre qu'un mur blanc ou un plafond lisse n'offre presque aucun repère : elle est **rejetée** et laisse un trou gris. Avec l'app, elle est placée grâce aux capteurs du téléphone ; sans app, cadrer chaque photo pour qu'elle contienne un **bord** : un angle de mur, une plinthe, un cadre de porte, un meuble, une prise ;
 - pour le plafond, prendre la photo verticale en gardant un **morceau de mur** ou la **lampe et un angle** dans le cadre ;
 - les objets à moins d'un mètre (porte ouverte, chaise, lit) se dédoublent facilement au raccord. Placer le point **au milieu de l'espace libre**, et soigner particulièrement le geste (objectif immobile) quand un objet est proche.
 

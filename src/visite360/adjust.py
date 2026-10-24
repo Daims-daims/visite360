@@ -21,6 +21,8 @@ ITERATIONS_PER_SCALE = 15
 # Une paire dont l'écart médian reste au-dessus est jugée incohérente.
 PAIR_MAX_ERROR_DEG = 1.5
 MAX_MATCHES_PER_PAIR = 300
+# Nombre maximal de passes d'élimination des paires incohérentes.
+MAX_FILTER_ROUNDS = 4
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,26 @@ def rotation_from_vector(vector: np.ndarray) -> np.ndarray:
     k = vector / angle
     K = np.array([[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]])
     return np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * K @ K
+
+
+def vector_from_rotation(rotation: np.ndarray) -> np.ndarray:
+    """Vecteur d'axe et d'angle (radians) d'une rotation, inverse de rotation_from_vector."""
+    cosine = np.clip((np.trace(rotation) - 1) / 2, -1.0, 1.0)
+    angle = float(np.arccos(cosine))
+    axis = np.array(
+        [
+            rotation[2, 1] - rotation[1, 2],
+            rotation[0, 2] - rotation[2, 0],
+            rotation[1, 0] - rotation[0, 1],
+        ]
+    )
+    if angle < 1e-9:
+        return axis / 2
+    if np.pi - angle < 1e-6:
+        # Demi-tour : l'axe est la colonne dominante de (R + I) / 2.
+        column = (rotation + np.eye(3))[:, int(np.argmax(np.diag(rotation)))]
+        return angle * column / np.linalg.norm(column)
+    return angle * axis / (2 * np.sin(angle))
 
 
 def _skew(v: np.ndarray) -> np.ndarray:
@@ -233,23 +255,29 @@ def subsample(pairs: list[PairMatches], limit: int = MAX_MATCHES_PER_PAIR) -> li
 def adjust(pairs: list[PairMatches], rotations: list[np.ndarray], focal: float) -> Adjustment:
     """Affine rotations et focale, écarte les paires incohérentes, puis affine à nouveau.
 
+    L'écart d'une paire se recalcule après chaque nouvel ajustement, qui peut révéler une
+    paire jusque-là masquée par les autres : on recommence tant qu'il en reste.
     Les photos qui ne sont plus reliées au groupe principal sont laissées de côté :
     `connected` donne les positions retenues, dans l'ordre de `rotations`.
     """
     pairs = subsample(pairs)
     for scale_deg in ROBUST_SCALES_DEG:
         rotations, focal = _solve(pairs, rotations, focal, np.radians(scale_deg))
-    errors = pair_errors_deg(pairs, rotations, focal)
-    consistent = [p for p, e in zip(pairs, errors, strict=True) if e <= PAIR_MAX_ERROR_DEG]
-    connected = _largest_component(len(rotations), consistent)
-    if len(consistent) < len(pairs) or len(connected) < len(rotations):
-        position = {old: new for new, old in enumerate(connected)}
+    connected = list(range(len(rotations)))
+    for _ in range(MAX_FILTER_ROUNDS):
+        errors = pair_errors_deg(pairs, rotations, focal)
+        consistent = [p for p, e in zip(pairs, errors, strict=True) if e <= PAIR_MAX_ERROR_DEG]
+        kept = _largest_component(len(rotations), consistent)
+        if len(consistent) == len(pairs) and len(kept) == len(rotations):
+            break
+        position = {old: new for new, old in enumerate(kept)}
         pairs = [
             PairMatches(position[p.i], position[p.j], p.points_i, p.points_j)
             for p in consistent
             if p.i in position and p.j in position
         ]
-        rotations = [rotations[old] for old in connected]
+        rotations = [rotations[old] for old in kept]
+        connected = [connected[old] for old in kept]
         for scale_deg in ROBUST_SCALES_DEG[1:]:
             rotations, focal = _solve(pairs, rotations, focal, np.radians(scale_deg))
     return Adjustment(rotations, focal, pairs, connected)

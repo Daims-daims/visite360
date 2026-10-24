@@ -21,7 +21,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 2 | Assemblage d'un panorama | v0.1 | livrée |
 | 3 | Visite d'un point | v0.1 | livrée |
 | 4 | Visite de plusieurs points | v0.1 | livrée |
-| 5 | App : capture guidée à un point | v0.1 | à faire |
+| 5 | App : capture guidée à un point | v0.1 | livrée |
 | 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | à faire |
 | J1 | **Jalon v0.1 : présentation locale de la visite** | — | à faire |
 | 7 | Sélection d'une surface au clic | v0.2 | à faire |
@@ -78,6 +78,7 @@ Les étapes 1 à 4 valident l'assemblage et la visite avec des photos prises à 
 - **Tests automatiques :** lecture des orientations enregistrées par l'app et utilisation par l'assemblage, sur des données générées.
 - **Validation :** sur le téléphone du propriétaire, moins de raccords visibles qu'avec la prise de vue à la main sur la même pièce.
 - **À trancher avant l'étape :** modèle du téléphone ; Expo avec un module natif en Swift ou Kotlin, ou app native ; installation de l'app sur le téléphone du propriétaire sans frais si possible (le compte développeur Apple payant est un coût annuel).
+- **Tranché le 2026-10-24 (D25) :** iPhone 15 ; app native en SwiftUI ; installation par câble depuis Xcode avec l'identifiant Apple du propriétaire, sans compte payant. Mode d'emploi dans `docs/app.md`.
 
 ### Étape 6 : app, capture d'une visite et transfert vers le Mac
 

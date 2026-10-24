@@ -99,3 +99,11 @@ def test_rotation_from_vector() -> None:
     R = rotation_from_vector(np.array([0.0, np.pi / 2, 0.0]))
 
     assert np.allclose(R, camera_rotation(90, 0), atol=1e-9)
+
+
+def test_vector_from_rotation_inverts_rotation_from_vector() -> None:
+    from visite360.adjust import rotation_from_vector, vector_from_rotation
+
+    for vector in ([0.0, 0.0, 0.0], [0.1, -0.2, 0.3], [0.0, 3.1, 0.0], [1e-10, 0.0, 0.0]):
+        vector = np.array(vector)
+        assert np.allclose(vector_from_rotation(rotation_from_vector(vector)), vector, atol=1e-6)

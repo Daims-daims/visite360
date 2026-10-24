@@ -2,7 +2,7 @@
 
 Transforme des photos prises en tournant sur soi-même avec un téléphone en visite 360° d'un logement, puis permet de modifier ce qu'on voit (couleur d'un mur, modifications générées par IA) et de chiffrer ces modifications. Feuille de route par versions dans [PLAN.md](PLAN.md).
 
-**État :** étape 2 livrée (assemblage d'un panorama). L'avancement est dans [PLAN.md](PLAN.md).
+**État :** étape 5 (app de capture guidée sur iPhone). L'avancement est dans [PLAN.md](PLAN.md).
 
 ## Installation pour développer
 
@@ -29,7 +29,7 @@ ruff format --check .
 
 `visite360 doctor` vérifie Python, OpenCV et la conversion des photos HEIC, et dit quoi installer s'il manque quelque chose.
 
-Pour photographier un point de la visite : [docs/prise-de-vue.md](docs/prise-de-vue.md).
+Pour photographier un point de la visite : [docs/prise-de-vue.md](docs/prise-de-vue.md). Avec l'app iPhone, qui guide la prise de vue : [docs/app.md](docs/app.md) (installation par câble depuis Xcode).
 
 ## Assembler un panorama
 
@@ -61,8 +61,11 @@ visite360/
 ├── docs/
 │   ├── decisions.md   journal des choix techniques
 │   ├── licences.md    registre des dépendances et de leurs licences
+│   ├── app.md         installer et utiliser l'app iPhone
+│   ├── capture-json.md  orientations écrites par l'app
 │   ├── prise-de-vue.md  comment photographier un point
 │   └── ressources.md  ce qu'il faut lire ou regarder pour comprendre chaque étape
+├── app/               app iPhone de capture guidée (SwiftUI, D25)
 ├── visionneuse/       page web de la visite et Pannellum
 ├── scripts/           compilation d'OpenCV sans FFmpeg
 ├── src/visite360/     le traitement en Python
@@ -70,8 +73,6 @@ visite360/
 ├── .github/           tests lancés à chaque pull request, modèle de pull request
 └── visites/           photos, panoramas et modifications, jamais envoyés sur git
 ```
-
-L'app mobile aura son dossier quand le plan y arrivera.
 
 ## Façon de travailler
 

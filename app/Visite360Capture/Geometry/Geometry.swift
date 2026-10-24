@@ -1,0 +1,209 @@
+// Géométrie de la capture guidée : cibles des rangées, orientation du téléphone dans le
+// repère de l'assemblage, alignement sur une cible.
+//
+// Ce fichier n'utilise que simd : il est compilé dans l'app et testé sur le Mac par
+// `swift test` (dossier app/, Package.swift).
+//
+// Repère du monde, celui de src/visite360/spherical.py : x vers la droite, y vers le bas,
+// z vers l'avant, cap de départ arbitraire. Repère d'une photo : x vers la droite de l'image,
+// y vers le bas, z dans l'axe de l'objectif. Une rotation « caméra vers monde » envoie une
+// direction vue par la photo dans le repère du monde.
+
+import Foundation
+import simd
+
+/// Rangées de docs/prise-de-vue.md.
+public enum Row: String, Codable, CaseIterable, Sendable {
+    case horizon, haut, bas, plafond, sol
+
+    /// Inclinaison de la rangée, en degrés (positif vers le haut).
+    public var pitch: Double {
+        switch self {
+        case .horizon: 0
+        case .haut: 45
+        case .bas: -45
+        case .plafond: 90
+        case .sol: -90
+        }
+    }
+
+    /// Nombre de photos de la rangée.
+    public var count: Int {
+        switch self {
+        case .horizon: 12
+        case .haut, .bas: 8
+        case .plafond, .sol: 1
+        }
+    }
+
+    /// Nom affiché.
+    public var label: String {
+        switch self {
+        case .horizon: "Horizon"
+        case .haut: "Haut"
+        case .bas: "Bas"
+        case .plafond: "Plafond"
+        case .sol: "Sol (facultatif)"
+        }
+    }
+
+    /// La photo du sol est facultative (docs/prise-de-vue.md).
+    public var isOptional: Bool { self == .sol }
+}
+
+/// Une direction à photographier.
+public struct Target: Identifiable, Equatable, Sendable {
+    public let id: Int
+    public let row: Row
+    /// Numéro dans la rangée, à partir de 1.
+    public let number: Int
+    /// Cap en degrés, vers la droite, dans le repère du monde.
+    public let yaw: Double
+    public let pitch: Double
+
+    public var direction: SIMD3<Double> { Orientation.direction(yaw: yaw, pitch: pitch) }
+}
+
+public enum Plan {
+    /// Cibles de toutes les rangées, dans l'ordre de la fiche, la première face à startYaw.
+    public static func targets(startYaw: Double) -> [Target] {
+        var result: [Target] = []
+        for row in Row.allCases {
+            for index in 0..<row.count {
+                let yaw = Orientation.wrap(startYaw + 360 * Double(index) / Double(row.count))
+                result.append(
+                    Target(id: result.count, row: row, number: index + 1, yaw: yaw, pitch: row.pitch)
+                )
+            }
+        }
+        return result
+    }
+}
+
+public enum Orientation {
+    /// Passage du repère de l'appareil (Core Motion) à celui de la photo : x de l'écran vers la
+    /// droite, y vers le haut de l'écran, z sortant de l'écran ; l'objectif arrière vise -z.
+    /// Téléphone tenu en portrait.
+    static let cameraToDevice = simd_double3x3(rows: [
+        SIMD3(1, 0, 0),
+        SIMD3(0, -1, 0),
+        SIMD3(0, 0, -1),
+    ])
+
+    /// Passage du repère de référence de Core Motion (X horizontal arbitraire, Y horizontal,
+    /// Z vers le haut) au repère du monde (y vers le bas).
+    static let referenceToWorld = simd_double3x3(rows: [
+        SIMD3(1, 0, 0),
+        SIMD3(0, 0, -1),
+        SIMD3(0, 1, 0),
+    ])
+
+    /// Rotation appareil → référence à partir du quaternion d'attitude de Core Motion.
+    ///
+    /// La gravité mesurée (repère de l'appareil, en g) sert de contrôle : si la matrice tirée
+    /// du quaternion ne la retrouve pas, c'est sa transposée qui est la bonne. Cela protège
+    /// d'une erreur de convention, impossible à vérifier sans téléphone.
+    public static func deviceToReference(
+        quaternion: simd_quatd, gravity: SIMD3<Double>
+    ) -> simd_double3x3 {
+        let matrix = simd_double3x3(quaternion)
+        let down = SIMD3<Double>(0, 0, -1)
+        let direct = simd_dot(matrix.transpose * down, simd_normalize(gravity))
+        let transposed = simd_dot(matrix * down, simd_normalize(gravity))
+        return direct >= transposed ? matrix : matrix.transpose
+    }
+
+    /// Rotation caméra → monde, dans la convention de l'assemblage.
+    public static func cameraToWorld(deviceToReference: simd_double3x3) -> simd_double3x3 {
+        referenceToWorld * deviceToReference * cameraToDevice
+    }
+
+    /// Direction du monde d'un cap et d'une inclinaison, en degrés.
+    public static func direction(yaw: Double, pitch: Double) -> SIMD3<Double> {
+        let y = yaw * .pi / 180, p = pitch * .pi / 180
+        return SIMD3(cos(p) * sin(y), -sin(p), cos(p) * cos(y))
+    }
+
+    /// Axe de l'objectif dans le monde.
+    public static func forward(_ rotation: simd_double3x3) -> SIMD3<Double> {
+        rotation * SIMD3(0, 0, 1)
+    }
+
+    /// Cap de l'objectif, en degrés de -180 à 180, positif vers la droite.
+    public static func yaw(_ rotation: simd_double3x3) -> Double {
+        let f = forward(rotation)
+        return atan2(f.x, f.z) * 180 / .pi
+    }
+
+    /// Inclinaison de l'objectif, en degrés, positive vers le haut.
+    public static func pitch(_ rotation: simd_double3x3) -> Double {
+        asin(max(-1, min(1, -forward(rotation).y))) * 180 / .pi
+    }
+
+    /// Penchement du téléphone sur le côté, en degrés : 0 quand il est droit. Indéfini quand
+    /// l'objectif vise presque à la verticale.
+    public static func roll(_ rotation: simd_double3x3) -> Double? {
+        if abs(pitch(rotation)) > 60 { return nil }
+        let right = rotation * SIMD3(1, 0, 0)
+        return asin(max(-1, min(1, right.y))) * 180 / .pi
+    }
+
+    /// Angle en degrés entre deux directions.
+    public static func angle(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Double {
+        let cosine = simd_dot(simd_normalize(a), simd_normalize(b))
+        return acos(max(-1, min(1, cosine))) * 180 / .pi
+    }
+
+    /// Ramène un angle entre -180 et 180 degrés.
+    public static func wrap(_ degrees: Double) -> Double {
+        var value = degrees.truncatingRemainder(dividingBy: 360)
+        if value > 180 { value -= 360 }
+        if value <= -180 { value += 360 }
+        return value
+    }
+
+    /// Lignes de la rotation, pour capture.json.
+    public static func rows(_ rotation: simd_double3x3) -> [[Double]] {
+        (0..<3).map { i in [rotation[0][i], rotation[1][i], rotation[2][i]] }
+    }
+
+    /// Position à l'écran d'une direction du monde, en points depuis le centre de l'aperçu
+    /// (x vers la droite, y vers le bas), ou nil si elle est derrière le téléphone.
+    /// focal est la focale de l'aperçu en points.
+    public static func project(
+        _ direction: SIMD3<Double>, rotation: simd_double3x3, focal: Double
+    ) -> SIMD2<Double>? {
+        let seen = rotation.transpose * direction
+        guard seen.z > 0.05 else { return nil }
+        return SIMD2(seen.x / seen.z * focal, seen.y / seen.z * focal)
+    }
+}
+
+/// Conditions de déclenchement automatique sur une cible.
+public struct Aiming: Sendable {
+    /// Écart maximal entre l'axe de l'objectif et la cible, en degrés.
+    public var tolerance: Double = 3
+    /// Penchement maximal du téléphone sur le côté, en degrés.
+    public var rollTolerance: Double = 6
+
+    public init() {}
+
+    /// Cible encore à prendre la plus proche de l'axe de l'objectif.
+    public func nearest(
+        _ targets: [Target], done: Set<Int>, rotation: simd_double3x3
+    ) -> (target: Target, angle: Double)? {
+        let axis = Orientation.forward(rotation)
+        return targets
+            .filter { !done.contains($0.id) }
+            .map { ($0, Orientation.angle(axis, $0.direction)) }
+            .min { $0.1 < $1.1 }
+    }
+
+    /// Vrai si le téléphone vise la cible et se tient droit.
+    public func isAligned(_ target: Target, rotation: simd_double3x3) -> Bool {
+        let angle = Orientation.angle(Orientation.forward(rotation), target.direction)
+        guard angle <= tolerance else { return false }
+        guard let roll = Orientation.roll(rotation) else { return true }
+        return abs(roll) <= rollTolerance
+    }
+}

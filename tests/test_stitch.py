@@ -297,3 +297,22 @@ def test_original_photos_are_untouched(tmp_path: Path, views: list[View]) -> Non
 
     for original in copy.iterdir():
         assert (point / "photos" / original.name).read_bytes() == original.read_bytes()
+
+
+def test_horizon_photos_have_priority() -> None:
+    def camera(yaw: float, pitch: float) -> stitch.Camera:
+        focal = 300 / np.tan(np.radians(25))
+        K = np.array([[focal, 0, 200], [0, focal, 300], [0, 0, 1.0]])
+        return stitch.Camera(0, K, camera_rotation(yaw, pitch), (400, 600))
+
+    horizon, up = camera(0, 0), camera(0, 45)
+    width = 256
+    full = np.ones((width // 2, width), bool)
+
+    masks = stitch.horizon_priority([horizon, up], [full, full], width)
+
+    center = (width // 4, width // 2)  # latitude 0, longitude 0
+    above = (width // 2 * 20 // 180, width // 2)  # latitude 70°
+    assert masks[0][center] and not masks[1][center]
+    assert masks[1][above]
+    assert stitch.is_horizon(horizon) and not stitch.is_horizon(up)

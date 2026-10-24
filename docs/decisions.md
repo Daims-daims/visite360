@@ -196,3 +196,28 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Raisons :** D14 (liens à la main jusqu'à l'app, étape 6). Un fichier que l'utilisateur édite doit signaler une faute de frappe plutôt que l'ignorer. Un numéro dans l'URL évite d'exposer ou d'encoder des noms de dossier arbitraires et garde la liste de chemins servis fermée (D23).
 - **Prévu pour l'étape 6 :** les champs facultatifs `nord` et `position` sont déjà lus et vérifiés, pour que l'app puisse les remplir et que les liens se calculent sans saisie manuelle.
 - **Conséquence :** la visite n'est affichée que quand tous les panoramas existent. Les points sont assemblés l'un après l'autre.
+
+## D25 : app native en SwiftUI, installée par câble, orientations des capteurs pour l'assemblage
+
+- **Date :** 2026-10-24
+- **Décision :**
+  - téléphone de référence : iPhone 15 du propriétaire ;
+  - l'app de capture est une app iPhone native en SwiftUI, dans `app/`, sans bibliothèque extérieure : caméra par AVFoundation, orientation par Core Motion ;
+  - installation par câble depuis Xcode avec l'identifiant Apple du propriétaire, sans compte développeur payant ;
+  - l'orientation de chaque photo vient du gyroscope et de l'accéléromètre (référence Core Motion « X arbitraire, Z vertical »), sans la boussole. Elle est écrite dans `capture.json` (format dans `docs/capture-json.md`), dans le repère de l'assemblage ;
+  - `visite360 stitch` s'en sert si chaque photo a la sienne : point de départ de l'ajustement, recherche de points communs limitée aux photos dont les axes sont à moins de 75°, horizon donné par les capteurs au lieu de la correction d'horizon d'OpenCV. Si l'écart médian entre capteurs et photos dépasse 10°, ou si l'alignement échoue avec eux, ils sont ignorés et l'assemblage se fait comme sans app. Le rapport dit lequel a servi ;
+  - quand les capteurs sont retenus, une photo sans assez de points communs n'est plus rejetée : elle est placée à l'orientation mesurée par le téléphone, corrigée de la dérive du gyroscope constatée sur les photos prises juste avant et juste après. Premier essai réel (salon, 2026-10-24) : 7 photos sur 30, du haut et du plafond blancs, étaient rejetées et le plafond restait gris. Les capteurs y dérivaient de 3 à 10° par rapport aux photos au fil de la prise de vue : sans correction, les photos placées étaient décalées d'autant ;
+  - avec ou sans app, les paires de photos incohérentes s'écartent en plusieurs passes, jusqu'à ce qu'il n'en reste plus (au plus 4) : sur le salon, une paire décalée de 6° restait après la première passe ;
+  - avec ou sans app, les photos de l'horizon (axe à moins de 20° de l'horizon) sont prioritaires : dans la zone qu'elles voient à plus de 12 % de leurs bords, les photos des autres rangées ne sont pas candidates. Les raccords entre rangées passent ainsi plus haut et plus bas, là où le regard se pose moins (demande du propriétaire) ;
+  - la géométrie de l'app est en Swift pur et se teste sur le Mac par `swift test` (`app/Package.swift`).
+- **Raisons :**
+  - le propriétaire a un iPhone. Une app native accède directement à la caméra et aux capteurs, sans module natif à écrire en plus comme avec Expo, et sans paquet npm dont il faudrait vérifier la licence ;
+  - l'installation gratuite évite le coût annuel du compte développeur, au prix d'une réinstallation tous les 7 jours ;
+  - la boussole est perturbée par le métal et les appareils électriques d'un logement. Le gyroscope dérive peu sur les 2 à 3 minutes d'un point, et l'ajustement par les photos corrige ce qui reste ;
+  - l'app ne voit pas sa position, seulement son orientation : elle ne corrige pas la parallaxe. Elle supprime les erreurs de départ de l'alignement (paires de photos confondues, motifs répétés) et garantit le recouvrement des photos ;
+  - le contrôle par les photos protège d'une erreur de convention dans l'app, qu'on ne peut pas vérifier sans téléphone. L'app compare aussi la gravité mesurée à l'orientation calculée pour détecter une matrice transposée.
+- **Modifie :** D15, l'app est en Swift. Garder un seul dépôt reste à confirmer.
+- **Conséquences :**
+  - l'app ne fonctionne que sur iPhone. Une version Android demanderait un second développement ;
+  - un point se prend d'une traite : le cap 0 des capteurs change à chaque démarrage ;
+  - les tests GitHub ne compilent pas l'app (ils tournent sous Linux). `swift test` et la compilation se lancent sur le Mac.

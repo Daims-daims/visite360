@@ -38,3 +38,10 @@ visites/
 # Réglages personnels de Claude Code
 CLAUDE.local.md
 .claude/settings.local.json
+
+# App iPhone : fichiers de construction et réglages personnels de Xcode
+app/.build/
+app/.swiftpm/
+DerivedData/
+xcuserdata/
+*.xcuserstate

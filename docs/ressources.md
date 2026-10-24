@@ -21,6 +21,11 @@ Presque tout est en anglais, sauf le TP de l'ENSTA.
 - [Brown et Lowe, « Automatic Panoramic Image Stitching using Invariant Features » (2007)](https://courses.cs.washington.edu/courses/cse576/07sp/notes/ijcv2007.pdf) : l'article dont s'inspire l'assemblage d'OpenCV.
 - [Paul Bourke, conversion entre panorama et vue normale](https://paulbourke.net/panorama/sphere2persp) : découper une vue normale dans un panorama 360°, puis l'y remettre, sans équations.
 
+### Étape 5 : app de capture
+
+- [Apple, « Getting processed device-motion data »](https://developer.apple.com/documentation/coremotion/getting-processed-device-motion-data) : comment le téléphone combine gyroscope et accéléromètre pour donner son orientation, et pourquoi le cap de départ est arbitraire.
+- [Apple, « Enabling Developer Mode on a device »](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device) : le réglage à activer sur l'iPhone pour y installer l'app depuis Xcode.
+
 ### Étape 7 : sélectionner une surface
 
 - [Article de recherche sur SAM 2](https://arxiv.org/abs/2408.00714) et [dépôt officiel](https://github.com/facebookresearch/sam2).
