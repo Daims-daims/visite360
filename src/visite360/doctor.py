@@ -14,9 +14,10 @@ import sys
 from dataclasses import dataclass
 from typing import TextIO
 
+from visite360.opencv import INSTALL_COMMAND, uses_ffmpeg
+
 MIN_PYTHON = (3, 11)
 MIN_OPENCV = (4, 10)
-OPENCV_PACKAGE = "opencv-python-headless"
 EXTERNAL_TIMEOUT_S = 10
 
 
@@ -59,8 +60,8 @@ def check_python(version_info: tuple[int, ...] = tuple(sys.version_info[:3])) ->
 
 
 def check_opencv() -> CheckResult:
-    """Vérifie qu'OpenCV s'importe et que sa version est suffisante."""
-    install_hint = f'pip install "{OPENCV_PACKAGE}>={_format_version(MIN_OPENCV)}"'
+    """Vérifie qu'OpenCV s'importe, que sa version suffit et qu'il est compilé sans FFmpeg."""
+    install_hint = f"Installer la version compilée sans FFmpeg : {INSTALL_COMMAND}"
     try:
         cv2 = importlib.import_module("cv2")
     except ModuleNotFoundError:
@@ -71,7 +72,7 @@ def check_opencv() -> CheckResult:
             False,
             True,
             f"présent mais impossible à charger ({error})",
-            f"Réinstaller : pip install --force-reinstall {OPENCV_PACKAGE}",
+            f"Réinstaller : {INSTALL_COMMAND} --force",
         )
 
     raw_version = str(getattr(cv2, "__version__", ""))
@@ -86,9 +87,17 @@ def check_opencv() -> CheckResult:
             False,
             True,
             f"version {raw_version} trop ancienne, {_format_version(MIN_OPENCV)} ou plus requise",
-            f'pip install --upgrade "{OPENCV_PACKAGE}>={_format_version(MIN_OPENCV)}"',
+            install_hint,
         )
-    return CheckResult("OpenCV", True, True, raw_version)
+    if uses_ffmpeg(cv2.getBuildInformation()):
+        return CheckResult(
+            "OpenCV",
+            False,
+            True,
+            f"version {raw_version} de PyPI, avec FFmpeg et des encodeurs sous GPL (D19)",
+            f"La remplacer : {INSTALL_COMMAND}",
+        )
+    return CheckResult("OpenCV", True, True, f"{raw_version}, compilé sans FFmpeg")
 
 
 def check_heic(platform: str = sys.platform) -> CheckResult:

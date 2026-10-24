@@ -11,8 +11,15 @@ from visite360.cli import main
 SIPS_FORMATS = "public.heic                  heic  Writable\npublic.jpeg  jpeg  Writable\n"
 
 
-def fake_cv2(monkeypatch: pytest.MonkeyPatch, version: str) -> None:
-    monkeypatch.setitem(sys.modules, "cv2", types.SimpleNamespace(__version__=version))
+BUILD_WITHOUT_FFMPEG = "  Video I/O:\n    FFMPEG:                      NO\n"
+BUILD_WITH_FFMPEG = "  Video I/O:\n    FFMPEG:                      YES (61.19.101)\n"
+
+
+def fake_cv2(
+    monkeypatch: pytest.MonkeyPatch, version: str, build: str = BUILD_WITHOUT_FFMPEG
+) -> None:
+    module = types.SimpleNamespace(__version__=version, getBuildInformation=lambda: build)
+    monkeypatch.setitem(sys.modules, "cv2", module)
 
 
 def fake_sips(
@@ -68,7 +75,7 @@ def test_opencv_present(monkeypatch: pytest.MonkeyPatch) -> None:
     result = doctor.check_opencv()
 
     assert result.ok
-    assert result.detail == "4.12.0"
+    assert result.detail == "4.12.0, compilé sans FFmpeg"
 
 
 def test_opencv_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -81,7 +88,7 @@ def test_opencv_absent(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert not result.ok
     assert result.detail == "absent"
-    assert result.hint == 'pip install "opencv-python-headless>=4.10"'
+    assert result.hint is not None and "scripts/installer-opencv.sh" in result.hint
 
 
 def test_opencv_broken(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -103,7 +110,16 @@ def test_opencv_too_old(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert not result.ok
     assert "trop ancienne" in result.detail
-    assert result.hint is not None and "--upgrade" in result.hint
+    assert result.hint is not None and "scripts/installer-opencv.sh" in result.hint
+
+
+def test_opencv_from_pypi_with_ffmpeg_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_cv2(monkeypatch, "4.14.0", BUILD_WITH_FFMPEG)
+
+    result = doctor.check_opencv()
+
+    assert not result.ok
+    assert "FFmpeg" in result.detail
 
 
 def test_opencv_unreadable_version(monkeypatch: pytest.MonkeyPatch) -> None:

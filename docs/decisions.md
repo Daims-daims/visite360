@@ -125,3 +125,38 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Date :** 2026-10-24
 - **Décision :** chaque pull request contient une rubrique « Comment ça marche, en clair » : le principe de l'étape sans jargon, ses limites, et à quoi ressemble un mauvais résultat. `docs/ressources.md` liste ce qu'il faut lire ou regarder pour aller plus loin, étape par étape.
 - **Raisons :** le code est écrit avec Claude, mais le propriétaire valide chaque étape sur le résultat. Pour piloter, il doit savoir reconnaître un échec et en deviner la cause (prise de vue, réglage ou code), sans devoir suivre un cours complet.
+
+## D19 : OpenCV compilé sans FFmpeg, assemblage en deux temps
+
+- **Date :** 2026-10-24
+- **Décision :**
+  - OpenCV 4.14 est compilé depuis ses sources officielles par `scripts/installer-opencv.sh`, avec seulement les modules utiles (core, imgproc, imgcodecs, features2d, flann, calib3d, stitching) et sans FFmpeg. Le paquet `opencv-python-headless` de PyPI est interdit. `visite360 doctor` et `visite360 stitch` refusent un OpenCV compilé avec FFmpeg ;
+  - OpenCV n'est pas déclaré dans `pyproject.toml`, sinon `pip install` irait chercher le paquet de PyPI. numpy l'est ;
+  - l'assemblage se fait en deux temps : alignement avec les briques détaillées d'OpenCV (points SIFT, appariement, ajustement des rotations et de la focale, correction de l'horizon), puis rendu équirectangulaire par notre code, avec compensation d'exposition et fusion multibande d'OpenCV ;
+  - les licences zlib, libpng et IJG, intégrées à OpenCV, sont ajoutées à la liste autorisée de `CLAUDE.md` par décision du propriétaire.
+- **Raisons :**
+  - sur macOS, tous les paquets PyPI d'OpenCV de 4.10 à 5.0 embarquent les encodeurs x264 et x265 sous GPL 2, chargés dès `import cv2`. Le projet n'accepte la GPL que pour un programme externe ;
+  - la compilation prend environ 2 minutes sur la machine de référence (mesuré le 2026-10-24) ;
+  - l'assembleur tout-en-un d'OpenCV (`cv2.Stitcher`) produit une image recadrée à une échelle quelconque, pas un panorama 2:1 complet avec l'horizon au milieu. Avec notre rendu, la première photo regarde la longitude 0 et le résultat se compare pixel à pixel à un panorama de synthèse dans les tests.
+- **Remplace :** la partie de D7 qui prévoyait le paquet `opencv-python-headless`, et la version minimale de D17 (4.10 reste le minimum vérifié par `doctor`).
+- **Conséquence :** il faut recompiler OpenCV sur chaque nouvelle machine, et pour chaque version de Python. Les tests GitHub le font aussi, avec un cache.
+
+## D20 : organisation d'un point de la visite et résolution du panorama
+
+- **Date :** 2026-10-24
+- **Décision :**
+  - un point vit dans `visites/<visite>/<point>/` : photos d'origine dans `photos/`, conversions HEIC dans `cache/`, puis `panorama.jpg` et `rapport.json` ;
+  - panorama de 8192 × 4096 pixels par défaut, modifiable avec `--largeur` ;
+  - les trous qui touchent le sol ou le plafond et restent à moins de 45° du pôle sont bouchés par un flou. Les autres restent en gris. Tous sont décrits dans le rapport.
+- **Raisons :** 8192 pixels de large suffisent pour une visite web et restent lisibles par les visionneuses sur téléphone. Les photos permettraient environ 20 000 pixels. Le flou sous le photographe est accepté à ce stade (PLAN.md, étape 2). Un grand trou flouté ferait croire à une vraie surface, d'où le gris.
+
+## D21 : ajustement des photos par notre code, raccords placés par coupe minimale
+
+- **Date :** 2026-10-24
+- **Décision :**
+  - l'orientation des photos et la focale sont ajustées par notre code (`src/visite360/adjust.py`) et non plus par l'ajusteur d'OpenCV. Une seule focale pour toutes les photos, écarts mesurés en pixels, poids réduit pour les correspondances aberrantes, puis mise à l'écart des paires de photos incohérentes. OpenCV reste utilisé pour les points caractéristiques, l'appariement et la correction de l'horizon ;
+  - le point de départ est calculé paire par paire (rotation qui superpose au mieux les points communs), en enchaînant les paires les plus riches ;
+  - les raccords sont placés par la coupe minimale d'OpenCV (`GraphCutSeamFinder`) sur un panorama réduit : ils passent là où les photos voisines se ressemblent.
+- **Raisons :** sur le premier vrai jeu de photos (chambre, 33 photos à main levée), l'ajusteur d'OpenCV échouait ou donnait des focales de 113 à 787 pixels pour un même objectif. La parallaxe des objets proches produit des correspondances qu'aucune rotation n'explique, et ces correspondances faisaient diverger le calcul. Avec notre ajustement, la focale trouvée (640 pixels à l'échelle de travail) correspond aux 26 mm annoncés par l'iPhone 15, et la moitié des paires s'aligne à moins de 2,6 pixels près.
+- **Remplace :** la partie « ajustement » de D19.
+- **Limite :** la parallaxe elle-même ne se corrige pas. Les raccords l'évitent quand ils le peuvent. Un objet proche vu de deux positions différentes peut rester dédoublé.
