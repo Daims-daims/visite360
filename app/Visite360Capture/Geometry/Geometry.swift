@@ -235,18 +235,27 @@ public struct Aiming: Sendable {
 /// la position de l'objectif par ARKit (qui n'existe qu'au ×1).
 public enum CaptureSetup: String, CaseIterable, Sendable {
     case ultraWide = "x0.5"
+    case ultraWideSensed = "x0.5-capteurs"
     case wide = "x1"
     case wideTracked = "x1-ar"
 
     public var lens: Lens {
-        self == .ultraWide ? .ultraWide : .wide
+        switch self {
+        case .ultraWide, .ultraWideSensed: .ultraWide
+        case .wide, .wideTracked: .wide
+        }
     }
 
+    /// ARKit suit la position de l'objectif (LensDrift).
     public var tracksPosition: Bool { self == .wideTracked }
+
+    /// Gyroscope et accéléromètre estiment l'axe de rotation (RotationAxis).
+    public var watchesRotationAxis: Bool { self == .ultraWideSensed }
 
     public var label: String {
         switch self {
         case .ultraWide: "×0,5"
+        case .ultraWideSensed: "×0,5 + capteurs"
         case .wide: "×1"
         case .wideTracked: "×1 + AR"
         }
@@ -303,5 +312,93 @@ public struct LensDrift: Sendable {
     public func displacement(_ position: SIMD3<Double>?) -> SIMD3<Double>? {
         guard let position, let reference else { return nil }
         return position - reference
+    }
+}
+
+/// Estime, avec le gyroscope et l'accéléromètre, à quelle distance de l'objectif passe l'axe
+/// autour duquel le téléphone tourne.
+///
+/// Quand on tourne autour du téléphone, l'axe passe près de l'objectif : il pivote presque sur
+/// place. Quand on pivote sur ses talons, l'axe passe par le corps, à 30 ou 40 cm : le
+/// téléphone décrit un cercle, et l'accéléromètre sent une poussée sur le côté à chaque
+/// démarrage ou arrêt de la rotation, et une attirance vers l'axe pendant qu'elle dure.
+///
+/// Pour un point du téléphone situé à ρ de l'axe (vecteur dans le repère du téléphone), son
+/// accélération vaut α × ρ + ω × (ω × ρ), avec ω la vitesse de rotation et α sa variation.
+/// Sur une fenêtre glissante d'environ 1,5 s, on cherche le ρ qui explique au mieux les
+/// accélérations mesurées (moindres carrés). La partie de ρ parallèle à l'axe ne change rien
+/// à la parallaxe et ne se mesure pas : une petite régularisation la ramène à zéro.
+///
+/// Les mesures sont dans le repère de l'appareil de Core Motion, qui n'est pas celui de
+/// l'objectif : l'objectif est à quelques centimètres du centre du téléphone, ce qui fausse
+/// la distance d'autant. Le signe de l'accélération ne change pas la distance trouvée.
+public struct RotationAxis: Sendable {
+    /// Au-delà, la photo ne part pas, en mètres.
+    public var limit = 0.12
+    /// En dessous, l'alerte s'efface, en mètres.
+    public var clear = 0.08
+    /// Nombre de mesures de la fenêtre glissante (60 par seconde).
+    public var window = 90
+    /// Rotation minimale sur la fenêtre pour estimer la distance, moyenne de ‖M‖² en rad²/s⁴.
+    /// Téléphone immobile : pas d'estimation, la précédente reste affichée.
+    public var minExcitation = 0.3
+
+    public private(set) var distance: Double?
+    public private(set) var isTooFar = false
+    private var samples: [(time: Double, rate: SIMD3<Double>, acceleration: SIMD3<Double>)] = []
+
+    public init() {}
+
+    /// Oublie les mesures précédentes (début de la prise de vue).
+    public mutating func reset() {
+        samples.removeAll()
+        distance = nil
+        isTooFar = false
+    }
+
+    /// Ajoute une mesure : instant en secondes, vitesse de rotation en rad/s et accélération
+    /// donnée par l'utilisateur en m/s², toutes deux dans le repère de l'appareil.
+    public mutating func add(time: Double, rotationRate: SIMD3<Double>, acceleration: SIMD3<Double>) {
+        samples.append((time, rotationRate, acceleration))
+        if samples.count > window + 2 { samples.removeFirst(samples.count - window - 2) }
+        guard samples.count >= 3 else { return }
+        var normal = simd_double3x3()
+        var right = SIMD3<Double>()
+        var excitation = 0.0
+        for i in 1..<(samples.count - 1) {
+            let before = samples[i - 1], now = samples[i], after = samples[i + 1]
+            let dt = after.time - before.time
+            guard dt > 0 else { continue }
+            // Variation de la vitesse de rotation, par différence centrée.
+            let alpha = (after.rate - before.rate) / dt
+            let w = Self.skew(now.rate)
+            let m = Self.skew(alpha) + w * w
+            normal += m.transpose * m
+            right += m.transpose * now.acceleration
+            excitation += Self.trace(m.transpose * m)
+        }
+        let count = Double(samples.count - 2)
+        guard excitation / count >= minExcitation else { return }
+        let ridge = 0.02 * excitation / 3
+        let rho = (normal + simd_double3x3(diagonal: SIMD3(repeating: ridge))).inverse * right
+        let found = simd_length(rho)
+        distance = found
+        if found > limit {
+            isTooFar = true
+        } else if found < clear {
+            isTooFar = false
+        }
+    }
+
+    static func skew(_ v: SIMD3<Double>) -> simd_double3x3 {
+        simd_double3x3(rows: [
+            SIMD3(0, -v.z, v.y),
+            SIMD3(v.z, 0, -v.x),
+            SIMD3(-v.y, v.x, 0),
+        ])
+    }
+
+    static func trace(_ m: simd_double3x3) -> Double {
+        m[0][0] + m[1][1] + m[2][2]
     }
 }

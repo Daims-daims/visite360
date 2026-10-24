@@ -174,12 +174,20 @@ struct CaptureView: View {
                 Text("L'objectif s'est déplacé de \(Int((offset * 100).rounded())) cm").font(.headline)
                 Text("Revenez au-dessus de la marque au sol et tournez autour du téléphone, pas sur vous-même.")
                 Text("Les photos reprendront quand l'objectif sera revenu à sa place.").font(.footnote)
+            } else if model.axis.isTooFar, let distance = model.axis.distance {
+                Text("Vous pivotez sur vous-même").font(.headline)
+                Text(
+                    "L'axe de rotation passe à \(Int((distance * 100).rounded())) cm du téléphone. "
+                        + "Revenez au-dessus de la marque et tournez autour du téléphone."
+                )
+                Text("Les photos reprendront après une rotation correcte.").font(.footnote)
             } else if let target = model.suggested {
                 Text("\(target.row.label) : photo \(target.number) sur \(target.rowCount)")
                     .font(.headline)
                 Text(hint(for: target))
                 Text("Tournez autour du téléphone, pas sur vous-même.").font(.footnote)
                 if model.tracker != nil { trackingLine }
+                if model.watchesAxis { axisLine }
             } else {
                 Text("Toutes les photos sont prises.").font(.headline)
                 Text("Visez le milieu de chaque porte vers une autre pièce, puis « Flèche ici ».")
@@ -196,9 +204,24 @@ struct CaptureView: View {
         .padding(12)
         .frame(maxWidth: .infinity)
         .background(
-            model.drift.isTooFar ? Color.red.opacity(0.85) : Color.black.opacity(0.55),
+            model.parallaxAlert ? Color.red.opacity(0.85) : Color.black.opacity(0.55),
             in: RoundedRectangle(cornerRadius: 12)
         )
+    }
+
+    /// Réglage « ×0,5 + capteurs » : distance estimée entre le téléphone et l'axe de rotation.
+    private var axisLine: some View {
+        Group {
+            if let distance = model.axis.distance {
+                Text(
+                    "Axe de rotation à \(Int((distance * 100).rounded())) cm du téléphone "
+                        + "(limite \(Int(model.axis.limit * 100)))"
+                )
+            } else {
+                Text("Axe de rotation : mesuré dès que vous tournez.")
+            }
+        }
+        .font(.footnote)
     }
 
     /// Mode « ×1 + AR » : déplacement de l'objectif depuis sa place de départ.

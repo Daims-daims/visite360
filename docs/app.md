@@ -21,8 +21,9 @@ Il faut Xcode sur le Mac et un identifiant Apple, sans abonnement développeur.
 
 Les conseils de [prise-de-vue.md](prise-de-vue.md) restent valables : objectif immobile au-dessus d'une marque au sol, portes ouvertes et lumières fixées, personne qui bouge.
 
-1. **Choisir l'objectif** sur l'écran d'accueil :
+1. **Choisir le réglage** sur l'écran d'accueil :
    - **×0,5 (conseillé)** : 21 photos par point (8 à l'horizon, 6 en haut, 6 en bas, le plafond). Chaque photo voit plus large : un objet proche (frigo, table, chaise) tient plus souvent dans une seule photo, et il y a moins de raccords pour le couper ;
+   - **×0,5 + capteurs (essai)** : comme ×0,5, mais le gyroscope et l'accéléromètre repèrent quand on pivote sur soi-même (voir plus bas) ;
    - **×1** : 29 photos (12, 8, 8 et le plafond), plus de détail mais plus de raccords ;
    - **×1 + AR (essai)** : comme ×1, mais ARKit, la réalité augmentée d'Apple, suit la position de l'objectif pendant tout le point (voir plus bas).
 
@@ -61,6 +62,26 @@ Limites de ce mode :
 - c'est un essai : le seuil de 5 cm est à régler sur de vraies pièces.
 
 Le déplacement de chaque photo est noté dans `capture.json` (`deplacement_m`, [format](capture-json.md)), pour relier après coup un raccord raté à un objectif qui avait bougé.
+
+### Réglage « ×0,5 + capteurs » : tourner autour du téléphone
+
+Même but que « ×1 + AR », avec le ×0,5 et sans ARKit. L'app ne sait pas où est l'objectif, mais elle estime **autour de quel axe le téléphone tourne** :
+
+- quand on tourne autour du téléphone, l'axe passe tout près de lui : il pivote presque sur place ;
+- quand on pivote sur ses talons, l'axe passe par le corps, à 30 ou 40 cm. Le téléphone décrit alors un cercle, et l'accéléromètre sent une poussée sur le côté à chaque démarrage ou arrêt de la rotation. Comparée à la rotation mesurée par le gyroscope, cette poussée donne la distance de l'axe.
+
+À l'écran :
+
+- sous les consignes, une ligne affiche « Axe de rotation à 4 cm du téléphone (limite 12) ». Elle ne change que pendant une rotation : téléphone immobile, la dernière valeur reste ;
+- au-delà de **12 cm**, le cadre devient rouge, le téléphone vibre et **aucune photo ne part**. L'alerte s'efface quand une rotation suivante donne moins de 8 cm : revenir au-dessus de la marque en tournant autour du téléphone.
+
+Différences avec « ×1 + AR » :
+
+- la mesure est moins directe : elle juge le geste de rotation, pas la place de l'objectif. Un téléphone qui glisse sans tourner passe inaperçu ;
+- la distance est mesurée depuis le centre du téléphone, pas depuis l'objectif, qui est dans un coin : quelques centimètres d'écart sont normaux, d'où un seuil plus large ;
+- c'est un essai : seuils à régler sur de vraies prises de vue.
+
+La distance de chaque photo est notée dans `capture.json` (`distance_axe_m`).
 
 ### Viser les portes : les flèches
 

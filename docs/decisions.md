@@ -249,21 +249,26 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - une flèche visée au jugé tombe à quelques degrés près. Si l'assemblage ignore les orientations du téléphone (écart de plus de 10°), le centre redevient la première photo et les flèches de ce point peuvent être décalées ;
   - une flèche ne se vise que pendant la prise de vue du point. Pour la refaire, reprendre le point ou corriger `visite.json` sur le Mac.
 
-## D27 : essai d'un mode « ×1 + AR » qui suit la position de l'objectif
+## D27 : essai de deux réglages contre la parallaxe, « ×1 + AR » et « ×0,5 + capteurs »
 
 - **Date :** 2026-10-24
 - **Décision :**
   - l'app propose un troisième réglage, « ×1 + AR », à côté de ×0,5 et ×1. ARKit (réalité augmentée d'Apple) pilote la caméra pendant tout le point, prend les photos en pleine résolution et mesure la position de l'objectif ;
   - la place de départ est la position de l'objectif au verrouillage. Au-delà de 5 cm de déplacement, l'écran passe au rouge, le téléphone vibre et la photo ne part pas. L'alerte s'efface sous 3,5 cm ;
   - l'orientation des photos vient toujours de Core Motion, comme dans les autres réglages (D25). ARKit ne fournit que la position ;
-  - le déplacement de chaque photo est noté dans `capture.json` (`suivi_position`, `deplacement_m`), sans être utilisé par l'assemblage.
+  - le déplacement de chaque photo est noté dans `capture.json` (`suivi_position`, `deplacement_m`), sans être utilisé par l'assemblage ;
+  - un quatrième réglage, « ×0,5 + capteurs », garde le ×0,5 et AVFoundation. Sur une fenêtre glissante de 1,5 s, l'app cherche le point autour duquel le téléphone tourne, à partir du gyroscope (rotation) et de l'accéléromètre (poussées dues à cette rotation), par moindres carrés. Au-delà de 12 cm entre le téléphone et l'axe, même alerte et même blocage ; l'alerte s'efface sous 8 cm. La distance de chaque photo est notée (`distance_axe_m`) ;
+  - le propriétaire essaie les deux sur les mêmes pièces et choisit.
 - **Raisons :**
-  - demande du propriétaire, qui veut prévenir la parallaxe pendant la prise de vue. ARKit mesure la position en croisant caméra et capteurs : c'est plus fiable qu'une estimation tirée des seuls capteurs de mouvement, envisagée puis écartée pour ce motif ;
+  - demande du propriétaire, qui veut prévenir la parallaxe pendant la prise de vue. ARKit mesure la position en croisant caméra et capteurs : c'est plus fiable qu'une estimation tirée des seuls capteurs de mouvement ;
   - garder l'orientation de Core Motion évite de revérifier sans téléphone les conventions de repère d'ARKit. Une distance, elle, ne dépend pas du repère ;
   - 5 cm : pour un objet à 1 m, l'écart entre deux photos reste sous 3°. Seuil à régler sur de vraies pièces.
+  - « ×0,5 + capteurs » garde l'objectif qui donnait les meilleurs raccords aux essais de l'étape 5, au prix d'une mesure moins directe. 12 cm : pivoter sur ses talons place l'axe à 30 ou 40 cm, tourner autour du téléphone à quelques centimètres, et la mesure part du centre du téléphone, pas de l'objectif. Testé sur des rotations simulées, avec un accéléromètre bruité comme une main qui tremble ;
 - **Limites :**
   - ARKit garde la caméra pour lui et n'utilise que l'objectif ×1 : pas de suivi au ×0,5, le réglage conseillé jusqu'ici ;
   - sans repères visuels (démarrage, mur uni), ARKit ne suit pas la position et les photos partent sans contrôle ;
-  - les photos d'ARKit ne passent pas par la chaîne photo habituelle d'iOS : rendu et netteté à comparer avec le ×1 normal.
-- **À décider après essai :** garder ce mode, le retirer, ou en faire le réglage par défaut.
+  - les photos d'ARKit ne passent pas par la chaîne photo habituelle d'iOS : rendu et netteté à comparer avec le ×1 normal ;
+  - « ×0,5 + capteurs » juge le geste de rotation, pas la place de l'objectif : un téléphone qui glisse sans tourner passe inaperçu. Téléphone immobile, la dernière mesure reste affichée ;
+  - les deux réglages n'ont été que compilés : aucune mesure sur un vrai iPhone.
+- **À décider après essai :** quel réglage garder, lequel devient le réglage par défaut, et les seuils.
 

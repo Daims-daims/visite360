@@ -20,9 +20,13 @@ struct PhotoEntry: Codable {
     /// Mode « ×1 + AR » : déplacement de l'objectif depuis sa place de départ, en mètres, dans
     /// le repère d'ARKit (y vers le haut). Absent si ARKit ne suivait pas la position.
     var lensOffset: [Double]? = nil
+    /// Réglage « ×0,5 + capteurs » : distance estimée entre le téléphone et l'axe de rotation
+    /// au moment de la photo, en mètres. Absente tant qu'aucune rotation n'a été mesurée.
+    var axisDistance: Double? = nil
 
     enum CodingKeys: String, CodingKey {
         case lensOffset = "deplacement_m"
+        case axisDistance = "distance_axe_m"
         case file = "fichier"
         case row = "rangee"
         case number = "numero"
@@ -51,7 +55,8 @@ struct CaptureFile: Codable {
     /// Cap visé au verrouillage, dans le repère des rotations : le Mac en fait le centre du
     /// panorama, et les flèches se mesurent depuis lui. Absent des fichiers de l'étape 5.
     var startYaw: Double?
-    /// « arkit » quand la position de l'objectif a été suivie (mode « ×1 + AR »).
+    /// « arkit » quand la position de l'objectif a été suivie (réglage « ×1 + AR »),
+    /// « capteurs » quand l'axe de rotation a été estimé (réglage « ×0,5 + capteurs »).
     var tracking: String?
     var photos: [PhotoEntry] = []
 
