@@ -105,16 +105,16 @@ final class LensDriftTests: XCTestCase {
         var drift = LensDrift()
         drift.start()
         drift.update(SIMD3(0, 0, 0), started: true)
-        drift.update(SIMD3(0.07, 0, 0), started: true)
+        drift.update(SIMD3(0.04, 0, 0), started: true)
         XCTAssertFalse(drift.isTooFar)
-        drift.update(SIMD3(0.048, 0, 0.064), started: true)  // 8 cm : à la limite, pas au-delà
+        drift.update(SIMD3(0.03, 0, 0.04), started: true)  // 5 cm : à la limite, pas au-delà
         XCTAssertFalse(drift.isTooFar)
         drift.update(SIMD3(0.3, 0, 0), started: true)  // pivot sur les talons
         XCTAssertTrue(drift.isTooFar)
         XCTAssertEqual(drift.offset ?? 0, 0.3, accuracy: 1e-12)
-        drift.update(SIMD3(0.07, 0, 0), started: true)  // revenu, mais pas assez
+        drift.update(SIMD3(0.04, 0, 0), started: true)  // revenu, mais pas assez
         XCTAssertTrue(drift.isTooFar)
-        drift.update(SIMD3(0.05, 0, 0), started: true)
+        drift.update(SIMD3(0.02, 0, 0), started: true)
         XCTAssertFalse(drift.isTooFar)
     }
 

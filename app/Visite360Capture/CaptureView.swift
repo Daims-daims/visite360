@@ -329,7 +329,7 @@ struct PlacementGuide: View {
     let drift: LensDrift
 
     /// Rayon du guide, en mètres : au-delà, le point reste collé au bord.
-    private let range = 0.12
+    private let range = 0.08
 
     private var color: Color {
         guard let offset = drift.offset else { return .gray }

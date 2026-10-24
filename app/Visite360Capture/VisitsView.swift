@@ -39,7 +39,7 @@ struct VisitsView: View {
                     case .wideTracked:
                         Text(
                             "×1 + AR (conseillé) : 29 photos par point. ARKit suit l'objectif, montre "
-                                + "où le tenir et suspend les photos s'il s'éloigne de plus de 8 cm "
+                                + "où le tenir et suspend les photos s'il s'éloigne de plus de 5 cm "
                                 + "de sa place."
                         )
                     case .wide:

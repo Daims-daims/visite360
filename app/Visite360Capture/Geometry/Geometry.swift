@@ -304,13 +304,13 @@ public struct Placement: Equatable, Sendable {
 ///
 /// Toutes les photos d'un point doivent être prises du même endroit : si l'objectif bouge,
 /// un objet proche ne se superpose plus au fond de la même façon d'une photo à l'autre
-/// (parallaxe) et les raccords se voient. Pour un objet à 1 m, 8 cm de déplacement font
-/// environ 4,5° d'écart.
+/// (parallaxe) et les raccords se voient. Pour un objet à 1 m, 5 cm de déplacement font
+/// environ 3° d'écart.
 public struct LensDrift: Sendable {
     /// Au-delà, la photo ne part pas et l'écran demande de revenir à sa place, en mètres.
-    public var limit = 0.08
+    public var limit = 0.05
     /// En dessous, l'alerte s'efface. Plus bas que limit, pour qu'elle ne clignote pas.
-    public var clear = 0.06
+    public var clear = 0.035
 
     public private(set) var reference: SIMD3<Double>?
     public private(set) var offset: Double?

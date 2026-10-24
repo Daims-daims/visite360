@@ -254,14 +254,14 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Date :** 2026-10-24
 - **Décision :**
   - l'app propose un troisième réglage, « ×1 + AR », à côté de ×0,5 et ×1. ARKit (réalité augmentée d'Apple) pilote la caméra pendant tout le point, prend les photos en pleine résolution et mesure la position de l'objectif ;
-  - la place de départ est la position de l'objectif au verrouillage. Au-delà de 8 cm de déplacement, l'écran passe au rouge, le téléphone vibre et la photo ne part pas. L'alerte s'efface sous 6 cm ;
+  - la place de départ est la position de l'objectif au verrouillage. Au-delà de 5 cm de déplacement, l'écran passe au rouge, le téléphone vibre et la photo ne part pas. L'alerte s'efface sous 3,5 cm ;
   - un guide de placement montre en permanence, vu de dessus et dans le sens où vise le photographe, où est l'objectif par rapport à sa place, avec une jauge de hauteur et une consigne en centimètres (« ramenez le téléphone vers vous de 5 cm ») ;
   - l'orientation des photos vient toujours de Core Motion, comme dans les autres réglages (D25). ARKit ne fournit que la position ;
   - le déplacement de chaque photo est noté dans `capture.json` (`suivi_position`, `deplacement_m`), sans être utilisé par l'assemblage.
 - **Raisons :**
   - demande du propriétaire, qui veut prévenir la parallaxe pendant la prise de vue. ARKit mesure la position en croisant caméra et capteurs : c'est plus fiable qu'une estimation tirée des seuls capteurs de mouvement, envisagée puis écartée pour ce motif ;
   - garder l'orientation de Core Motion évite de revérifier sans téléphone les conventions de repère d'ARKit. Une distance, elle, ne dépend pas du repère ;
-  - premiers essais du propriétaire (2026-10-24) : raccords bien meilleurs au « ×1 + AR » qu'aux autres réglages. Le seuil d'abord fixé à 5 cm bloquait trop souvent, et l'alerte ne disait pas où aller : seuil passé à 8 cm (environ 4,5° d'écart pour un objet à 1 m) et guide ajouté ;
+  - premiers essais du propriétaire (2026-10-24) : raccords bien meilleurs au « ×1 + AR » qu'aux autres réglages. L'alerte à 5 cm bloquait souvent sans dire où aller : le guide de placement a été ajouté. Le seuil a été passé un temps à 8 cm, puis ramené à 5 cm par le propriétaire, le guide permettant de revenir facilement à sa place (environ 3° d'écart pour un objet à 1 m) ;
   - un réglage « ×0,5 + capteurs » a aussi été essayé : gyroscope et accéléromètre estimaient la distance entre le téléphone et l'axe de rotation. Mesure instable et raccords moyens à l'essai : il est retiré. Son code reste dans l'historique git (commit fe3acfa) pour une amélioration ultérieure.
 - **Limites :**
   - ARKit garde la caméra pour lui et n'utilise que l'objectif ×1 : pas de suivi au ×0,5 ;

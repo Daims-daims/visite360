@@ -51,18 +51,18 @@ En réglage « ×1 + AR », ARKit repère la pièce par la caméra et mesure en 
 
 **Le guide de placement**, en bas de l'écran au-dessus des boutons, montre en permanence où est l'objectif :
 
-- **le cercle, vu de dessus :** la croix au centre est la place de départ, le point de couleur est l'objectif. Le haut du cercle (petit chevron) est la direction où vise le téléphone : un point en haut veut dire que l'objectif est parti vers l'avant, un point à gauche qu'il est parti vers la gauche. Le cercle blanc marque la limite de 8 cm. Le pointillé montre le chemin pour revenir ;
+- **le cercle, vu de dessus :** la croix au centre est la place de départ, le point de couleur est l'objectif. Le haut du cercle (petit chevron) est la direction où vise le téléphone : un point en haut veut dire que l'objectif est parti vers l'avant, un point à gauche qu'il est parti vers la gauche. Le cercle blanc marque la limite de 5 cm. Le pointillé montre le chemin pour revenir ;
 - **la jauge verticale,** à droite du cercle, donne la hauteur : le trait blanc est la hauteur de départ, le point la hauteur actuelle ;
 - **la couleur :** vert, l'objectif est à sa place ; orange, il s'en éloigne ; rouge, il est trop loin ;
 - **le texte** donne la distance (« Objectif à 5 cm de sa place ») et la correction à faire, par exemple « Ramenez le téléphone vers vous de 5 cm, puis décalez-le vers la gauche de 2 cm ».
 
-Au-delà de **8 cm**, le cadre du haut devient rouge, le téléphone vibre et **aucune photo ne part**. Suivre la consigne et amener le point sur la croix : l'alerte s'efface sous 6 cm et les photos reprennent. Pour un objet à 1 m, 8 cm de déplacement font environ 4,5° d'écart entre deux photos.
+Au-delà de **5 cm**, le cadre du haut devient rouge, le téléphone vibre et **aucune photo ne part**. Suivre la consigne et amener le point sur la croix : l'alerte s'efface sous 3,5 cm et les photos reprennent. Pour un objet à 1 m, 5 cm de déplacement font environ 3° d'écart entre deux photos.
 
 Limites de ce mode :
 
 - **seulement au ×1** : ARKit garde la caméra pour lui et n'utilise pas le ×0,5 ;
 - ARKit a besoin de voir la pièce : au démarrage, ou face à un mur uni, la ligne dit « bougez doucement pour qu'ARKit repère la pièce ». Tant qu'il ne suit pas la position, les photos partent sans contrôle ;
-- le seuil de 8 cm se règle dans le code (`LensDrift.limit`, `app/Visite360Capture/Geometry/Geometry.swift`).
+- le seuil de 5 cm se règle dans le code (`LensDrift.limit`, `app/Visite360Capture/Geometry/Geometry.swift`).
 
 Le déplacement de chaque photo est noté dans `capture.json` (`deplacement_m`, [format](capture-json.md)), pour relier après coup un raccord raté à un objectif qui avait bougé.
 
