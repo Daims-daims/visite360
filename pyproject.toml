@@ -32,6 +32,10 @@ path = "src/visite360/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/visite360"]
 
+# La visionneuse web (D15) est livrée avec le paquet.
+[tool.hatch.build.targets.wheel.force-include]
+"visionneuse" = "visite360/visionneuse"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"

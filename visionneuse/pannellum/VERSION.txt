@@ -1,0 +1,1 @@
+Pannellum 2.5.7, copié depuis le paquet npm pannellum (registry.npmjs.org) le 2026-10-24, build/ non modifié.

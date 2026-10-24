@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Visite 360°</title>
+  <link rel="stylesheet" href="/pannellum/pannellum.css">
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; color: #eee; font-family: system-ui, sans-serif; }
+    #panorama { width: 100%; height: 100%; }
+    #message { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center;
+      justify-content: center; gap: 16px; padding: 24px; text-align: center; }
+    #bar { width: min(420px, 80vw); height: 10px; background: #333; border-radius: 5px; overflow: hidden; }
+    #fill { height: 100%; width: 0; background: #4da3ff; transition: width .6s ease; }
+    #bar, #detail { display: none; }
+    #detail { color: #aaa; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="panorama"></div>
+  <div id="message">
+    <div id="text"></div>
+    <div id="bar"><div id="fill"></div></div>
+    <div id="detail"></div>
+  </div>
+  <script src="/pannellum/pannellum.js"></script>
+  <script>
+    // Beaucoup de téléphones refusent les images plus larges que la limite de leur carte
+    // graphique : on choisit la version du panorama que cet appareil sait afficher.
+    function maxTextureSize() {
+      try {
+        const canvas = document.createElement("canvas");
+        const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+        return gl ? gl.getParameter(gl.MAX_TEXTURE_SIZE) : 0;
+      } catch (error) {
+        return 0;
+      }
+    }
+
+    const box = document.getElementById("message");
+
+    function show(text, progress, detail) {
+      document.getElementById("text").textContent = text;
+      const showBar = progress !== null;
+      document.getElementById("bar").style.display = showBar ? "block" : "none";
+      document.getElementById("detail").style.display = showBar ? "block" : "none";
+      if (showBar) {
+        document.getElementById("fill").style.width = Math.round(progress * 100) + "%";
+        document.getElementById("detail").textContent = detail;
+      }
+      box.style.display = "flex";
+    }
+
+    function startViewer() {
+      fetch("/info.json")
+        .then((response) => response.json())
+        .then((info) => {
+          box.style.display = "none";
+          document.title = info.name + " — visite 360°";
+          const useFull = maxTextureSize() >= info.full.width;
+          const choice = useFull ? info.full : info.mobile;
+          pannellum.viewer("panorama", {
+            type: "equirectangular",
+            panorama: choice.url,
+            autoLoad: true,
+            showControls: true,
+            hfov: 100,
+          });
+        })
+        .catch(() => show("Impossible de charger la visite.", null, ""));
+    }
+
+    // Tant que le panorama est en cours d'assemblage, on interroge le serveur chaque seconde.
+    function poll() {
+      fetch("/status.json")
+        .then((response) => response.json())
+        .then((state) => {
+          if (state.status === "ready") {
+            startViewer();
+          } else if (state.status === "error") {
+            show("L'assemblage du panorama a échoué : " + state.error, null, "");
+          } else {
+            show("Génération du panorama en cours", state.progress, state.message);
+            setTimeout(poll, 1000);
+          }
+        })
+        .catch(() => show("Le serveur ne répond plus. Est-il toujours lancé ?", null, ""));
+    }
+
+    poll();
+  </script>
+</body>
+</html>
