@@ -1,8 +1,8 @@
 # visite360
 
-Transforme des photos prises en tournant sur soi-même avec un téléphone en visite 360° d'un logement, puis permet de repeindre un mur et de voir la visite mise à jour.
+Transforme des photos prises en tournant sur soi-même avec un téléphone en visite 360° d'un logement, puis permet de modifier ce qu'on voit (couleur d'un mur, modifications générées par IA) et de chiffrer ces modifications. Feuille de route par versions dans [PLAN.md](PLAN.md).
 
-**État :** étape 1 livrée (contrôle de l'installation et protocole de prise de vue). Aucun traitement d'image n'existe encore. L'avancement est dans [PLAN.md](PLAN.md).
+**État :** étape 2 livrée (assemblage d'un panorama). L'avancement est dans [PLAN.md](PLAN.md).
 
 ## Installation pour développer
 
@@ -12,7 +12,10 @@ Il faut Python 3.11 ou plus.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+bash scripts/installer-opencv.sh
 ```
+
+Le script compile OpenCV sans FFmpeg, en 2 minutes environ, et l'installe dans l'environnement actif. Ne pas installer `opencv-python-headless` depuis PyPI : sur Mac, il embarque des bibliothèques sous GPL (décision D19).
 
 Vérifier que tout est en place :
 
@@ -24,9 +27,19 @@ ruff check .
 ruff format --check .
 ```
 
-`visite360 doctor` vérifie Python, OpenCV et la conversion des photos HEIC, et dit quoi installer s'il manque quelque chose. Les dépendances de traitement (OpenCV, puis SAM 2) arrivent dans `pyproject.toml` avec les étapes qui en ont besoin.
+`visite360 doctor` vérifie Python, OpenCV et la conversion des photos HEIC, et dit quoi installer s'il manque quelque chose.
 
 Pour photographier un point de la visite : [docs/prise-de-vue.md](docs/prise-de-vue.md).
+
+## Assembler un panorama
+
+Ranger les photos d'un point dans `visites/<visite>/<point>/photos/`, puis :
+
+```bash
+visite360 stitch visites/<visite>/<point>
+```
+
+Le panorama `panorama.jpg` (8192 × 4096 par défaut, option `--largeur`) et le rapport `rapport.json` sont écrits dans le dossier du point. Une relance ne refait rien si les photos n'ont pas changé, sauf avec `--force`.
 
 ## Organisation du dépôt
 
@@ -39,6 +52,7 @@ visite360/
 │   ├── licences.md    registre des dépendances et de leurs licences
 │   ├── prise-de-vue.md  comment photographier un point
 │   └── ressources.md  ce qu'il faut lire ou regarder pour comprendre chaque étape
+├── scripts/           compilation d'OpenCV sans FFmpeg
 ├── src/visite360/     le traitement en Python
 ├── tests/             tests automatiques
 ├── .github/           tests lancés à chaque pull request, modèle de pull request

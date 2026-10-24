@@ -9,7 +9,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 - Une étape ne démarre que si la précédente est « livrée » sur `main`.
 - Un jalon est une décision du propriétaire, pas du code. Il s'inscrit dans ce fichier avant qu'on passe à la suite.
 - Chaque étape a un critère de validation à vérifier sur le Mac ou le téléphone. Les tests automatiques ne le remplacent pas.
-- Tout fonctionne en local jusqu'à la v1 : traitement sur le Mac, visite servie par le Mac, aucun hébergement ni service payant (D21). Les présentations se font en local. Aucun utilisateur extérieur n'a accès au produit avant la v1.
+- Tout fonctionne en local jusqu'à la v1 : traitement sur le Mac, visite servie par le Mac, aucun hébergement ni service payant (D22). Les présentations se font en local. Aucun utilisateur extérieur n'a accès au produit avant la v1.
 - Les versions v0.3 et v1 sont esquissées. Chacune sera détaillée dans une pull request dédiée après le jalon de la version précédente.
 
 ## Vue d'ensemble
@@ -18,7 +18,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 |---|---|---|---|
 | 0 | Cadrage du dépôt | — | livrée |
 | 1 | Contrôle de l'installation et protocole de prise de vue | v0.1 | livrée |
-| 2 | Assemblage d'un panorama | v0.1 | à faire |
+| 2 | Assemblage d'un panorama | v0.1 | livrée |
 | 3 | Visite d'un point | v0.1 | à faire |
 | 4 | Visite de plusieurs points | v0.1 | à faire |
 | 5 | App : capture guidée à un point | v0.1 | à faire |
@@ -94,7 +94,7 @@ Les étapes 1 à 4 valident l'assemblage et la visite avec des photos prises à 
 
 ## v0.2 : modifier ce qu'on voit, sans coût
 
-On génère au maximum sans coût : calcul déterministe quand il suffit, modèle d'IA qui tourne sur le Mac sinon (D21).
+On génère au maximum sans coût : calcul déterministe quand il suffit, modèle d'IA qui tourne sur le Mac sinon (D22).
 
 ### Étape 7 : sélection d'une surface au clic
 
@@ -137,7 +137,7 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 
 ## v1 : partage et retours pour l'agent (esquisse)
 
-Les coûts d'hébergement et de traitement commencent ici, au moment du déploiement (D21).
+Les coûts d'hébergement et de traitement commencent ici, au moment du déploiement (D22).
 
 - **Étape 12 : hébergement et lien de partage.** Une visite est publiée et consultable par un lien difficile à deviner, sans installer d'app.
 - **Étape 13 : envoi depuis l'app et traitement sur serveur.** L'agent prend la visite, l'envoie, le serveur assemble et produit le lien à transmettre au client.
