@@ -185,4 +185,5 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Date :** 2026-10-24
 - **Décision :** `visite360 serve` utilise le serveur HTTP de la bibliothèque standard Python (aucune dépendance), avec une liste fermée de chemins servis. Le panorama d'origine est servi tel quel ; une copie de 4096 px de large est fabriquée dans `cache/` pour les appareils dont la carte graphique n'accepte pas 8192 px, et la page choisit selon la limite de l'appareil.
 - **Raisons :** pas de dépendance (D16), pas d'exposition du reste du disque, panorama d'origine jamais réécrit (D9). Beaucoup de téléphones limitent les images à 4096 px.
+- **Ajout :** si le panorama manque (ou avec `--force`), `serve` l'assemble dans un fil d'exécution en arrière-plan avec `stitch.stitch` et expose l'avancement (`/status.json`) à la page, qui l'interroge chaque seconde. L'avancement est déduit des messages de `stitch`, donc approximatif : l'alignement des photos n'a pas de message intermédiaire.
 - **Conséquence :** la visite est accessible à tout appareil du même Wi-Fi tant que le serveur tourne ; `--local` la réserve au Mac (D22).

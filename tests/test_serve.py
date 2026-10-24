@@ -1,9 +1,13 @@
+import io
+import json
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from typing import Any, TextIO
 
 import cv2
 import numpy as np
@@ -54,8 +58,6 @@ def test_serves_page_viewer_and_panorama(running: tuple[ThreadingHTTPServer, Pat
 
 
 def test_info_announces_full_and_mobile_widths(running: tuple[ThreadingHTTPServer, Path]) -> None:
-    import json
-
     server, _ = running
     info = json.loads(fetch(server, "/info.json")[1])
 
@@ -103,14 +105,122 @@ def test_small_panorama_needs_no_copy(tmp_path: Path) -> None:
     assert not (point / "cache" / serve.MOBILE_NAME).exists()
 
 
-def test_missing_panorama_gives_clear_message(
+def test_no_panorama_and_no_photo_gives_clear_message(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     point = tmp_path / "visite" / "salon"
     (point / "photos").mkdir(parents=True)
 
     assert main(["serve", str(point)]) == 1
-    assert "visite360 stitch" in capsys.readouterr().err
+    assert "Aucune photo" in capsys.readouterr().err
+
+
+def write_photos_only(root: Path) -> stitch.Folders:
+    point = root / "visite" / "salon"
+    (point / "photos").mkdir(parents=True)
+    cv2.imwrite(str(point / "photos" / "a.jpg"), make_panorama(256))
+    return stitch.resolve_folders(point)
+
+
+def fake_stitch(folders: stitch.Folders, width: int, force: bool, out: TextIO) -> dict[str, Any]:
+    print("Assemblage de 2 photos", file=out, flush=True)
+    print("  Alignement des photos", file=out, flush=True)
+    print("  Rendu de la photo 1 sur 2", file=out, flush=True)
+    cv2.imwrite(str(folders.panorama), make_panorama(8192))
+    return {}
+
+
+def test_missing_panorama_is_generated_with_progress(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folders = write_photos_only(tmp_path)
+    release = threading.Event()
+    seen: list[dict[str, Any]] = []
+
+    def slow_stitch(
+        folders: stitch.Folders, width: int, force: bool, out: TextIO
+    ) -> dict[str, Any]:
+        print("  Alignement des photos", file=out, flush=True)
+        release.wait(10)
+        return fake_stitch(folders, width, force, out)
+
+    monkeypatch.setattr(stitch, "stitch", slow_stitch)
+    monkeypatch.setattr(stitch, "print_report", lambda *args: None)
+    server = serve.make_server(folders, "127.0.0.1", 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        visit: serve.Visit = server.visit  # type: ignore[attr-defined]
+        generation = threading.Thread(target=visit.generate, args=(False, io.StringIO()))
+        generation.start()
+
+        deadline = time.time() + 5
+        while time.time() < deadline and not seen:
+            state = json.loads(fetch(server, "/status.json")[1])
+            if state["message"] == "Alignement des photos":
+                seen.append(state)
+        assert seen and seen[0]["status"] == "generating" and 0 < seen[0]["progress"] < 1
+        # Pendant la génération, la page est servie mais ni la fiche ni le panorama.
+        assert fetch(server, "/")[0] == 200
+        assert fetch(server, "/info.json")[0] == 404
+        assert fetch(server, "/panorama.jpg")[0] == 404
+
+        release.set()
+        generation.join(15)
+        state = json.loads(fetch(server, "/status.json")[1])
+        assert state["status"] == "ready" and state["progress"] == 1.0
+        assert fetch(server, "/panorama.jpg")[0] == 200
+        assert json.loads(fetch(server, "/info.json")[1])["full"]["width"] == 8192
+    finally:
+        release.set()
+        server.shutdown()
+        server.server_close()
+
+
+def test_generation_error_is_reported_to_the_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folders = write_photos_only(tmp_path)
+
+    def failing(folders: stitch.Folders, width: int, force: bool, out: TextIO) -> None:
+        raise stitch.StitchError("Il faut au moins 2 photos lisibles pour assembler un panorama.")
+
+    monkeypatch.setattr(stitch, "stitch", failing)
+    server = serve.make_server(folders, "127.0.0.1", 0)
+    try:
+        server.visit.generate(False, io.StringIO())  # type: ignore[attr-defined]
+        state = server.visit.status()  # type: ignore[attr-defined]
+        assert state["status"] == "error" and "2 photos" in state["error"]
+    finally:
+        server.server_close()
+
+
+def test_force_regenerates_an_existing_panorama(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    point = write_point(tmp_path, 2048)
+    (point / "photos" / "a.jpg").write_bytes(b"x")
+    folders = stitch.resolve_folders(point)
+    calls: list[bool] = []
+
+    def recording(folders: stitch.Folders, width: int, force: bool, out: TextIO) -> dict[str, Any]:
+        calls.append(force)
+        return fake_stitch(folders, width, force, out)
+
+    monkeypatch.setattr(stitch, "stitch", recording)
+    monkeypatch.setattr(stitch, "print_report", lambda *args: None)
+
+    ready = serve.make_server(folders, "127.0.0.1", 0)
+    forced = serve.make_server(folders, "127.0.0.1", 0, force=True)
+    try:
+        assert ready.visit.status()["status"] == "ready"  # type: ignore[attr-defined]
+        assert forced.visit.status()["status"] == "generating"  # type: ignore[attr-defined]
+        forced.visit.generate(True, io.StringIO())  # type: ignore[attr-defined]
+        assert calls == [True]
+        assert forced.visit.status()["status"] == "ready"  # type: ignore[attr-defined]
+    finally:
+        ready.server_close()
+        forced.server_close()
 
 
 def test_busy_port_gives_clear_message(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

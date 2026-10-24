@@ -47,7 +47,7 @@ Le panorama `panorama.jpg` (8192 × 4096 par défaut, option `--largeur`) et le 
 visite360 serve visites/<visite>/<point>
 ```
 
-La commande affiche deux adresses : une pour le Mac, une pour un téléphone connecté au même Wi-Fi. `Ctrl+C` arrête le serveur. L'option `--local` réserve la visite au Mac, `--port` change le port.
+La commande affiche deux adresses : une pour le Mac, une pour un téléphone connecté au même Wi-Fi. Si le panorama n'existe pas encore, il est assemblé à partir des photos du point pendant que la page affiche une barre d'avancement, puis la visite s'ouvre toute seule. `Ctrl+C` arrête le serveur. L'option `--local` réserve la visite au Mac, `--port` change le port, `--force` recalcule le panorama même s'il existe.
 
 ## Organisation du dépôt
 
