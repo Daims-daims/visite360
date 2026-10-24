@@ -47,6 +47,8 @@ Personne n'a besoin de le modifier à la main. `visite360 stitch` le lit tout se
 
 - `cap_depart` (facultatif, étape 6) : cap visé au verrouillage, en degrés, dans le repère des rotations. Quand les orientations servent, le panorama est centré sur ce cap, et non sur la première photo retenue : les flèches visées dans l'app gardent leur angle même si la première photo est écartée (D26). Absent des fichiers de l'étape 5 : le centre est alors la première photo.
 
+- `suivi_position` (facultatif) : `"arkit"` quand la position de l'objectif a été suivie (mode « ×1 + AR » de l'app). Chaque photo a alors `deplacement_m` : déplacement de l'objectif depuis sa place de départ au déclenchement, en mètres, `[x, y, z]` dans le repère d'ARKit (y vers le haut). Absent si ARKit ne suivait pas la position à ce moment. L'assemblage ne s'en sert pas : c'est un outil de diagnostic de la parallaxe.
+
 Les autres champs servent à relire une prise de vue : `rangee` et `numero` (la cible visée), `cap` et `inclinaison` (en degrés, cap positif vers la droite, inclinaison positive vers le haut), `exposition` (réglages verrouillés), `objectif` (`x0.5` ou `x1`, absent des premiers fichiers, qui sont au ×1), `appareil`, `app`, `debut`, `heure`. Un champ inconnu est ignoré, pour qu'une version plus récente de l'app reste lisible.
 
 ## Ce que fait l'assemblage

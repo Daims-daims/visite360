@@ -33,7 +33,20 @@ enum CameraError: LocalizedError {
     }
 }
 
-final class CameraController: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
+/// Ce que l'écran de prise de vue attend d'une caméra : AVFoundation (CameraController) ou
+/// ARKit (ARCameraController).
+protocol PhotoCamera: AnyObject {
+    var error: CameraError? { get }
+    var isRunning: Bool { get }
+    /// Angle de vue sur le grand côté de l'image, en degrés.
+    var fieldOfView: Double { get }
+    func start(lens: Lens)
+    func stop()
+    func lock(_ completion: @escaping (Exposure?) -> Void)
+    func capture(_ completion: @escaping (Result<Data, Error>) -> Void)
+}
+
+final class CameraController: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate, PhotoCamera {
     let session = AVCaptureSession()
     @Published private(set) var error: CameraError?
     @Published private(set) var isRunning = false

@@ -18,14 +18,14 @@ struct VisitsView: View {
     @State private var adopting: PointFolder?
     @State private var deleting: VisitFolder?
     @State private var problem: String?
-    @AppStorage("objectif") private var lens: Lens = .ultraWide
+    @AppStorage("reglage") private var setup: CaptureSetup = .ultraWide
 
     var body: some View {
         NavigationStack(path: $path) {
             List {
                 Section {
-                    Picker("Objectif", selection: $lens) {
-                        ForEach(Lens.allCases, id: \.self) { Text($0.label).tag($0) }
+                    Picker("Objectif", selection: $setup) {
+                        ForEach(CaptureSetup.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     Button {
@@ -35,11 +35,17 @@ struct VisitsView: View {
                         Label("Nouvelle visite", systemImage: "house")
                     }
                 } footer: {
-                    Text(
-                        lens == .ultraWide
-                            ? "×0,5 : 21 photos par point. Moins de raccords, conseillé près des meubles."
-                            : "×1 : 29 photos par point, plus de détail."
-                    )
+                    switch setup {
+                    case .ultraWide:
+                        Text("×0,5 : 21 photos par point. Moins de raccords, conseillé près des meubles.")
+                    case .wide:
+                        Text("×1 : 29 photos par point, plus de détail.")
+                    case .wideTracked:
+                        Text(
+                            "×1 + AR (essai) : 29 photos. ARKit suit la position de l'objectif et "
+                                + "bloque la photo s'il s'éloigne de plus de 5 cm de sa place."
+                        )
+                    }
                 }
                 Section("Visites") {
                     if visits.isEmpty {
@@ -79,7 +85,7 @@ struct VisitsView: View {
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .visit(let visit): VisitView(visit: visit, path: $path)
-                case .capture(let visit, let id): CaptureView(visit: visit, pointID: id, lens: lens)
+                case .capture(let visit, let id): CaptureView(visit: visit, pointID: id, setup: setup)
                 case .point(let visit, let id): PointDetailView(visit: visit, pointID: id)
                 }
             }

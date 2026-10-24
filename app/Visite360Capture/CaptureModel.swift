@@ -22,7 +22,9 @@ final class CaptureModel: ObservableObject {
     let pointID: String
     let visit: VisitFolder
     let lens: Lens
-    let camera = CameraController()
+    let camera: PhotoCamera
+    /// Caméra ARKit, en mode « ×1 + AR » : elle donne en plus la position de l'objectif.
+    let tracker: ARCameraController?
     private let motion = MotionTracker()
     private let aiming = Aiming()
 
@@ -34,6 +36,8 @@ final class CaptureModel: ObservableObject {
     @Published private(set) var isSteady = false
     /// Flèches visées depuis ce point.
     @Published private(set) var arrows: [VisitLink] = []
+    /// Déplacement de l'objectif depuis sa place de départ (mode « ×1 + AR »).
+    @Published private(set) var drift = LensDrift()
     @Published var problem: String?
 
     private var file: CaptureFile
@@ -44,14 +48,31 @@ final class CaptureModel: ObservableObject {
 
     /// Un point se prend d'une traite : le cap de départ de Core Motion est arbitraire et change
     /// à chaque démarrage, donc des photos de deux séances ne partageraient pas le même repère.
-    init(visit: VisitFolder, pointID: String, lens: Lens) {
+    init(visit: VisitFolder, pointID: String, setup: CaptureSetup) {
         self.visit = visit
         self.pointID = pointID
         point = visit.point(pointID)
-        self.lens = lens
+        lens = setup.lens
+        if setup.tracksPosition {
+            let tracker = ARCameraController()
+            self.tracker = tracker
+            camera = tracker
+        } else {
+            tracker = nil
+            camera = CameraController()
+        }
         file = CaptureFile(
             app: PointStore.appVersion, device: PointStore.deviceModel, started: Date(), lens: lens
         )
+        file.tracking = setup.tracksPosition ? "arkit" : nil
+        tracker?.onPosition = { [weak self] position in
+            guard let self else { return }
+            let wasTooFar = drift.isTooFar
+            drift.update(position, started: phase == .shooting)
+            if drift.isTooFar, !wasTooFar {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
+        }
     }
 
     var mandatoryLeft: Int {
@@ -88,6 +109,7 @@ final class CaptureModel: ObservableObject {
             file.exposure = exposure
             file.startYaw = startYaw
             self.startYaw = startYaw
+            drift.start()
             targets = Plan.targets(startYaw: startYaw, lens: lens)
             phase = .shooting
         }
@@ -144,7 +166,8 @@ final class CaptureModel: ObservableObject {
             steadySince = Date()
         }
         isSteady = steadySince.map { Date().timeIntervalSince($0) >= Self.steadyDelay } ?? false
-        guard phase == .shooting, !isBusy, isSteady,
+        // Objectif trop loin de sa place : pas de photo tant qu'il n'y est pas revenu.
+        guard phase == .shooting, !isBusy, isSteady, !drift.isTooFar,
               let (target, _) = aiming.nearest(targets, done: Set(done.keys), rotation: rotation),
               aiming.isAligned(target, rotation: rotation)
         else { return }
@@ -180,7 +203,10 @@ final class CaptureModel: ObservableObject {
         let entry = PhotoEntry(
             file: name, row: target.row, number: target.number,
             yaw: Orientation.yaw(rotation), pitch: Orientation.pitch(rotation),
-            rotation: Orientation.rows(rotation), time: time
+            rotation: Orientation.rows(rotation), time: time,
+            lensOffset: drift.displacement(tracker?.position).map { d in
+                [d.x, d.y, d.z].map { ($0 * 1000).rounded() / 1000 }
+            }
         )
         done[target.id] = entry
         order.append(target.id)

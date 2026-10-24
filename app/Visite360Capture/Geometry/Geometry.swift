@@ -230,3 +230,78 @@ public struct Aiming: Sendable {
         return abs(roll) <= rollTolerance
     }
 }
+
+/// Réglage de prise de vue choisi sur l'écran d'accueil : un objectif, avec ou sans suivi de
+/// la position de l'objectif par ARKit (qui n'existe qu'au ×1).
+public enum CaptureSetup: String, CaseIterable, Sendable {
+    case ultraWide = "x0.5"
+    case wide = "x1"
+    case wideTracked = "x1-ar"
+
+    public var lens: Lens {
+        self == .ultraWide ? .ultraWide : .wide
+    }
+
+    public var tracksPosition: Bool { self == .wideTracked }
+
+    public var label: String {
+        switch self {
+        case .ultraWide: "×0,5"
+        case .wide: "×1"
+        case .wideTracked: "×1 + AR"
+        }
+    }
+}
+
+/// Surveille le déplacement de l'objectif depuis sa place de départ, mesuré par ARKit.
+///
+/// Toutes les photos d'un point doivent être prises du même endroit : si l'objectif bouge,
+/// un objet proche ne se superpose plus au fond de la même façon d'une photo à l'autre
+/// (parallaxe) et les raccords se voient. Pour un objet à 1 m, 5 cm de déplacement font
+/// environ 3° d'écart.
+public struct LensDrift: Sendable {
+    /// Au-delà, la photo ne part pas et l'écran demande de revenir à sa place, en mètres.
+    public var limit = 0.05
+    /// En dessous, l'alerte s'efface. Plus bas que limit, pour qu'elle ne clignote pas.
+    public var clear = 0.035
+
+    public private(set) var reference: SIMD3<Double>?
+    public private(set) var offset: Double?
+    public private(set) var isTooFar = false
+
+    public init() {}
+
+    /// Place de départ : la position de l'objectif au verrouillage, ou la première position
+    /// connue après lui si ARKit ne la suivait pas encore.
+    public mutating func start() {
+        reference = nil
+        offset = nil
+        isTooFar = false
+    }
+
+    /// Nouvelle position mesurée (nil si ARKit ne la suit pas). Ne fait rien avant start().
+    public mutating func update(_ position: SIMD3<Double>?, started: Bool) {
+        guard started, let position else {
+            offset = nil
+            return
+        }
+        guard let reference else {
+            self.reference = position
+            offset = 0
+            return
+        }
+        let distance = simd_length(position - reference)
+        offset = distance
+        if distance > limit {
+            isTooFar = true
+        } else if distance < clear {
+            isTooFar = false
+        }
+    }
+
+    /// Déplacement depuis la place de départ, en mètres, à noter avec une photo.
+    public func displacement(_ position: SIMD3<Double>?) -> SIMD3<Double>? {
+        guard let position, let reference else { return nil }
+        return position - reference
+    }
+}

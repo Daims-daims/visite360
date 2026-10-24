@@ -23,7 +23,8 @@ Les conseils de [prise-de-vue.md](prise-de-vue.md) restent valables : objectif i
 
 1. **Choisir l'objectif** sur l'écran d'accueil :
    - **×0,5 (conseillé)** : 21 photos par point (8 à l'horizon, 6 en haut, 6 en bas, le plafond). Chaque photo voit plus large : un objet proche (frigo, table, chaise) tient plus souvent dans une seule photo, et il y a moins de raccords pour le couper ;
-   - **×1** : 29 photos (12, 8, 8 et le plafond), plus de détail mais plus de raccords.
+   - **×1** : 29 photos (12, 8, 8 et le plafond), plus de détail mais plus de raccords ;
+   - **×1 + AR (essai)** : comme ×1, mais ARKit, la réalité augmentée d'Apple, suit la position de l'objectif pendant tout le point (voir plus bas).
 
    Le choix est gardé pour les points suivants.
 2. **Nouvelle visite**, puis lui donner un nom (`Appartement Dupont`). Le dossier sur le Mac portera ce nom simplifié (`appartement-dupont`).
@@ -41,6 +42,25 @@ Les conseils de [prise-de-vue.md](prise-de-vue.md) restent valables : objectif i
 5. Quand les rangées horizon, haut, bas et plafond sont complètes, le bouton bleu **Flèche ici** apparaît. La photo du sol est facultative.
 
 Un point se prend d'une traite. Quitter l'écran de prise de vue termine le point : pour reprendre une pièce, supprimer le point (le toucher dans la visite, puis **Supprimer ce point**) et le reprendre. Le cap 0 des capteurs change à chaque démarrage : des photos ou des flèches de deux séances ne s'assembleraient pas avec leurs orientations.
+
+### Mode « ×1 + AR » : garder l'objectif à sa place
+
+Toutes les photos d'un point doivent être prises du même endroit. Si l'objectif bouge, par exemple quand on pivote sur ses talons au lieu de tourner autour du téléphone, un objet proche ne se superpose plus au fond de la même façon d'une photo à l'autre : c'est la parallaxe, et les raccords se voient ([prise-de-vue.md](prise-de-vue.md)).
+
+En mode « ×1 + AR », ARKit repère la pièce par la caméra et mesure en continu la position de l'objectif, au centimètre près :
+
+- la place de départ est celle de l'objectif au moment de **Verrouiller et commencer** ;
+- sous les consignes, une ligne affiche « Objectif déplacé de 2 cm (limite 5) » ;
+- au-delà de **5 cm**, le cadre devient rouge, le téléphone vibre et **aucune photo ne part**. Revenir au-dessus de la marque au sol, objectif à sa place : l'alerte s'efface sous 3,5 cm et les photos reprennent ;
+- pour un objet à 1 m, 5 cm de déplacement font environ 3° d'écart entre deux photos.
+
+Limites de ce mode :
+
+- **seulement au ×1** : ARKit garde la caméra pour lui et n'utilise pas le ×0,5 ;
+- ARKit a besoin de voir la pièce : au démarrage, ou face à un mur uni, la ligne dit « bougez doucement pour qu'ARKit repère la pièce ». Tant qu'il ne suit pas la position, les photos partent sans contrôle ;
+- c'est un essai : le seuil de 5 cm est à régler sur de vraies pièces.
+
+Le déplacement de chaque photo est noté dans `capture.json` (`deplacement_m`, [format](capture-json.md)), pour relier après coup un raccord raté à un objectif qui avait bougé.
 
 ### Viser les portes : les flèches
 

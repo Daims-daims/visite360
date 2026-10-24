@@ -89,8 +89,8 @@ struct CaptureView: View {
         let pitch: Double
     }
 
-    init(visit: VisitFolder, pointID: String, lens: Lens) {
-        _model = StateObject(wrappedValue: CaptureModel(visit: visit, pointID: pointID, lens: lens))
+    init(visit: VisitFolder, pointID: String, setup: CaptureSetup) {
+        _model = StateObject(wrappedValue: CaptureModel(visit: visit, pointID: pointID, setup: setup))
     }
 
     private var arrowsDone: Bool { model.phase == .shooting && model.mandatoryLeft == 0 }
@@ -106,7 +106,11 @@ struct CaptureView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            CameraPreview(session: model.camera.session).ignoresSafeArea()
+            if let tracker = model.tracker {
+                ARPreview(session: tracker.session).ignoresSafeArea()
+            } else if let camera = model.camera as? CameraController {
+                CameraPreview(session: camera.session).ignoresSafeArea()
+            }
             if let rotation = model.rotation, model.phase == .shooting {
                 TargetsOverlay(
                     rotation: rotation, targets: model.targets, done: Set(model.done.keys),
@@ -166,11 +170,16 @@ struct CaptureView: View {
                 Text("Visez un mur moyennement éclairé, pas une fenêtre.")
                 Text("L'exposition sera la même pour toutes les photos du point.")
                     .font(.footnote)
+            } else if model.drift.isTooFar, let offset = model.drift.offset {
+                Text("L'objectif s'est déplacé de \(Int((offset * 100).rounded())) cm").font(.headline)
+                Text("Revenez au-dessus de la marque au sol et tournez autour du téléphone, pas sur vous-même.")
+                Text("Les photos reprendront quand l'objectif sera revenu à sa place.").font(.footnote)
             } else if let target = model.suggested {
                 Text("\(target.row.label) : photo \(target.number) sur \(target.rowCount)")
                     .font(.headline)
                 Text(hint(for: target))
                 Text("Tournez autour du téléphone, pas sur vous-même.").font(.footnote)
+                if model.tracker != nil { trackingLine }
             } else {
                 Text("Toutes les photos sont prises.").font(.headline)
                 Text("Visez le milieu de chaque porte vers une autre pièce, puis « Flèche ici ».")
@@ -186,7 +195,22 @@ struct CaptureView: View {
         .foregroundStyle(.white)
         .padding(12)
         .frame(maxWidth: .infinity)
-        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
+        .background(
+            model.drift.isTooFar ? Color.red.opacity(0.85) : Color.black.opacity(0.55),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+    }
+
+    /// Mode « ×1 + AR » : déplacement de l'objectif depuis sa place de départ.
+    private var trackingLine: some View {
+        Group {
+            if let offset = model.drift.offset {
+                Text("Objectif déplacé de \(Int((offset * 100).rounded())) cm (limite \(Int(model.drift.limit * 100)))")
+            } else {
+                Text("Suivi de position : bougez doucement pour qu'ARKit repère la pièce.")
+            }
+        }
+        .font(.footnote)
     }
 
     private var footer: some View {

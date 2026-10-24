@@ -87,3 +87,49 @@ final class VisitTests: XCTestCase {
         )
     }
 }
+
+final class LensDriftTests: XCTestCase {
+    func testReferenceIsTheFirstTrackedPositionAfterStart() {
+        var drift = LensDrift()
+        drift.update(SIMD3(5, 0, 0), started: false)
+        XCTAssertNil(drift.reference)
+        drift.start()
+        drift.update(nil, started: true)  // ARKit ne suit pas encore
+        drift.update(SIMD3(1, 1.5, 0), started: true)
+        XCTAssertEqual(drift.reference, SIMD3(1, 1.5, 0))
+        XCTAssertEqual(drift.offset, 0)
+    }
+
+    func testAlertStartsAboveTheLimitAndClearsBelowTheLowerThreshold() {
+        var drift = LensDrift()
+        drift.start()
+        drift.update(SIMD3(0, 0, 0), started: true)
+        drift.update(SIMD3(0.04, 0, 0), started: true)
+        XCTAssertFalse(drift.isTooFar)
+        drift.update(SIMD3(0.03, 0, 0.04), started: true)  // 5 cm : à la limite, pas au-delà
+        XCTAssertFalse(drift.isTooFar)
+        drift.update(SIMD3(0.3, 0, 0), started: true)  // pivot sur les talons
+        XCTAssertTrue(drift.isTooFar)
+        XCTAssertEqual(drift.offset ?? 0, 0.3, accuracy: 1e-12)
+        drift.update(SIMD3(0.04, 0, 0), started: true)  // revenu, mais pas assez
+        XCTAssertTrue(drift.isTooFar)
+        drift.update(SIMD3(0.02, 0, 0), started: true)
+        XCTAssertFalse(drift.isTooFar)
+    }
+
+    func testLostTrackingKeepsTheAlertState() {
+        var drift = LensDrift()
+        drift.start()
+        drift.update(SIMD3(0, 0, 0), started: true)
+        drift.update(SIMD3(0, 0, 0.2), started: true)
+        drift.update(nil, started: true)
+        XCTAssertNil(drift.offset)
+        XCTAssertTrue(drift.isTooFar)
+    }
+
+    func testTrackedSetupUsesTheMainLens() {
+        XCTAssertEqual(CaptureSetup.wideTracked.lens, .wide)
+        XCTAssertTrue(CaptureSetup.wideTracked.tracksPosition)
+        XCTAssertFalse(CaptureSetup.ultraWide.tracksPosition)
+    }
+}
