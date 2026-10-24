@@ -18,6 +18,7 @@ final class CaptureModel: ObservableObject {
     static let steadyDelay = 0.35  // secondes
 
     let point: PointFolder
+    let lens: Lens
     let camera = CameraController()
     private let motion = MotionTracker()
     private let aiming = Aiming()
@@ -36,9 +37,12 @@ final class CaptureModel: ObservableObject {
 
     /// Un point se prend d'une traite : le cap de départ de Core Motion est arbitraire et change
     /// à chaque démarrage, donc des photos de deux séances ne partageraient pas le même repère.
-    init(point: PointFolder) {
+    init(point: PointFolder, lens: Lens) {
         self.point = point
-        file = CaptureFile(app: PointStore.appVersion, device: PointStore.deviceModel, started: Date())
+        self.lens = lens
+        file = CaptureFile(
+            app: PointStore.appVersion, device: PointStore.deviceModel, started: Date(), lens: lens
+        )
     }
 
     var mandatoryLeft: Int {
@@ -49,7 +53,7 @@ final class CaptureModel: ObservableObject {
     var suggested: Target? { targets.first { done[$0.id] == nil } }
 
     func start() {
-        camera.start()
+        camera.start(lens: lens)
         guard motion.isAvailable else {
             problem = "Ce téléphone ne donne pas son orientation. Le simulateur n'en a pas."
             return
@@ -71,7 +75,7 @@ final class CaptureModel: ObservableObject {
         camera.lock { [weak self] exposure in
             guard let self else { return }
             file.exposure = exposure
-            targets = Plan.targets(startYaw: startYaw)
+            targets = Plan.targets(startYaw: startYaw, lens: lens)
             phase = .shooting
         }
     }

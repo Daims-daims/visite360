@@ -8,6 +8,7 @@ struct PointsView: View {
     @State private var askName = false
     @State private var name = ""
     @State private var problem: String?
+    @AppStorage("objectif") private var lens: Lens = .ultraWide
 
     enum Route: Hashable {
         case capture(PointFolder)
@@ -18,12 +19,22 @@ struct PointsView: View {
         NavigationStack(path: $path) {
             List {
                 Section {
+                    Picker("Objectif", selection: $lens) {
+                        ForEach(Lens.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
                     Button {
                         name = ""
                         askName = true
                     } label: {
                         Label("Nouveau point", systemImage: "camera.viewfinder")
                     }
+                } footer: {
+                    Text(
+                        lens == .ultraWide
+                            ? "×0,5 : 21 photos. Moins de raccords, conseillé près des meubles."
+                            : "×1 : 29 photos, plus de détail."
+                    )
                 }
                 Section("Points pris") {
                     if points.isEmpty {
@@ -43,7 +54,7 @@ struct PointsView: View {
             .navigationTitle("Visite360")
             .navigationDestination(for: Route.self) { route in
                 switch route {
-                case .capture(let point): CaptureView(point: point)
+                case .capture(let point): CaptureView(point: point, lens: lens)
                 case .detail(let point): PointDetailView(point: point)
                 }
             }
@@ -88,11 +99,12 @@ struct PointDetailView: View {
 
     var body: some View {
         let file = point.load()
+        let lens = file?.lens ?? .wide
         List {
-            Section("Photos") {
+            Section("Photos, objectif \(lens.label)") {
                 ForEach(Row.allCases, id: \.self) { row in
                     let count = file?.photos.filter { $0.row == row }.count ?? 0
-                    LabeledContent(row.label, value: "\(count) sur \(row.count)")
+                    LabeledContent(row.label, value: "\(count) sur \(row.count(lens))")
                 }
             }
             Section {

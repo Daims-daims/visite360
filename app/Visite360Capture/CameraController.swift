@@ -25,7 +25,8 @@ enum CameraError: LocalizedError {
         case .denied:
             "L'accès à la caméra est refusé. L'autoriser dans Réglages > Visite360."
         case .unavailable:
-            "Caméra arrière introuvable. Le simulateur n'a pas de caméra : utiliser un iPhone."
+            "Caméra arrière introuvable pour cet objectif. Le simulateur n'a pas de caméra : "
+                + "utiliser un iPhone, ou choisir l'autre objectif."
         case .failed(let message):
             "La caméra a échoué : \(message)"
         }
@@ -44,14 +45,14 @@ final class CameraController: NSObject, ObservableObject, AVCapturePhotoCaptureD
     private var device: AVCaptureDevice?
     private var pending: [Int64: (Result<Data, Error>) -> Void] = [:]
 
-    func start() {
+    func start(lens: Lens) {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            queue.async { self.configure() }
+            queue.async { self.configure(lens) }
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 if granted {
-                    self.queue.async { self.configure() }
+                    self.queue.async { self.configure(lens) }
                 } else {
                     self.report(.denied)
                 }
@@ -72,11 +73,11 @@ final class CameraController: NSObject, ObservableObject, AVCapturePhotoCaptureD
         DispatchQueue.main.async { self.error = error }
     }
 
-    private func configure() {
+    private func configure(_ lens: Lens) {
         if session.isRunning { return }
-        guard
-            let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
-        else {
+        let type: AVCaptureDevice.DeviceType =
+            lens == .ultraWide ? .builtInUltraWideCamera : .builtInWideAngleCamera
+        guard let device = AVCaptureDevice.default(type, for: .video, position: .back) else {
             report(.unavailable)
             return
         }
@@ -98,6 +99,13 @@ final class CameraController: NSObject, ObservableObject, AVCapturePhotoCaptureD
                 connection.videoRotationAngle = 90
             }
             session.commitConfiguration()
+            // Le grand-angle déforme les bords de l'image : iOS le corrige, l'assemblage suppose
+            // une image sans déformation.
+            if device.isGeometricDistortionCorrectionSupported {
+                try device.lockForConfiguration()
+                device.isGeometricDistortionCorrectionEnabled = true
+                device.unlockForConfiguration()
+            }
             self.device = device
             fieldOfView = Double(device.activeFormat.videoFieldOfView)
             session.startRunning()

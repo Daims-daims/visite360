@@ -12,27 +12,47 @@
 import Foundation
 import simd
 
-/// Rangées de docs/prise-de-vue.md.
+/// Objectif de l'iPhone utilisé pour un point.
+public enum Lens: String, Codable, CaseIterable, Sendable {
+    /// Grand-angle ×0,5 : environ 90° × 106° en portrait. Un objet proche tient plus souvent
+    /// dans une seule photo, et il y a moins de raccords.
+    case ultraWide = "x0.5"
+    /// Objectif principal ×1 : environ 54° × 70° en portrait (docs/prise-de-vue.md).
+    case wide = "x1"
+
+    public var label: String {
+        switch self {
+        case .ultraWide: "×0,5"
+        case .wide: "×1"
+        }
+    }
+}
+
+/// Rangées de la prise de vue.
 public enum Row: String, Codable, CaseIterable, Sendable {
     case horizon, haut, bas, plafond, sol
 
     /// Inclinaison de la rangée, en degrés (positif vers le haut).
-    public var pitch: Double {
-        switch self {
-        case .horizon: 0
-        case .haut: 45
-        case .bas: -45
-        case .plafond: 90
-        case .sol: -90
+    public func pitch(_ lens: Lens) -> Double {
+        switch (self, lens) {
+        case (.horizon, _): 0
+        case (.haut, .wide): 45
+        case (.haut, .ultraWide): 50
+        case (.bas, .wide): -45
+        case (.bas, .ultraWide): -50
+        case (.plafond, _): 90
+        case (.sol, _): -90
         }
     }
 
-    /// Nombre de photos de la rangée.
-    public var count: Int {
-        switch self {
-        case .horizon: 12
-        case .haut, .bas: 8
-        case .plafond, .sol: 1
+    /// Nombre de photos de la rangée. Deux photos voisines se recouvrent d'environ la moitié.
+    public func count(_ lens: Lens) -> Int {
+        switch (self, lens) {
+        case (.horizon, .wide): 12
+        case (.horizon, .ultraWide): 8
+        case (.haut, .wide), (.bas, .wide): 8
+        case (.haut, .ultraWide), (.bas, .ultraWide): 6
+        case (.plafond, _), (.sol, _): 1
         }
     }
 
@@ -55,8 +75,9 @@ public enum Row: String, Codable, CaseIterable, Sendable {
 public struct Target: Identifiable, Equatable, Sendable {
     public let id: Int
     public let row: Row
-    /// Numéro dans la rangée, à partir de 1.
+    /// Numéro dans la rangée, à partir de 1, sur rowCount photos.
     public let number: Int
+    public let rowCount: Int
     /// Cap en degrés, vers la droite, dans le repère du monde.
     public let yaw: Double
     public let pitch: Double
@@ -66,14 +87,16 @@ public struct Target: Identifiable, Equatable, Sendable {
 
 public enum Plan {
     /// Cibles de toutes les rangées, dans l'ordre de la fiche, la première face à startYaw.
-    public static func targets(startYaw: Double) -> [Target] {
+    public static func targets(startYaw: Double, lens: Lens) -> [Target] {
         var result: [Target] = []
         for row in Row.allCases {
-            for index in 0..<row.count {
-                let yaw = Orientation.wrap(startYaw + 360 * Double(index) / Double(row.count))
-                result.append(
-                    Target(id: result.count, row: row, number: index + 1, yaw: yaw, pitch: row.pitch)
-                )
+            let count = row.count(lens)
+            for index in 0..<count {
+                let yaw = Orientation.wrap(startYaw + 360 * Double(index) / Double(count))
+                result.append(Target(
+                    id: result.count, row: row, number: index + 1, rowCount: count,
+                    yaw: yaw, pitch: row.pitch(lens)
+                ))
             }
         }
         return result
