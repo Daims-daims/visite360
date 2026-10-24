@@ -23,6 +23,8 @@ Les licences changent : revérifier chaque ligne avant une mise en production.
 | numpy | Calcul sur les images (étape 2) | BSD 3 clauses, avec des parties sous MIT, Apache 2.0, zlib, 0BSD et domaine public (CC0) | Paquet Python | 2026-10-24 | métadonnées et dossier licenses du paquet numpy 2.5.4 |
 | Pannellum 2.5.7 | Visionneuse 360° de la visite (étape 3) | MIT | Fichiers `pannellum.js` et `pannellum.css` copiés tels quels dans `visionneuse/pannellum/`, livrés avec le projet | 2026-10-24 | fichier COPYING et package.json du paquet npm pannellum 2.5.7 |
 | cmake, scikit-build, setuptools, wheel, packaging, distro | Compilation d'OpenCV | Apache 2.0, BSD ou MIT | Outils de compilation, non livrés | 2026-10-24 | pypi.org, page de chaque paquet |
+| Frameworks d'iOS : SwiftUI, UIKit, AVFoundation, Core Motion, simd, Foundation | App de capture (étape 5) | Logiciel Apple fourni avec iOS, Xcode and Apple SDKs Agreement | Frameworks du système, appelés par l'app, non copiés dans l'app | 2026-10-24 | developer.apple.com/support/terms, voir D25 |
+| Xcode 26.3, Swift, XCTest | Compilation, installation et tests de l'app (développement) | Xcode and Apple SDKs Agreement ; Swift sous Apache 2.0 avec exception de bibliothèque d'exécution | Outils de développement, non livrés | 2026-10-24 | developer.apple.com/support/terms, swift.org/legal/license.html |
 
 ## Prévu par le plan
 

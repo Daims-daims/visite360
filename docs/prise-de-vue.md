@@ -1,6 +1,8 @@
 # Prise de vue d'un point
 
-Cette fiche décrit comment photographer un point de la visite avec l'appareil photo du téléphone, sans app dédiée. Elle sera ajustée à l'étape 2 selon la qualité de l'assemblage sur de vraies photos.
+Cette fiche décrit comment photographer un point de la visite avec l'appareil photo du téléphone, sans app dédiée.
+
+**Avec l'app de capture** (étape 5, [app.md](app.md)) : les rangées, le nombre de photos, le recouvrement et le verrouillage de l'exposition sont gérés par l'app. Les conseils sur le logement, l'emplacement et le geste (objectif immobile) restent à suivre. Elle sera ajustée à l'étape 2 selon la qualité de l'assemblage sur de vraies photos.
 
 Un point est un endroit du logement d'où l'on regarde tout autour de soi. Une pièce moyenne en demande un, une grande pièce ou une pièce en L deux.
 
