@@ -206,6 +206,7 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - installation par câble depuis Xcode avec l'identifiant Apple du propriétaire, sans compte développeur payant ;
   - l'orientation de chaque photo vient du gyroscope et de l'accéléromètre (référence Core Motion « X arbitraire, Z vertical »), sans la boussole. Elle est écrite dans `capture.json` (format dans `docs/capture-json.md`), dans le repère de l'assemblage ;
   - `visite360 stitch` s'en sert si chaque photo a la sienne : point de départ de l'ajustement, recherche de points communs limitée aux photos dont les axes sont à moins de 75°, horizon donné par les capteurs au lieu de la correction d'horizon d'OpenCV. Si l'écart médian entre capteurs et photos dépasse 10°, ou si l'alignement échoue avec eux, ils sont ignorés et l'assemblage se fait comme sans app. Le rapport dit lequel a servi ;
+  - quand les capteurs sont retenus, une photo sans assez de points communs n'est plus rejetée : elle est placée à l'orientation mesurée par le téléphone. Premier essai réel (salon, 2026-10-24) : 7 photos sur 30, du haut et du plafond blancs, étaient rejetées et le plafond restait gris ;
   - la géométrie de l'app est en Swift pur et se teste sur le Mac par `swift test` (`app/Package.swift`).
 - **Raisons :**
   - le propriétaire a un iPhone. Une app native accède directement à la caméra et aux capteurs, sans module natif à écrire en plus comme avec Expo, et sans paquet npm dont il faudrait vérifier la licence ;

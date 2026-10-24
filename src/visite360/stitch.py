@@ -77,6 +77,7 @@ MIN_HOLE_PART = 1e-4
 
 REJECTED_UNREADABLE = "illisible"
 REJECTED_UNMATCHED = "pas assez de points communs avec les autres photos"
+PLACED_BY_SENSORS = "pas assez de points communs, orientation du téléphone"
 
 
 class StitchError(Exception):
@@ -229,7 +230,8 @@ def _align(
     scales: dict[int, float],
     features: dict[int, Any],
     sensors: dict[int, np.ndarray] | None,
-) -> tuple[list[Camera], list[int]]:
+) -> tuple[list[Camera], list[int], list[int]]:
+    """Renvoie les caméras, les photos écartées et celles placées par les seuls capteurs."""
     numbers = sorted(images)
     found = [features[n] for n in numbers]
     mask = neighbour_mask([sensors[n] for n in numbers]) if sensors else None
@@ -282,8 +284,14 @@ def _align(
             "Les photos n'ont pas assez de points communs cohérents pour être assemblées."
         )
 
+    placed: list[int] = []
     if sensors:
         rotations = align_to_sensors(adjustment.rotations, [sensors[n] for n in kept])
+        # Une photo sans points communs (mur ou plafond unis) garde l'orientation mesurée par
+        # le téléphone : à 1° près, l'écart ne se voit pas là où il n'y a rien à raccorder.
+        placed, rejected = sorted(rejected), []
+        kept += placed
+        rotations += [sensors[n] for n in placed]
     else:
         corrected = cv2.detail.waveCorrect(
             [r.astype(np.float32) for r in adjustment.rotations], cv2.detail.WAVE_CORRECT_HORIZ
@@ -300,7 +308,7 @@ def _align(
         K_full = np.diag([1 / scales[number], 1 / scales[number], 1.0]) @ K_work
         size = (round(width / scales[number]), round(height / scales[number]))
         result.append(Camera(number, K_full, rotation, size))
-    return result, sorted(rejected)
+    return result, sorted(rejected), placed
 
 
 def align(
@@ -308,9 +316,10 @@ def align(
     images: dict[int, np.ndarray],
     scales: dict[int, float],
     sensors: dict[int, np.ndarray] | None = None,
-) -> tuple[list[Camera], list[int], str | None]:
-    """Aligne des photos réduites. Renvoie les caméras retenues, les photos écartées et, si
-    les orientations du téléphone ont été écartées, la raison.
+) -> tuple[list[Camera], list[int], list[int], str | None]:
+    """Aligne des photos réduites. Renvoie les caméras retenues, les photos écartées, celles
+    placées par les seuls capteurs faute de points communs et, si les orientations du téléphone
+    ont été écartées, la raison.
 
     images associe à chaque numéro de photo sa copie réduite, scales le facteur de réduction,
     sensors l'orientation mesurée par le téléphone (une pour chaque photo, ou None). Si les
@@ -842,7 +851,7 @@ def stitch(folders: Folders, width: int, force: bool, out: TextIO) -> dict[str, 
 
     sensors, orientations = phone_orientations(folders, paths, images)
     print("  Alignement des photos", file=out, flush=True)
-    cameras, unmatched, ignored = align(cv2, images, scales, sensors)
+    cameras, unmatched, placed, ignored = align(cv2, images, scales, sensors)
     if ignored:
         orientations = {"source": SOURCE_IMAGES, "detail": f"{CAPTURE_IGNORED} : {ignored}"}
     print(f"  Orientations : {describe_orientations(orientations)}", file=out, flush=True)
@@ -868,7 +877,12 @@ def stitch(folders: Folders, width: int, force: bool, out: TextIO) -> dict[str, 
         "inputs": _inputs(inputs),
         "panorama": {"file": folders.panorama.name, "width": width, "height": width // 2},
         "photos": [
-            {"file": path.name, "used": number not in reasons, "reason": reasons.get(number)}
+            {
+                "file": path.name,
+                "used": number not in reasons,
+                "reason": reasons.get(number),
+                "placed_by_sensors": number in placed,
+            }
             for number, path in enumerate(paths)
         ],
         "orientations": orientations,
@@ -889,6 +903,8 @@ def print_report(report: dict[str, Any], folders: Folders, out: TextIO) -> None:
     for photo in report["photos"]:
         if not photo["used"]:
             print(f"  Rejetée : {photo['file']} ({photo['reason']})", file=out)
+        elif photo.get("placed_by_sensors"):
+            print(f"  Placée par les capteurs : {photo['file']} ({PLACED_BY_SENSORS})", file=out)
     print(f"Orientations : {describe_orientations(report['orientations'])}", file=out)
     print(f"Couverture : {_percent(report['coverage'])} de la sphère", file=out)
     holes = [Hole(**hole) for hole in report["missing_areas"]]

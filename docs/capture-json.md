@@ -48,6 +48,7 @@ Les autres champs servent à relire une prise de vue : `rangee` et `numero` (la 
 ## Ce que fait l'assemblage
 
 - Si chaque photo a sa ligne, les orientations servent de départ à l'ajustement, limitent la recherche de points communs aux photos voisines (axes à moins de 75°) et donnent l'horizon.
+- Une photo qui n'a pas assez de points communs avec les autres (mur ou plafond unis) n'est plus rejetée : elle est placée à l'orientation mesurée par le téléphone. Les capteurs sont précis à environ 1°, ce qui ne se voit pas là où il n'y a rien à raccorder. Le résumé l'indique (« Placée par les capteurs »), comme `placed_by_sensors` dans `rapport.json`.
 - Si une photo n'a pas de ligne, ou si les orientations s'écartent de plus de 10° de ce que montrent les photos, elles sont ignorées : l'assemblage se fait comme sans app. Le rapport le dit (`orientations` dans `rapport.json`, et la ligne « Orientations » affichée en fin d'assemblage).
 - Un fichier illisible ou mal formé arrête l'assemblage avec un message en français. Le supprimer permet d'assembler sans les orientations.
 - Modifier `capture.json` relance l'assemblage au prochain `stitch` ou `serve`, comme une photo modifiée.

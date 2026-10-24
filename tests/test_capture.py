@@ -90,6 +90,40 @@ def test_phone_orientations_are_used(tmp_path: Path, truth: np.ndarray, views: l
     assert_matches(truth, point)
 
 
+def test_plain_photo_is_placed_by_the_phone(tmp_path: Path, views: list[View]) -> None:
+    # Plafond tout blanc : aucun point commun avec les autres photos.
+    ceiling = next(n for n, view in enumerate(views) if view.pitch == 90.0)
+    plain = [
+        View(np.full_like(view.image, 230), view.yaw, view.pitch) if n == ceiling else view
+        for n, view in enumerate(views)
+    ]
+    point = write_point(tmp_path, plain)
+    write_capture(point, sensor_rotations(plain, noise_deg=1.0))
+
+    code, report, out = run_stitch(point)
+
+    assert code == 0
+    photo = report["photos"][ceiling]
+    assert photo["used"] and photo["placed_by_sensors"]
+    assert sum(p["placed_by_sensors"] for p in report["photos"]) == 1
+    assert f"Placée par les capteurs : IMG_{ceiling:02d}.jpg" in out
+    assert not any(hole["kind"] == "plafond" for hole in report["missing_areas"])
+
+
+def test_plain_photo_is_rejected_without_the_phone(tmp_path: Path, views: list[View]) -> None:
+    ceiling = next(n for n, view in enumerate(views) if view.pitch == 90.0)
+    plain = [
+        View(np.full_like(view.image, 230), view.yaw, view.pitch) if n == ceiling else view
+        for n, view in enumerate(views)
+    ]
+    point = write_point(tmp_path, plain)
+
+    _, report, _ = run_stitch(point)
+
+    assert not report["photos"][ceiling]["used"]
+    assert not report["photos"][ceiling]["placed_by_sensors"]
+
+
 def test_wrong_orientations_fall_back_to_photos(
     tmp_path: Path, truth: np.ndarray, views: list[View]
 ) -> None:
