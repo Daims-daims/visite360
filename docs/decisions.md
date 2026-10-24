@@ -56,6 +56,7 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Décision provisoire :** la visite web s'appuie sur Pannellum, visionneuse 360° sous licence MIT.
 - **Alternative :** Marzipano, sous Apache 2.0.
 - **À confirmer à l'étape 3 :** fluidité sur téléphone, gestion des liens entre points, possibilité d'afficher un avant/après.
+- **Étape 3 (2026-10-24) :** Pannellum 2.5.7 est livré dans `visionneuse/pannellum/`, sans téléchargement depuis internet, pour que la visite marche hors ligne. Le panorama s'affiche correctement dans un navigateur de bureau. Restent à valider par le propriétaire : la fluidité sur téléphone, puis aux étapes 4 et 8 les liens entre points et l'avant/après. La décision reste provisoire jusque-là.
 
 ## D9 : modifications non destructives
 
@@ -178,3 +179,10 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Conséquences :**
   - un modèle de génération d'image local doit avoir code, poids et données d'entraînement sous licence autorisée et tenir dans les 24 Go du Mac (D3, D5). Si aucun ne convient, le propriétaire décide d'une API payante ;
   - le chiffrage a besoin de surfaces en m², donc des dimensions des pièces (D13) et d'une mesure réelle pour l'échelle.
+
+## D23 : serveur de visite en bibliothèque standard, copie réduite pour téléphone
+
+- **Date :** 2026-10-24
+- **Décision :** `visite360 serve` utilise le serveur HTTP de la bibliothèque standard Python (aucune dépendance), avec une liste fermée de chemins servis. Le panorama d'origine est servi tel quel ; une copie de 4096 px de large est fabriquée dans `cache/` pour les appareils dont la carte graphique n'accepte pas 8192 px, et la page choisit selon la limite de l'appareil.
+- **Raisons :** pas de dépendance (D16), pas d'exposition du reste du disque, panorama d'origine jamais réécrit (D9). Beaucoup de téléphones limitent les images à 4096 px.
+- **Conséquence :** la visite est accessible à tout appareil du même Wi-Fi tant que le serveur tourne ; `--local` la réserve au Mac (D22).

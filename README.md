@@ -41,6 +41,14 @@ visite360 stitch visites/<visite>/<point>
 
 Le panorama `panorama.jpg` (8192 × 4096 par défaut, option `--largeur`) et le rapport `rapport.json` sont écrits dans le dossier du point. Une relance ne refait rien si les photos n'ont pas changé, sauf avec `--force`.
 
+## Parcourir la visite d'un point
+
+```bash
+visite360 serve visites/<visite>/<point>
+```
+
+La commande affiche deux adresses : une pour le Mac, une pour un téléphone connecté au même Wi-Fi. `Ctrl+C` arrête le serveur. L'option `--local` réserve la visite au Mac, `--port` change le port.
+
 ## Organisation du dépôt
 
 ```
@@ -52,6 +60,7 @@ visite360/
 │   ├── licences.md    registre des dépendances et de leurs licences
 │   ├── prise-de-vue.md  comment photographier un point
 │   └── ressources.md  ce qu'il faut lire ou regarder pour comprendre chaque étape
+├── visionneuse/       page web de la visite et Pannellum
 ├── scripts/           compilation d'OpenCV sans FFmpeg
 ├── src/visite360/     le traitement en Python
 ├── tests/             tests automatiques
@@ -59,7 +68,7 @@ visite360/
 └── visites/           photos, panoramas et modifications, jamais envoyés sur git
 ```
 
-La visionneuse web et l'app mobile auront leur dossier quand le plan y arrivera.
+L'app mobile aura son dossier quand le plan y arrivera.
 
 ## Façon de travailler
 

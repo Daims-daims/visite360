@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Visite 360°</title>
+  <link rel="stylesheet" href="/pannellum/pannellum.css">
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; color: #eee; font-family: system-ui, sans-serif; }
+    #panorama { width: 100%; height: 100%; }
+    #message { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+      padding: 24px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="panorama"></div>
+  <div id="message"></div>
+  <script src="/pannellum/pannellum.js"></script>
+  <script>
+    // Beaucoup de téléphones refusent les images plus larges que la limite de leur carte
+    // graphique : on choisit la version du panorama que cet appareil sait afficher.
+    function maxTextureSize() {
+      try {
+        const canvas = document.createElement("canvas");
+        const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+        return gl ? gl.getParameter(gl.MAX_TEXTURE_SIZE) : 0;
+      } catch (error) {
+        return 0;
+      }
+    }
+
+    function fail(text) {
+      const box = document.getElementById("message");
+      box.textContent = text;
+      box.style.display = "flex";
+    }
+
+    fetch("/info.json")
+      .then((response) => response.json())
+      .then((info) => {
+        document.title = info.name + " — visite 360°";
+        const useFull = maxTextureSize() >= info.full.width;
+        const choice = useFull ? info.full : info.mobile;
+        pannellum.viewer("panorama", {
+          type: "equirectangular",
+          panorama: choice.url,
+          autoLoad: true,
+          showControls: true,
+          hfov: 100,
+        });
+      })
+      .catch(() => fail("Impossible de charger la visite. Le serveur est-il toujours lancé ?"));
+  </script>
+</body>
+</html>

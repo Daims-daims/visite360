@@ -21,6 +21,7 @@ Les licences changent : revérifier chaque ligne avant une mise en production.
 | carotene (dans OpenCV) | Calculs accélérés sur processeur Arm | BSD 3 clauses (NVIDIA) | Intégrée à la compilation d'OpenCV | 2026-10-24 | en-têtes de opencv/hal/carotene |
 | KleidiCV (dans OpenCV) | Calculs accélérés sur processeur Arm | Apache 2.0 | Téléchargée et intégrée à la compilation d'OpenCV | 2026-10-24 | gitlab.arm.com/kleidi/kleidicv, version 26.03, dossier LICENSES |
 | numpy | Calcul sur les images (étape 2) | BSD 3 clauses, avec des parties sous MIT, Apache 2.0, zlib, 0BSD et domaine public (CC0) | Paquet Python | 2026-10-24 | métadonnées et dossier licenses du paquet numpy 2.5.4 |
+| Pannellum 2.5.7 | Visionneuse 360° de la visite (étape 3) | MIT | Fichiers `pannellum.js` et `pannellum.css` copiés tels quels dans `visionneuse/pannellum/`, livrés avec le projet | 2026-10-24 | fichier COPYING et package.json du paquet npm pannellum 2.5.7 |
 | cmake, scikit-build, setuptools, wheel, packaging, distro | Compilation d'OpenCV | Apache 2.0, BSD ou MIT | Outils de compilation, non livrés | 2026-10-24 | pypi.org, page de chaque paquet |
 
 ## Prévu par le plan
@@ -30,7 +31,6 @@ Les licences changent : revérifier chaque ligne avant une mise en production.
 | Composant | Rôle | Licence | Mode d'utilisation | Vérifié le | Source |
 |---|---|---|---|---|---|
 | Hugin | Repli pour l'assemblage (étape 2) | GPL 2 ou ultérieure | Programme externe uniquement | 2026-10-22 | Wikipédia, page Hugin (software) |
-| Pannellum | Visite web (étape 3) | MIT | Bibliothèque web | 2026-10-22 | github.com/mpetroff/pannellum |
 | Marzipano | Alternative à Pannellum | Apache 2.0 | Bibliothèque web | 2026-10-22 | github.com/google/marzipano |
 | SAM 2 | Sélection d'une surface (étape 5) | Apache 2.0, code et poids | Modèle d'IA | 2026-10-22 | github.com/facebookresearch/sam2 |
 
