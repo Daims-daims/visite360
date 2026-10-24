@@ -36,11 +36,8 @@ final class CaptureModel: ObservableObject {
     @Published private(set) var isSteady = false
     /// Flèches visées depuis ce point.
     @Published private(set) var arrows: [VisitLink] = []
-    /// Déplacement de l'objectif depuis sa place de départ (réglage « ×1 + AR »).
+    /// Déplacement de l'objectif depuis sa place de départ (mode « ×1 + AR »).
     @Published private(set) var drift = LensDrift()
-    /// Distance entre le téléphone et l'axe de rotation (réglage « ×0,5 + capteurs »).
-    @Published private(set) var axis = RotationAxis()
-    let watchesAxis: Bool
     @Published var problem: String?
 
     private var file: CaptureFile
@@ -67,8 +64,7 @@ final class CaptureModel: ObservableObject {
         file = CaptureFile(
             app: PointStore.appVersion, device: PointStore.deviceModel, started: Date(), lens: lens
         )
-        watchesAxis = setup.watchesRotationAxis
-        file.tracking = setup.tracksPosition ? "arkit" : setup.watchesRotationAxis ? "capteurs" : nil
+        file.tracking = setup.tracksPosition ? "arkit" : nil
         tracker?.onPosition = { [weak self] position in
             guard let self else { return }
             let wasTooFar = drift.isTooFar
@@ -77,21 +73,7 @@ final class CaptureModel: ObservableObject {
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
             }
         }
-        if watchesAxis {
-            motion.onSample = { [weak self] time, rate, acceleration in
-                guard let self, phase == .shooting else { return }
-                let wasTooFar = axis.isTooFar
-                axis.add(time: time, rotationRate: rate, acceleration: acceleration)
-                if axis.isTooFar, !wasTooFar {
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                }
-            }
-        }
     }
-
-    /// Objectif hors de sa place (« ×1 + AR ») ou rotation autour du corps (« ×0,5 + capteurs ») :
-    /// les photos sont suspendues.
-    var parallaxAlert: Bool { drift.isTooFar || axis.isTooFar }
 
     var mandatoryLeft: Int {
         targets.filter { !$0.row.isOptional && done[$0.id] == nil }.count
@@ -128,7 +110,6 @@ final class CaptureModel: ObservableObject {
             file.startYaw = startYaw
             self.startYaw = startYaw
             drift.start()
-            axis.reset()
             targets = Plan.targets(startYaw: startYaw, lens: lens)
             phase = .shooting
         }
@@ -186,7 +167,7 @@ final class CaptureModel: ObservableObject {
         }
         isSteady = steadySince.map { Date().timeIntervalSince($0) >= Self.steadyDelay } ?? false
         // Objectif trop loin de sa place : pas de photo tant qu'il n'y est pas revenu.
-        guard phase == .shooting, !isBusy, isSteady, !parallaxAlert,
+        guard phase == .shooting, !isBusy, isSteady, !drift.isTooFar,
               let (target, _) = aiming.nearest(targets, done: Set(done.keys), rotation: rotation),
               aiming.isAligned(target, rotation: rotation)
         else { return }
@@ -225,8 +206,7 @@ final class CaptureModel: ObservableObject {
             rotation: Orientation.rows(rotation), time: time,
             lensOffset: drift.displacement(tracker?.position).map { d in
                 [d.x, d.y, d.z].map { ($0 * 1000).rounded() / 1000 }
-            },
-            axisDistance: watchesAxis ? axis.distance.map { ($0 * 1000).rounded() / 1000 } : nil
+            }
         )
         done[target.id] = entry
         order.append(target.id)

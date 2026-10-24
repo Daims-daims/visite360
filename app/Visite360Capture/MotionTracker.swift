@@ -9,11 +9,6 @@ final class MotionTracker {
 
     var isAvailable: Bool { manager.isDeviceMotionAvailable }
 
-    /// Mesures brutes pour RotationAxis (réglage « ×0,5 + capteurs ») : instant en secondes,
-    /// vitesse de rotation en rad/s et accélération donnée par l'utilisateur en m/s², dans le
-    /// repère de l'appareil. Appelé sur le fil principal, avant handler.
-    var onSample: ((Double, SIMD3<Double>, SIMD3<Double>) -> Void)?
-
     /// Appelle handler sur le fil principal avec la rotation caméra → monde et la vitesse de
     /// rotation du téléphone (degrés par seconde).
     ///
@@ -22,8 +17,8 @@ final class MotionTracker {
     func start(_ handler: @escaping (simd_double3x3, Double) -> Void) {
         guard manager.isDeviceMotionAvailable, !manager.isDeviceMotionActive else { return }
         manager.deviceMotionUpdateInterval = 1.0 / 60.0
-        manager.startDeviceMotionUpdates(using: .xArbitraryZVertical, to: .main) { [weak self] motion, _ in
-            guard let self, let motion else { return }
+        manager.startDeviceMotionUpdates(using: .xArbitraryZVertical, to: .main) { motion, _ in
+            guard let motion else { return }
             let q = motion.attitude.quaternion
             let g = motion.gravity
             let deviceToReference = Orientation.deviceToReference(
@@ -31,10 +26,6 @@ final class MotionTracker {
                 gravity: SIMD3(g.x, g.y, g.z)
             )
             let r = motion.rotationRate
-            let a = motion.userAcceleration
-            self.onSample?(
-                motion.timestamp, SIMD3(r.x, r.y, r.z), SIMD3(a.x, a.y, a.z) * 9.81
-            )
             let speed = simd_length(SIMD3(r.x, r.y, r.z)) * 180 / .pi
             handler(Orientation.cameraToWorld(deviceToReference: deviceToReference), speed)
         }

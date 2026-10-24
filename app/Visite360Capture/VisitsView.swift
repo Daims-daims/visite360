@@ -24,9 +24,10 @@ struct VisitsView: View {
         NavigationStack(path: $path) {
             List {
                 Section {
-                    Picker("Réglage", selection: $setup) {
+                    Picker("Objectif", selection: $setup) {
                         ForEach(CaptureSetup.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
+                    .pickerStyle(.segmented)
                     Button {
                         name = ""
                         askName = true
@@ -37,12 +38,6 @@ struct VisitsView: View {
                     switch setup {
                     case .ultraWide:
                         Text("×0,5 : 21 photos par point. Moins de raccords, conseillé près des meubles.")
-                    case .ultraWideSensed:
-                        Text(
-                            "×0,5 + capteurs (essai) : 21 photos. Gyroscope et accéléromètre "
-                                + "repèrent quand vous pivotez sur vous-même (axe à plus de 12 cm "
-                                + "du téléphone) et suspendent les photos."
-                        )
                     case .wide:
                         Text("×1 : 29 photos par point, plus de détail.")
                     case .wideTracked:
