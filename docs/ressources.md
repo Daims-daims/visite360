@@ -26,6 +26,12 @@ Presque tout est en anglais, sauf le TP de l'ENSTA.
 - [Apple, « Getting processed device-motion data »](https://developer.apple.com/documentation/coremotion/getting-processed-device-motion-data) : comment le téléphone combine gyroscope et accéléromètre pour donner son orientation, et pourquoi le cap de départ est arbitraire.
 - [Apple, « Enabling Developer Mode on a device »](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device) : le réglage à activer sur l'iPhone pour y installer l'app depuis Xcode.
 
+### Étape 6 : envoi au Mac
+
+- [Wikipédia, « Fonction de hachage »](https://fr.wikipedia.org/wiki/Fonction_de_hachage) : ce qu'est une empreinte comme SHA-256, qui permet de vérifier qu'un fichier est arrivé intact.
+- [Apple, « Bonjour »](https://developer.apple.com/bonjour/) : comment un appareil s'annonce et se trouve sur un réseau local sans configuration.
+- [Apple, TN3179 « Understanding local network privacy »](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy) : pourquoi iOS demande l'accès au réseau local, et que faire en cas de refus.
+
 ### Étape 7 : sélectionner une surface
 
 - [Article de recherche sur SAM 2](https://arxiv.org/abs/2408.00714) et [dépôt officiel](https://github.com/facebookresearch/sam2).

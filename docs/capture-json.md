@@ -23,6 +23,7 @@ Personne n'a besoin de le modifier à la main. `visite360 stitch` le lit tout se
   "debut": "2026-10-24T18:02:11Z",
   "repere": "rotation caméra vers monde ; photo : x droite, y bas, z objectif ; monde : y vers le bas, cap de départ arbitraire",
   "exposition": { "iso": 400, "duree_s": 0.02 },
+  "cap_depart": -12.4,
   "photos": [
     {
       "fichier": "IMG_0001.jpg",
@@ -43,6 +44,8 @@ Personne n'a besoin de le modifier à la main. `visite360 stitch` le lit tout se
 - `photos` : une ligne par photo.
   - `fichier` : nom de la photo dans `photos/`.
   - `rotation` : orientation du téléphone au déclenchement, en 3 lignes de 3 nombres. Elle dit dans quelle direction de la pièce regarde chaque point de la photo, dans le même repère que l'assemblage (`src/visite360/spherical.py`) : pour la photo, x vers la droite de l'image, y vers le bas, z dans l'axe de l'objectif ; pour la pièce, y vers le bas, et le cap 0 est une direction quelconque fixée au démarrage de l'app.
+
+- `cap_depart` (facultatif, étape 6) : cap visé au verrouillage, en degrés, dans le repère des rotations. Quand les orientations servent, le panorama est centré sur ce cap, et non sur la première photo retenue : les flèches visées dans l'app gardent leur angle même si la première photo est écartée (D26). Absent des fichiers de l'étape 5 : le centre est alors la première photo.
 
 Les autres champs servent à relire une prise de vue : `rangee` et `numero` (la cible visée), `cap` et `inclinaison` (en degrés, cap positif vers la droite, inclinaison positive vers le haut), `exposition` (réglages verrouillés), `objectif` (`x0.5` ou `x1`, absent des premiers fichiers, qui sont au ×1), `appareil`, `app`, `debut`, `heure`. Un champ inconnu est ignoré, pour qu'une version plus récente de l'app reste lisible.
 

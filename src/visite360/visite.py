@@ -40,8 +40,8 @@ class Point:
     id: str
     name: str
     folders: stitch.Folders
-    # Champs facultatifs, prévus pour l'app (étape 6) : cap de la boussole vers lequel le
-    # panorama a été pris, position du point en mètres. La visionneuse ne s'en sert pas encore.
+    # Champs facultatifs, lus mais pas utilisés (D26) : cap de la boussole vers lequel le
+    # panorama a été pris, position du point en mètres.
     north: float | None = None
     position: tuple[float, ...] | None = None
 

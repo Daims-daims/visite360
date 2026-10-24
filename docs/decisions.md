@@ -223,3 +223,29 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - l'app ne fonctionne que sur iPhone. Une version Android demanderait un second développement ;
   - un point se prend d'une traite : le cap 0 des capteurs change à chaque démarrage ;
   - les tests GitHub ne compilent pas l'app (ils tournent sous Linux). `swift test` et la compilation se lancent sur le Mac.
+
+## D26 : visite prise dans l'app, flèches visées sur place, envoi au Mac par le Wi-Fi local
+
+- **Date :** 2026-10-24
+- **Décision :**
+  - l'app range les points dans des visites, sur le téléphone comme sur le Mac : `Documents/<visite>/<point>/`. Elle tient à jour `visite.json` au format du Mac (points pris et flèches entre eux), et garde son état complet dans `visite-app.json`, qui contient en plus les pièces annoncées par une flèche mais pas encore prises ;
+  - les flèches se visent dans l'app à la fin de la prise de vue d'un point, téléphone toujours à sa place : on vise la porte, puis on choisit la pièce d'arrivée. L'angle est l'écart entre le cap visé et le cap de départ du point, la hauteur est l'inclinaison du téléphone ;
+  - l'app note ce cap de départ dans `capture.json` (`cap_depart`). Quand les orientations du téléphone servent à l'assemblage, le centre du panorama est ce cap, et non plus la première photo retenue ;
+  - pas de réalité augmentée : la position des points (`position`, `nord`) n'est pas mesurée, et les flèches ne se calculent pas toutes seules (D22) ;
+  - le transfert se fait par le Wi-Fi local : `visite360 receive` sur le Mac (serveur HTTP de la bibliothèque standard, port 8361), annoncé par Bonjour avec `dns-sd`, programme fourni avec macOS. L'app le trouve avec le framework Network d'iOS ;
+  - un code à 6 chiffres, affiché par le Mac et nouveau à chaque lancement, est exigé pour tout échange. 10 codes faux bloquent la réception jusqu'au relancement ;
+  - chaque fichier est vérifié par sa taille et son empreinte SHA-256. Les fichiers passent par un dossier caché et ne sont rangés que si l'envoi est complet et si `visite.json` et les `capture.json` sont valides. Un renvoi ne transfère que ce qui manque ;
+  - sur le Mac, une photo ou un `capture.json` existant n'est jamais réécrit : un point du même nom avec d'autres photos fait refuser l'envoi. `visite.json` est remplacé, l'ancien est gardé sous `visite-avant-<date>.json` ;
+  - AirDrop et le câble restent possibles en secours : le dossier de la visite est utilisable tel quel sur le Mac.
+- **Raisons :**
+  - une visée sur place ne demande ni calcul ni saisie d'angle. Elle utilise l'orientation que l'app mesure déjà, dans le même repère que les photos, tant que le point n'est pas terminé ;
+  - centrer sur la première photo retenue aurait décalé toutes les flèches d'un point dont la première photo est écartée par l'assemblage. Le cap de départ, lui, ne dépend pas des photos ;
+  - le Wi-Fi évite le câble et la décompression d'un ZIP, qui demandent de manipuler des fichiers, ce que le critère de validation de l'étape exclut. Aucun service en ligne ni compte (D22). Bonjour évite de recopier une adresse ;
+  - sans code, n'importe quel appareil du même Wi-Fi pourrait déposer des fichiers sur le Mac. La vérification par empreinte détecte un fichier tronqué par une coupure du Wi-Fi ;
+  - le serveur et l'annonce n'ajoutent aucune dépendance (D16), et `dns-sd` est un programme externe appelé sans shell, comme `sips` (D17).
+- **Modifie :** D14 et D24 : `nord` et `position` restent lus et vérifiés mais ne seront pas remplis par l'app dans le plan actuel. D25 : le centre du panorama est le cap de départ quand `capture.json` le donne.
+- **Limites :**
+  - l'échange n'est pas chiffré : à n'utiliser que sur un Wi-Fi de confiance, ce qui est le cas jusqu'à la v1 ;
+  - une flèche visée au jugé tombe à quelques degrés près. Si l'assemblage ignore les orientations du téléphone (écart de plus de 10°), le centre redevient la première photo et les flèches de ce point peuvent être décalées ;
+  - une flèche ne se vise que pendant la prise de vue du point. Pour la refaire, reprendre le point ou corriger `visite.json` sur le Mac.
+

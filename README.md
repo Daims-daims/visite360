@@ -31,6 +31,14 @@ ruff format --check .
 
 Pour photographier un point de la visite : [docs/prise-de-vue.md](docs/prise-de-vue.md). Avec l'app iPhone, qui guide la prise de vue : [docs/app.md](docs/app.md) (installation par câble depuis Xcode).
 
+## Recevoir une visite prise avec l'app
+
+```bash
+visite360 receive
+```
+
+La commande affiche un code à 6 chiffres et attend les visites envoyées par l'app iPhone sur le même Wi-Fi. Elles sont rangées dans `visites/<visite>/`, avec les flèches visées dans l'app. Mode d'emploi : [docs/transfert.md](docs/transfert.md).
+
 ## Assembler un panorama
 
 Ranger les photos d'un point dans `visites/<visite>/<point>/photos/`, puis :
@@ -50,7 +58,7 @@ visite360 serve visites/<visite>/<point>    # un seul point
 
 La commande affiche deux adresses : une pour le Mac, une pour un téléphone connecté au même Wi-Fi. Les panoramas qui n'existent pas encore sont assemblés à partir des photos, un point après l'autre, pendant que la page affiche une barre d'avancement, puis la visite s'ouvre toute seule. `Ctrl+C` arrête le serveur. L'option `--local` réserve la visite au Mac, `--port` change le port, `--force` recalcule les panoramas même s'ils existent.
 
-Pour une visite de plusieurs points, `visite.json` est créé tout seul avec un point par dossier et aucun lien. Les flèches s'y ajoutent à la main : voir [docs/visite-json.md](docs/visite-json.md).
+Une visite reçue de l'app a déjà son `visite.json`, flèches comprises. Pour des photos prises sans l'app, `visite.json` est créé tout seul avec un point par dossier et aucun lien, et les flèches s'y ajoutent à la main : voir [docs/visite-json.md](docs/visite-json.md).
 
 ## Organisation du dépôt
 
@@ -63,6 +71,8 @@ visite360/
 │   ├── licences.md    registre des dépendances et de leurs licences
 │   ├── app.md         installer et utiliser l'app iPhone
 │   ├── capture-json.md  orientations écrites par l'app
+│   ├── transfert.md   envoyer une visite de l'iPhone au Mac
+│   ├── visite-json.md  points et flèches d'une visite
 │   ├── prise-de-vue.md  comment photographier un point
 │   └── ressources.md  ce qu'il faut lire ou regarder pour comprendre chaque étape
 ├── app/               app iPhone de capture guidée (SwiftUI, D25)
