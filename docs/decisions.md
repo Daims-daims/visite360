@@ -431,3 +431,27 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - la visionneuse charge aujourd'hui ses fichiers par des adresses fixes servies par le Mac (`/info.json`, `/p/<numéro>/…`, `/api/…`). L'étape 12 doit lui apprendre un mode en lecture seule à adresses relatives, sans les boutons qui appellent le serveur ;
   - le coût mensuel commence : stockage et trafic sortant, à estimer à l'étape 12 sur les tarifs publiés par Scaleway ;
   - `PLAN.md` et `CLAUDE.md` sont mis à jour dans la même pull request.
+
+## D37 : publication par un client S3 en bibliothèque standard, réglages dans un fichier local
+
+- **Date :** 2026-10-26
+- **Décision :**
+  - `visite360 publier` et `visite360 depublier` parlent au stockage de Scaleway par le protocole S3 avec la bibliothèque standard de Python : quatre opérations (lister, déposer, supprimer, lire une erreur), requêtes signées par la méthode « Signature Version 4 ». Aucune dépendance ajoutée (D16). La signature est vérifiée par les tests contre l'exemple publié par Amazon ;
+  - le lien est l'adresse fournie par Scaleway, `https://<bucket>.s3.fr-par.scw.cloud/<identifiant>/index.html`, en attendant que le propriétaire décide d'un nom de domaine du projet, au plus tard avant le jalon v1. L'adresse de base est un réglage (`adresse`) : passer à un domaine ne demande pas de code ;
+  - l'identifiant fait 128 bits (`secrets.token_urlsafe(16)`), rangé dans `<visite>/publication.json`. `depublier` l'oublie : republier après une dépublication donne un nouveau lien ;
+  - chaque fichier est déposé lisible par tous (`public-read`), le stockage reste privé : la liste de son contenu est refusée aux visiteurs. Un `robots.txt` à sa racine interdit l'indexation, et la page porte la balise `noindex` ;
+  - on publie les deux tailles de panorama, 8192 et 4096 pixels, et la page choisit comme en local (D23), selon le choix du propriétaire ;
+  - on publie `info.json`, fabriqué par le même code que `serve`, et non `visite.json` : les noms de dossiers et les positions ne sortent pas du Mac ;
+  - un relancement compare l'empreinte MD5 de chaque fichier à celle que donne le stockage, et n'envoie que ce qui diffère ;
+  - les clés d'accès sont dans `~/.config/visite360/scaleway.json`, hors du dépôt, lisible par le seul compte de l'utilisateur, écrit par `visite360 publier --configurer`, au choix du propriétaire. Les variables `SCW_ACCESS_KEY`, `SCW_SECRET_KEY` et `VISITE360_BUCKET` passent avant ;
+  - la visionneuse charge ses fichiers par des adresses relatives (`info.json`, `status.json`, `pannellum/…`). `info.json` d'une visite publiée porte `"publiee": true`, qui retire tous les outils et l'affichage des angles.
+- **Raisons :**
+  - boto3, la bibliothèque d'Amazon (Apache 2.0), aurait ajouté cinq paquets à suivre pour quatre requêtes, et ses versions depuis la 1.36 envoient par défaut des sommes de contrôle que plusieurs stockages compatibles S3 refusent, à désactiver par un réglage (non vérifié chez Scaleway) ;
+  - les secrets de GitHub, envisagés par le propriétaire, ne sont lisibles que par les tâches qui tournent chez GitHub. La publication part du Mac, où sont les panoramas, qui ne vont jamais dans le dépôt ;
+  - des adresses relatives servent telles quelles en local (`/` et `/agent`) et en ligne (`/<identifiant>/`), sans deux versions de la page ;
+  - la comparaison avec le stockage plutôt qu'avec une liste gardée sur le Mac reste juste après une publication interrompue ou un fichier supprimé à la main dans la console.
+- **Limites :**
+  - quiconque a le lien voit la visite, et peut le retransmettre : la seule révocation est `depublier` ;
+  - l'adresse de Scaleway montre le nom du stockage dans le lien ;
+  - un fichier envoyé reste en cache dans le navigateur d'un visiteur jusqu'à sa prochaine visite, où il est revérifié (`Cache-Control: no-cache`) ;
+  - le comportement réel de Scaleway (droits par fichier, refus de la liste, type des pages) n'a été vérifié que sur un faux stockage : à confirmer avec le compte du propriétaire.

@@ -30,6 +30,10 @@ visites/
 *.safetensors
 *.onnx
 
+# Clés d'accès : rangées hors du dépôt, ignorées au cas où une copie y atterrirait (D37)
+scaleway.json
+publication.json
+
 # Système et éditeurs
 .DS_Store
 .idea/

@@ -227,8 +227,15 @@ class Visit:
             self.fail(f"Erreur inattendue pendant l'assemblage : {error}")
 
 
-def build_assets(tour: visite.Tour) -> tuple[dict[str, Asset], bytes]:
-    """Table des chemins autorisés et contenu de `info.json`."""
+def build_assets(
+    tour: visite.Tour, root: str = "/", published: bool = False
+) -> tuple[dict[str, Asset], bytes]:
+    """Table des chemins autorisés et contenu de `info.json`.
+
+    `root` précède chaque chemin : « / » pour le serveur local, « » pour une visite publiée,
+    dont les adresses sont relatives à la page (étape 12). `published` met la visionneuse en
+    lecture seule.
+    """
     try:
         cv2 = load_cv2()
     except OpenCVError as error:
@@ -242,7 +249,7 @@ def build_assets(tour: visite.Tour) -> tuple[dict[str, Asset], bytes]:
                 f"Pas de panorama pour le point « {point.name} » ({folders.panorama})."
             )
         mobile, full_width, mobile_width = mobile_copy(cv2, folders.panorama, folders.cache)
-        prefix = f"/p/{index}"
+        prefix = f"{root}p/{index}"
         assets[f"{prefix}/panorama.jpg"] = Asset(folders.panorama, "image/jpeg")
         assets[f"{prefix}/panorama-mobile.jpg"] = Asset(mobile, "image/jpeg")
         points.append(
@@ -262,7 +269,9 @@ def build_assets(tour: visite.Tour) -> tuple[dict[str, Asset], bytes]:
                 ],
             }
         )
-    info = {"name": tour.name, "start": tour.start, "points": points}
+    info: dict[str, Any] = {"name": tour.name, "start": tour.start, "points": points}
+    if published:
+        info["publiee"] = True
     return assets, json.dumps(info, ensure_ascii=False).encode("utf-8")
 
 
