@@ -335,3 +335,15 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - la couleur choisie à l'écran dépend de l'éclairage de la photo. Ce n'est pas une référence de peinture ;
   - un mur visible depuis plusieurs points se repeint dans chaque point ;
   - comme les routes de sélection (D29), les routes de couleur acceptent les requêtes de tout appareil du Wi-Fi et n'écrivent que dans `modifications/` et `cache/`, avec des noms choisis par le serveur. À revoir avant tout hébergement (v1).
+
+## D32 : génération sur du matériel loué en v1, pas par une API de génération
+
+- **Date :** 2026-10-25
+- **Décision :** à partir de la v1 (étape 13), la génération d'image tourne sur une carte graphique louée par le projet, avec le modèle retenu à l'étape 9. On n'envoie pas les images à l'API de Black Forest Labs ni à un autre service de génération. Le temps d'allumage du matériel loué (chargement du modèle à froid) sera optimisé à l'étape 13.
+- **Raisons :**
+  - la confidentialité des images, jugée trop importante par le propriétaire : les vues envoyées au modèle montrent l'intérieur des logements des clients des agents. Avec une API, chaque vue part chez un prestataire, avec un contrat de sous-traitance à prévoir (RGPD) et une conservation qu'on ne maîtrise pas. Sur du matériel loué, les images ne sortent pas du serveur du projet ;
+  - à matériel équivalent, la vitesse est la même : quelques secondes par image sur une carte NVIDIA récente, contre environ 2 minutes sur le MacBook Air M4 (estimation, non mesurée) ;
+  - le modèle de l'étape 9 est gratuit à héberger soi-même (poids sous Apache 2.0) : le coût est celui de la location, pas du modèle.
+- **Conséquences :**
+  - le coût de génération devient un coût fixe à l'heure de location, au lieu d'environ 0,014 $ par image par l'API. En dessous de quelques dizaines de milliers d'images par mois, une carte louée en permanence coûte plus cher que l'API : une location à la seconde, éteinte quand personne ne génère, réduit l'écart au prix de démarrages à froid ;
+  - mflux ne tourne que sur Mac : sur une carte NVIDIA, le modèle passera par un autre logiciel (diffusers, Apache 2.0, à vérifier dans `docs/licences.md` le moment venu). Le découpage de la vue, le report dans le panorama et les fiches ne changent pas.

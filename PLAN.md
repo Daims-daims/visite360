@@ -155,6 +155,7 @@ Les coûts d'hébergement et de traitement commencent ici, au moment du déploie
 - **Étape 13 : envoi depuis l'app et traitement sur serveur.** L'agent prend la visite, l'envoie, le serveur assemble et produit le lien à transmettre au client.
 - **Étape 14 : retours d'engagement pour l'agent.** Comptes agents. Statistiques par lien : ouvertures, durée, pièces vues, modifications essayées.
 - **À trancher :** hébergeur et coût mensuel ; consentement des clients au suivi de leur consultation (RGPD).
+- **Tranché le 2026-10-25 (D32) :** la génération d'image tourne sur du matériel loué par le projet, pas par une API de génération, pour la confidentialité des images. Temps d'allumage à optimiser à l'étape 13.
 
 ## Jalon v1 : présentation aux agents et premiers accès
 
