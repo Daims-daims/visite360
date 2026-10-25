@@ -29,7 +29,7 @@ def start(tour: visite.Tour, unavailable: str | None = None) -> ThreadingHTTPSer
     jobs = generation.Generations(
         tour,
         FakeGenerator,
-        lambda point: painter.base(point.folders.point, point.folders.panorama),
+        lambda point, without: painter.base(point.folders.point, point.folders.panorama, without),
         unavailable,
         selector.release,
     )
@@ -53,8 +53,7 @@ LAUNCH = {
     "hauteur": SCREEN.pitch,
     "champ": SCREEN.fov,
     "cadre": list(RECT),
-    "objet": "le canapé gris",
-    "nouveau": "un canapé vert",
+    "instruction": "Remplace le canapé gris par un canapé vert",
     "nom": "Canapé",
 }
 
@@ -102,7 +101,7 @@ def test_full_generation_round(server: ThreadingHTTPServer, folders: stitch.Fold
     [
         {"cadre": [0, 0, 5, 5]},
         {"cadre": "partout"},
-        {"objet": ""},
+        {"instruction": ""},
         {"champ": 500},
         {"point": 3},
     ],

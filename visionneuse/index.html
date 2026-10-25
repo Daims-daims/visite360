@@ -77,8 +77,10 @@
     #remplacement { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%);
       margin: 12px 0; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .85); display: none;
       flex-direction: column; gap: 8px; width: min(560px, calc(100vw - 24px)); box-sizing: border-box; font-size: 14px; }
+    #remplacement.haut { bottom: auto; top: 0; }
     #remplacement label { display: flex; flex-direction: column; gap: 4px; color: #ccc; font-size: 13px; }
-    #remplacement input { font: inherit; padding: 6px 8px; border-radius: 6px; border: 0; background: #333; color: #fff; }
+    #remplacement textarea { font: inherit; padding: 6px 8px; border-radius: 6px; border: 0; background: #333; color: #fff;
+      resize: vertical; min-height: 3.2em; }
     #remplacement .boutons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
     #remplacement button { padding: 8px 12px; border-radius: 8px; border: 0; background: #333; color: #fff; }
     #remplacement button.principal { background: #4da3ff; }
@@ -121,11 +123,9 @@
   </div>
   <div id="calque-cadre"><div id="cadre"></div></div>
   <div id="remplacement">
-    <label>Objet à remplacer, dans le cadre
-      <input id="objet" maxlength="200" placeholder="par exemple : le canapé gris">
-    </label>
-    <label>Par quoi (laisser vide pour retirer l'objet)
-      <input id="nouveau" maxlength="200" placeholder="par exemple : un canapé en velours vert">
+    <label>Que faire dans le cadre ? Dire l'objet et ce qu'il devient.
+      <textarea id="instruction" maxlength="200" rows="2"
+        placeholder="par exemple : Remplace le canapé gris par un canapé en velours vert"></textarea>
     </label>
     <div id="suggestions"></div>
     <div class="note">Le modèle refait la vue autour du cadre, puis seul l'intérieur du cadre est gardé.
@@ -755,14 +755,24 @@
       // environ, dans un fil à part), et seul l'intérieur du cadre entre dans le panorama modifié.
       const frameLayer = $("calque-cadre"), frame = $("cadre");
       let drawing = null, polling = null;
+      // Exemples d'instructions, à compléter : le modèle doit savoir quel objet est visé.
       const SUGGESTIONS = [
-        "un canapé en velours vert", "un fauteuil en tissu gris clair", "une bibliothèque en bois foncé",
-        "une table ronde en bois clair", "un buffet bas blanc", "une plante verte en pot",
+        "Remplace le … par un canapé en velours vert",
+        "Remplace le … par un fauteuil en tissu gris clair",
+        "Remplace le … par une bibliothèque en bois foncé",
+        "Retire complètement le … et ce qui est posé dessus, montre le sol et le mur vides",
+        "Ajoute une plante verte en pot",
       ];
       for (const text of SUGGESTIONS) {
         const chip = document.createElement("button");
         chip.textContent = text;
-        chip.onclick = () => { $("nouveau").value = text; };
+        chip.onclick = () => {
+          const field = $("instruction");
+          field.value = text;
+          field.focus();
+          const hole = text.indexOf("…");
+          if (hole >= 0) field.setSelectionRange(hole, hole + 1);
+        };
         $("suggestions").appendChild(chip);
       }
 
@@ -825,9 +835,12 @@
           say("Cadre trop petit : tracer un cadre autour de l'objet entier.");
           return;
         }
+        // Le panneau se met du côté où il ne cache pas le cadre.
+        $("remplacement").classList.toggle("haut", (box[1] + box[3]) / 2 > window.innerHeight / 2);
         $("remplacement").style.display = "flex";
-        say("Décrire l'objet et son remplacement, puis Générer. On peut retracer le cadre.");
-        $("objet").focus();
+        say($("remplacement").classList.contains("haut")
+          ? "" : "Écrire ce qu'il faut faire, puis Générer. On peut retracer le cadre.");
+        $("instruction").focus();
       });
 
       $("renoncer-generation").onclick = () => { setDrawing(false); say(""); };
@@ -840,15 +853,17 @@
         const view = drawing.view;
         const [ax, ay] = toView(view, drawing.box[0], drawing.box[1]);
         const [bx, by] = toView(view, drawing.box[2], drawing.box[3]);
-        const target = $("objet").value.trim(), replacement = $("nouveau").value.trim();
-        if (!target) { say("Dire quel objet remplacer, par exemple « le canapé gris »."); return; }
-        // Nom court pour la liste (80 caractères au plus côté serveur) : le remplacement suffit.
-        let name = replacement || "sans " + target;
+        const instruction = $("instruction").value.trim();
+        if (!instruction || instruction.includes("…")) {
+          say("Écrire ce qu'il faut faire, en nommant l'objet : « Remplace le canapé gris par… »."); return;
+        }
+        // Nom court pour la liste (80 caractères au plus côté serveur).
+        let name = instruction;
         if (name.length > 60) name = name.slice(0, 59).trimEnd() + "…";
         try {
           await postJson("/api/generation/lancer", {
             point: pointIndex(), cap: view.cap, hauteur: view.hauteur, champ: view.champ,
-            cadre: [ax, ay, bx, by], objet: target, nouveau: replacement, nom: name,
+            cadre: [ax, ay, bx, by], instruction, nom: name,
           });
           setDrawing(false);
           say("");
@@ -879,7 +894,8 @@
             await refreshColors(job.point);
             say("« " + job.fiche.nom + " » : fait en " + job.secondes + " s. « Voir l'original » pour comparer.");
           } else {
-            say("La génération a échoué : " + job.message);
+            say(job.message.startsWith("Le modèle n'a presque rien changé")
+              ? job.message : "La génération a échoué : " + job.message);
           }
           refreshReplacements();
         };

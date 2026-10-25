@@ -1,6 +1,6 @@
 # Remplacer un objet par génération d'image
 
-Étape 9. Dans la visite, on encadre un meuble et on dit par quoi le remplacer : un modèle d'IA qui tourne sur le Mac refait l'image, et seul l'intérieur du cadre entre dans le panorama (D31). Le modèle est FLUX.2 [klein] 4B de Black Forest Labs, gratuit à faire tourner soi-même (licence Apache 2.0).
+Étape 9. Dans la visite, on encadre un meuble et on écrit ce qu'il faut en faire : un modèle d'IA qui tourne sur le Mac refait l'image, et seul l'intérieur du cadre entre dans le panorama (D31). Le modèle est FLUX.2 [klein] 4B de Black Forest Labs, gratuit à faire tourner soi-même (licence Apache 2.0).
 
 ## Installer le modèle
 
@@ -19,22 +19,29 @@ Il faut un Mac à puce Apple et environ 17 Go de mémoire libre pendant une gén
 1. Lancer la visite : `visite360 serve visites/<visite>`, puis ouvrir l'adresse affichée.
 2. Regarder l'objet, d'assez près pour qu'il remplisse une bonne partie de l'écran.
 3. **Remplacer un objet**, puis tracer un cadre autour de l'objet **en entier**, pieds et accoudoirs compris, avec un peu de marge.
-4. Dire **quel objet** remplacer (« le canapé gris ») et **par quoi** (« un canapé en velours vert »), ou cliquer une suggestion. Laisser « par quoi » vide pour retirer l'objet : le modèle montre alors le mur et le sol qui étaient derrière.
+4. Écrire **ce qu'il faut faire**, comme on le dirait à quelqu'un, en nommant l'objet :
+   - « Remplace le canapé gris par un canapé en velours vert » ;
+   - « Retire complètement le meuble blanc et ce qui est posé dessus, montre le sol et le mur vides » ;
+   - « Ajoute un four encastré sous les plaques ».
+
+   Les suggestions sous le champ donnent le début de la phrase : remplacer « … » par le nom de l'objet.
 5. **Générer**. Le suivi, en haut de l'écran, montre les 4 passes du calcul. On peut continuer la visite pendant ce temps. Sur le MacBook Air M4, une génération prend 2 à 3 minutes.
 
 À la fin, la visite montre le panorama modifié. **Voir l'original** compare avec l'avant.
 
-- **Remplacements**, puis **Refaire** : un autre essai avec le même cadre et la même consigne. Le résultat change à chaque fois : le modèle part d'un tirage au hasard (la « graine »).
+- **Remplacements**, puis **Refaire** : un autre essai avec le même cadre et la même consigne. Le résultat change à chaque fois : le modèle part d'un tirage au hasard (la « graine »). L'essai repart de la photo sans ce remplacement, et il le remplace s'il réussit.
 - **Supprimer** annule un remplacement. Le panorama d'origine n'est jamais modifié (D9).
 - Une seule génération à la fois.
+- Si le modèle n'a presque rien changé dans le cadre, rien n'est enregistré et la visionneuse le dit. C'est le plus souvent une instruction qui ne dit pas clairement quoi faire : la reformuler, ou relancer.
 - Les recolorations de l'étape 8 et les remplacements se combinent : les couleurs d'abord, puis les remplacements, dans l'ordre de leur numéro.
 
 ## Comment ça marche
 
 1. **Une vue autour du cadre.** Le modèle a appris sur des photos ordinaires, pas sur des panoramas, dont les lignes droites sont courbées. Le serveur découpe donc dans le panorama une vue carrée de 1024 pixels, centrée sur le cadre. Le cadre en occupe le milieu, avec 20 % de marge de chaque côté : le modèle voit la pièce autour du meuble (lumière, perspective, sol), et le meuble y tient en entier. La vue est prise dans le panorama modifié s'il existe : un mur repeint reste repeint autour du nouvel objet.
-2. **Le modèle refait la vue d'après la consigne.** Il part d'un brouillard de points aléatoires et le nettoie en 4 passes, guidé par la vue et par la consigne, par exemple : « Remplace le canapé gris, au centre de l'image, par un canapé en velours vert. Ne change rien d'autre : murs, sol, plafond, autres meubles, lumière et perspective restent identiques. »
+2. **Le modèle refait la vue d'après la consigne.** Il part d'un brouillard de points aléatoires et le nettoie en 4 passes, guidé par la vue et par la consigne : votre instruction, suivie de « Le changement se fait au centre de l'image. Garde le reste de la pièce, la lumière et la perspective identiques. »
 3. **On ne garde que le cadre.** Le modèle retouche souvent un peu toute l'image : on jette tout ce qui est hors du cadre. Dans une bande de 40 pixels autour du cadre, où la photo et l'image générée montrent la même chose, on mesure leur écart de couleur et de contraste et on le corrige. Le bord du cadre s'adoucit sur 24 pixels vers l'intérieur.
-4. **Report dans le panorama.** L'intérieur du cadre est reporté à sa place dans le panorama. Hors du cadre, aucun pixel ne change.
+4. **Vérification.** Si l'intérieur du cadre n'a pas changé plus que le reste de la vue, le modèle n'a pas suivi l'instruction : la génération n'est pas enregistrée.
+5. **Report dans le panorama.** L'intérieur du cadre est reporté à sa place dans le panorama. Hors du cadre, aucun pixel ne change.
 
 L'image générée est gardée : refaire le panorama modifié (après une recoloration, par exemple) ne relance pas le modèle.
 
@@ -49,7 +56,8 @@ Essai du 2026-10-25 sur 11 meubles des visites du propriétaire :
 - **Mauvais résultat et sa cause :**
   - **un morceau de l'ancien meuble dépasse** : le cadre ne le prenait pas en entier. Le retracer plus large ;
   - **un trait net ou un changement de teinte au bord du cadre** : le cadre coupe un objet ou une ombre. Le tracer sur du mur ou du sol uni ;
-  - **le mauvais objet a changé** : la consigne était ambiguë. Nommer l'objet par sa couleur et sa matière ;
+  - **rien n'a changé** (« Le modèle n'a presque rien changé ») : l'instruction ne disait pas clairement quoi faire. Écrire un verbe (remplace, retire, ajoute) et nommer l'objet ; « Met un four » à la place d'un « vide » n'a rien donné à l'essai ;
+  - **le mauvais objet a changé** : l'instruction était ambiguë. Nommer l'objet par sa couleur et sa matière ;
   - **résultat flou** : la vue de 1024 pixels est un peu moins fine que le panorama (environ 15 pixels par degré contre 23). Un meuble plus gros à l'écran donne un résultat plus net.
 - Le résultat est inventé par le modèle : il donne une idée, pas un meuble réel qu'on pourrait acheter.
 
@@ -62,10 +70,9 @@ Dans le dossier du point, `visites/<visite>/<point>/modifications/`, deux fichie
   "version": 1,
   "type": "generation",
   "id": "generation-1",
-  "nom": "un canapé en velours vert",
-  "objet": "le canapé gris",
-  "nouveau": "un canapé en velours vert",
-  "consigne": "Remplace le canapé gris, au centre de l'image, par …",
+  "nom": "Remplace le canapé gris par un canapé en velours vert",
+  "instruction": "Remplace le canapé gris par un canapé en velours vert",
+  "consigne": "Remplace le canapé gris par un canapé en velours vert. Le changement se fait …",
   "graine": 1234567,
   "pas": 4,
   "modele": {
@@ -87,6 +94,7 @@ Dans le dossier du point, `visites/<visite>/<point>/modifications/`, deux fichie
 
 - `zone` : la vue de l'écran au moment du tracé (même convention que les sélections, voir [selection.md](selection.md)) et le cadre dans cette vue, en pixels : gauche, haut, droite, bas.
 - `vue` : la vue envoyée au modèle, calculée à partir du cadre.
+- `instruction` : ce qu'a écrit l'utilisateur ; `consigne` : ce qui a été donné au modèle.
 - `graine` : avec la même vue, la même consigne et la même graine, le modèle redonne la même image.
 - Le panorama modifié, avec recolorations et remplacements, est fabriqué à la demande dans `cache/apres.jpg`.
 

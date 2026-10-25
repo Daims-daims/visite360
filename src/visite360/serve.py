@@ -303,7 +303,7 @@ def default_generations(
     return generation.Generations(
         tour,
         generation.MfluxGenerator,
-        lambda point: painter.base(point.folders.point, point.folders.panorama),
+        lambda point, without: painter.base(point.folders.point, point.folders.panorama, without),
         message,
         selector.release,
     )
@@ -390,7 +390,7 @@ def handle_generation(
     if route == "lancer":
         screen = selection.ViewSpec(body.get("cap"), body.get("hauteur"), body.get("champ"))
         request = generation.Request.parse(
-            screen, body.get("cadre"), body.get("objet"), body.get("nouveau"), body.get("nom")
+            screen, body.get("cadre"), body.get("instruction"), body.get("nom")
         )
         result: Any = generations.start(index, point, request, None).to_json()
     elif route == "refaire":

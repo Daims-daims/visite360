@@ -1,11 +1,12 @@
 """Étape 9 : remplacement d'un objet par génération d'image, en local (D31).
 
-L'utilisateur trace un cadre autour d'un meuble dans la vue regardée et dit par quoi le
-remplacer. Le modèle FLUX.2 [klein] 4B (Black Forest Labs, code et poids sous Apache 2.0) ne
-travaille pas sur le panorama, dont les lignes droites sont courbées : on découpe une « vue »
-carrée centrée sur le cadre, avec une marge, comme une photo ordinaire. Le modèle refait toute la
-vue d'après la consigne ; on n'en garde que l'intérieur du cadre, aux couleurs recalées sur la
-photo et au bord adouci, et on le reporte dans le panorama. Hors du cadre, aucun pixel ne change.
+L'utilisateur trace un cadre autour d'un meuble dans la vue regardée et écrit ce qu'il veut :
+le remplacer, le retirer, ajouter quelque chose. Le modèle FLUX.2 [klein] 4B (Black Forest Labs,
+code et poids sous Apache 2.0) ne travaille pas sur le panorama, dont les lignes droites sont
+courbées : on découpe une « vue » carrée centrée sur le cadre, avec une marge, comme une photo
+ordinaire. Le modèle refait toute la vue d'après la consigne ; on n'en garde que l'intérieur du
+cadre, aux couleurs recalées sur la photo et au bord adouci, et on le reporte dans le panorama.
+Hors du cadre, aucun pixel ne change.
 
 Le modèle tourne sur la puce graphique du Mac par mflux (MIT), installé avec ses dépendances dans
 un environnement Python à part par `scripts/installer-generation.sh`, et appelé comme programme
@@ -105,15 +106,15 @@ MAX_TEXT = 200
 TIMEOUT_S = 20 * 60
 EDGE_SAMPLES = 64
 
-PROMPT_REPLACE = (
-    "Remplace {objet}, au centre de l'image, par {nouveau}. Ne change rien d'autre : murs, sol, "
-    "plafond, autres meubles, lumière et perspective restent identiques."
+# Ajoutée à l'instruction de l'utilisateur. Sans « autres meubles » : le modèle refusait alors
+# de retirer un meuble (essai du 2026-10-25).
+PROMPT_SUFFIX = (
+    "Le changement se fait au centre de l'image. Garde le reste de la pièce, la lumière et la "
+    "perspective identiques."
 )
-PROMPT_REMOVE = (
-    "Retire {objet}, au centre de l'image, et montre à sa place le mur et le sol qui étaient "
-    "derrière. Ne change rien d'autre : murs, sol, plafond, autres meubles, lumière et "
-    "perspective restent identiques."
-)
+# En dessous de cet écart moyen (sur 255) entre l'intérieur du cadre et le reste de la vue, le
+# modèle n'a rien fait : 0,4 et 1,3 sur deux essais ratés, 14 et plus sur les réussis.
+MIN_CHANGE = 5.0
 
 
 class GenerationError(Exception):
@@ -455,8 +456,7 @@ def save(
         "type": "generation",
         "id": generation_id,
         "nom": request.name or f"Remplacement {number}",
-        "objet": request.target,
-        "nouveau": request.replacement,
+        "instruction": request.instruction,
         "consigne": request.prompt(),
         "graine": seed,
         "pas": STEPS,
@@ -506,12 +506,12 @@ def _text(raw: Any, label: str, required: bool) -> str:
 
 @dataclass(frozen=True)
 class Request:
-    """Ce que demande l'utilisateur : le cadre dans la vue de l'écran et la consigne."""
+    """Ce que demande l'utilisateur : le cadre dans la vue de l'écran et son instruction,
+    écrite librement (« Remplace le canapé par… », « Retire… », « Ajoute… »)."""
 
     screen: ViewSpec
     rect: Rect
-    target: str
-    replacement: str
+    instruction: str
     name: str
 
     @property
@@ -519,20 +519,15 @@ class Request:
         return generation_view(self.screen, self.rect)
 
     def prompt(self) -> str:
-        """Consigne donnée au modèle. Sans « nouveau », l'objet est retiré."""
-        if self.replacement:
-            return PROMPT_REPLACE.format(objet=self.target, nouveau=self.replacement)
-        return PROMPT_REMOVE.format(objet=self.target)
+        """Consigne donnée au modèle : l'instruction, puis de quoi limiter le changement."""
+        return f"{self.instruction.rstrip(' .')}. {PROMPT_SUFFIX}"
 
     @classmethod
-    def parse(
-        cls, screen: ViewSpec, raw_rect: Any, target: Any, replacement: Any, name: Any
-    ) -> Request:
+    def parse(cls, screen: ViewSpec, raw_rect: Any, instruction: Any, name: Any) -> Request:
         request = cls(
             screen,
             parse_rect(raw_rect, screen.size),
-            _text(target, "Objet à remplacer", required=True),
-            _text(replacement, "Remplacement", required=False),
+            _text(instruction, "Instruction", required=True),
             _text(name, "Nom", required=False)[:80],
         )
         generation_view(request.screen, request.rect)  # refuse tout de suite un cadre trop grand
@@ -541,13 +536,25 @@ class Request:
     @classmethod
     def from_record(cls, record: dict[str, Any]) -> Request:
         _, screen, rect = _zone(record)
-        return cls(
-            screen,
-            rect,
-            str(record.get("objet", "")),
-            str(record.get("nouveau", "")),
-            str(record.get("nom", "")),
-        )
+        instruction = record.get("instruction") or record.get("consigne") or ""
+        return cls(screen, rect, str(instruction), str(record.get("nom", "")))
+
+
+def change_amount(original: np.ndarray, generated: np.ndarray, mask: np.ndarray) -> float:
+    """De combien le modèle a changé l'intérieur du cadre, au-delà de ses retouches ailleurs.
+
+    Écart moyen (sur 255) dans le cadre, moins l'écart moyen hors du cadre, où le modèle
+    retouche toujours un peu l'image sans rien changer de visible.
+    """
+    cv2 = load_cv2()
+    if generated.shape[:2] != original.shape[:2]:
+        size = original.shape[1], original.shape[0]
+        generated = cv2.resize(generated, size, interpolation=cv2.INTER_AREA)
+    difference = np.abs(original.astype(np.float32) - generated.astype(np.float32)).mean(axis=2)
+    inside = mask > 0
+    if not inside.any() or inside.all():
+        return float(difference.mean())
+    return float(difference[inside].mean() - difference[~inside].mean())
 
 
 Progress = Callable[[int, int], None]
@@ -698,8 +705,9 @@ class Job:
 class Generations:
     """Générations de `visite360 serve` : une seule à la fois, dans un fil à part.
 
-    `factory` fabrique le modèle (les tests en passent un simulé). `base` donne le panorama sur
-    lequel générer : le panorama modifié du point s'il en a un, sinon le panorama d'origine.
+    `factory` fabrique le modèle (les tests en passent un simulé). `base(point, sans)` donne le
+    panorama sur lequel générer : le panorama modifié du point, sans la génération `sans` quand on
+    la refait, ou le panorama d'origine.
     `before` est appelé avant chaque génération, pour libérer la mémoire du modèle de sélection.
     """
 
@@ -707,7 +715,7 @@ class Generations:
         self,
         tour: visite.Tour,
         factory: Callable[[], Generator],
-        base: Callable[[visite.Point], Path],
+        base: Callable[[visite.Point, str | None], np.ndarray],
         unavailable: str | None = None,
         before: Callable[[], None] = lambda: None,
     ) -> None:
@@ -752,12 +760,9 @@ class Generations:
             thread.join(timeout)
 
     def _run(self, job: Job, point: visite.Point, request: Request, redo: str | None) -> None:
-        cv2 = load_cv2()
         try:
             self.before()
-            panorama = cv2.imread(str(self.base(point)))
-            if panorama is None:
-                raise GenerationError(f"Panorama illisible : {point.folders.panorama}")
+            panorama = self.base(point, redo)
             view = request.view
             image = extract_view(panorama, view)
             job.message = "Chargement du modèle..."
@@ -772,6 +777,13 @@ class Generations:
             seed = secrets.randbelow(2**31)
             started = time.monotonic()
             generated = generator.generate(image, request.prompt(), seed, progress)
+            mask = zone_mask(view, request.screen, request.rect)
+            if change_amount(image, generated, mask) < MIN_CHANGE:
+                raise GenerationError(
+                    "Le modèle n'a presque rien changé dans le cadre. Reformuler l'instruction "
+                    "(dire ce qu'il faut faire, en nommant l'objet par sa couleur ou sa matière), "
+                    "ou relancer : chaque essai est différent."
+                )
             folders = point.folders
             job.record = save(
                 folders.point,

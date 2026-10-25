@@ -19,11 +19,10 @@ class FakeGenerator:
     """Modèle simulé : la vue un peu plus claire partout (le défaut habituel d'un vrai modèle),
     avec un carré rouge au centre à la place de l'objet."""
 
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, int]] = []
+    seen: list[np.ndarray] = []
 
     def generate(self, image, prompt, seed, progress):  # type: ignore[no-untyped-def]
-        self.calls.append((prompt, seed))
+        FakeGenerator.seen.append(image.copy())
         for step in range(1, generation.STEPS + 1):
             progress(step, generation.STEPS)
         out = np.clip(image.astype(np.int16) + 30, 0, 255).astype(np.uint8)
@@ -40,7 +39,7 @@ def make_point(tmp_path: Path, width: int = 2048) -> stitch.Folders:
 
 
 def make_request(rect: tuple[float, float, float, float] = RECT) -> Request:
-    return Request.parse(SCREEN, list(rect), "le canapé gris", "un canapé vert", "Canapé")
+    return Request.parse(SCREEN, list(rect), "Remplace le canapé gris par un canapé vert", "Canapé")
 
 
 def add_generation(folders: stitch.Folders, request: Request | None = None) -> dict:
@@ -158,6 +157,7 @@ def test_save_writes_record_and_image(tmp_path: Path) -> None:
     assert saved == record
     assert (folder / "generation-1.png").is_file()
     assert record["consigne"] == make_request().prompt()
+    assert record["instruction"] == "Remplace le canapé gris par un canapé vert"
     assert record["modele"]["revision"] == generation.REVISION
     assert record["zone"]["cadre"] == list(RECT)
     assert Request.from_record(record).rect == RECT
@@ -200,18 +200,36 @@ def test_operations_skip_broken_records(tmp_path: Path) -> None:
     assert [op.record["id"] for op in generation.operations(folders.point)] == ["generation-1"]
 
 
-def test_prompt_replaces_or_removes() -> None:
-    assert "par un canapé vert" in make_request().prompt()
-    removal = Request.parse(SCREEN, list(RECT), "le pouf", "", None)
-    assert removal.prompt().startswith("Retire le pouf")
+def test_prompt_keeps_the_instruction_and_limits_the_change() -> None:
+    request = Request.parse(SCREEN, list(RECT), "  Retire le   pouf. ", None)
+    assert request.prompt() == "Retire le pouf. " + generation.PROMPT_SUFFIX
 
 
-@pytest.mark.parametrize(
-    "target, replacement", [("", "un canapé"), ("x" * 201, "un canapé"), ("canapé", 3)]
-)
-def test_bad_texts_are_refused(target: object, replacement: object) -> None:
+@pytest.mark.parametrize("instruction", ["", "   ", "x" * 201, 3, None])
+def test_bad_instructions_are_refused(instruction: object) -> None:
     with pytest.raises(GenerationError):
-        Request.parse(SCREEN, list(RECT), target, replacement, None)
+        Request.parse(SCREEN, list(RECT), instruction, None)
+
+
+def test_older_records_are_read_back() -> None:
+    record = {
+        "consigne": "Remplace le pouf par un fauteuil.",
+        "vue": SCREEN.to_json(),
+        "zone": {"ecran": SCREEN.to_json(), "cadre": list(RECT)},
+    }
+    assert Request.from_record(record).instruction == "Remplace le pouf par un fauteuil."
+
+
+def test_change_amount_ignores_a_shift_of_the_whole_view() -> None:
+    rng = np.random.default_rng(1)
+    original = rng.integers(40, 200, (128, 128, 3)).astype(np.uint8)
+    mask = np.zeros((128, 128), np.uint8)
+    mask[32:96, 32:96] = 255
+    shifted = np.clip(original.astype(np.int16) + 12, 0, 255).astype(np.uint8)
+    assert generation.change_amount(original, shifted, mask) < 1
+    replaced = shifted.copy()
+    replaced[40:88, 40:88] = (0, 0, 255)
+    assert generation.change_amount(original, replaced, mask) > generation.MIN_CHANGE
 
 
 # --- Installation et commande -------------------------------------------------------------
@@ -294,17 +312,20 @@ def test_mflux_generator_without_installation(
 def test_painter_includes_generations_and_undo_restores_original(tmp_path: Path) -> None:
     folders = make_point(tmp_path)
     painter = couleur.Painter(1024)
-    assert painter.base(folders.point, folders.panorama) == folders.panorama
+    original = cv2.imread(str(folders.panorama))
+    assert (painter.base(folders.point, folders.panorama) == original).all()
     add_generation(folders)
     state = painter.state(folders.point, folders.panorama)
     assert [record["id"] for record in state["generations"]] == ["generation-1"]
     assert state["version"] is not None
     after = cv2.imread(str(painter.after(folders.point, folders.panorama, mobile=False)))
     assert (after != cv2.imread(str(folders.panorama))).any()
-    assert painter.base(folders.point, folders.panorama).name == couleur.AFTER_NAME
+    assert (painter.base(folders.point, folders.panorama) != original).any()
+    without = painter.base(folders.point, folders.panorama, "generation-1")
+    assert (without == couleur.apply(original, [])).all()
     generation.delete(folders.point, "generation-1")
     assert painter.state(folders.point, folders.panorama)["version"] is None
-    assert painter.base(folders.point, folders.panorama) == folders.panorama
+    assert (painter.base(folders.point, folders.panorama) == original).all()
 
 
 def make_generations(
@@ -315,7 +336,7 @@ def make_generations(
     jobs = generation.Generations(
         tour,
         factory,
-        lambda point: painter.base(point.folders.point, point.folders.panorama),
+        lambda point, without: painter.base(point.folders.point, point.folders.panorama, without),
         before=(lambda: released.append(True)) if released is not None else (lambda: None),
     )
     return jobs, tour.points[0]
@@ -338,10 +359,29 @@ def test_redo_job_replaces_the_same_generation(tmp_path: Path) -> None:
     folders = make_point(tmp_path)
     jobs, point = make_generations(folders)
     record = add_generation(folders)
+    FakeGenerator.seen.clear()
     jobs.start(0, point, Request.from_record(record), record["id"])
     jobs.wait(30)
     assert jobs.state()["travail"]["fiche"]["id"] == "generation-1"
     assert len(generation.operations(folders.point)) == 1
+    # Le modèle a reçu la vue d'origine, pas celle qui contient déjà le carré rouge à refaire.
+    view = FakeGenerator.seen[-1]
+    center = view[view.shape[0] // 2, view.shape[1] // 2].astype(int)
+    assert not (center[2] > 200 and center[0] < 60)
+
+
+def test_job_without_visible_change_is_not_saved(tmp_path: Path) -> None:
+    class LazyGenerator:
+        def generate(self, image, prompt, seed, progress):  # type: ignore[no-untyped-def]
+            return np.clip(image.astype(np.int16) + 3, 0, 255).astype(np.uint8)
+
+    folders = make_point(tmp_path)
+    jobs, point = make_generations(folders, LazyGenerator)
+    jobs.start(0, point, make_request(), None)
+    jobs.wait(30)
+    job = jobs.state()["travail"]
+    assert job["etat"] == "erreur" and "presque rien changé" in job["message"]
+    assert generation.operations(folders.point) == []
 
 
 def test_only_one_job_at_a_time(tmp_path: Path) -> None:
@@ -381,7 +421,7 @@ def test_job_reports_model_errors(tmp_path: Path) -> None:
 def test_unavailable_generations_are_refused(tmp_path: Path) -> None:
     folders = make_point(tmp_path)
     tour = visite.single_point(folders)
-    jobs = generation.Generations(tour, FakeGenerator, lambda p: folders.panorama, "Pas installé.")
+    jobs = generation.Generations(tour, FakeGenerator, lambda p, w: np.zeros(1), "Pas installé.")
     assert jobs.state()["disponible"] is False
     with pytest.raises(GenerationError, match="Pas installé"):
         jobs.start(0, tour.points[0], make_request(), None)

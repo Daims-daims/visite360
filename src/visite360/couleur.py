@@ -425,11 +425,18 @@ class Painter:
             "version": signature(panorama, ops, generated),
         }
 
-    def base(self, point: Path, panorama: Path) -> Path:
-        """Panorama sur lequel travailler : le panorama modifié s'il y en a un, sinon l'original."""
+    def base(self, point: Path, panorama: Path, without: str | None = None) -> np.ndarray:
+        """Panorama sur lequel générer : le panorama modifié s'il y en a un, sinon l'original.
+
+        `without` est une génération à laisser de côté : celle qu'on refait.
+        """
+        if without is not None:
+            generated = [op for op in generation.operations(point) if op.record["id"] != without]
+            image = apply(_read_panorama(panorama), _load_masks(operations(point)))
+            return generation.apply(image, generated)
         if signature(panorama, operations(point), generation.operations(point)) is None:
-            return panorama
-        return self.after(point, panorama, mobile=False)
+            return _read_panorama(panorama)
+        return _read_panorama(self.after(point, panorama, mobile=False))
 
     def after(self, point: Path, panorama: Path, mobile: bool) -> Path:
         """Panorama modifié (ou sa copie pour téléphone), refait s'il est périmé."""
