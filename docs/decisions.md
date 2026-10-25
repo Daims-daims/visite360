@@ -409,3 +409,25 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - la surface d'un mur comprend portes et fenêtres ; plafonds en pente, mansardes et murs arrondis sont hors de l'étape ;
   - la mesure ARKit n'a été que compilée et testée sur des données simulées : elle reste à vérifier sur l'iPhone ;
   - un clic posé, la visionneuse recharge le panorama réduit avec le contour, ce qui prend une fraction de seconde.
+
+## D35 : étape 12 lancée en parallèle de la v0.3, visites publiées sur Scaleway
+
+- **Date :** 2026-10-26
+- **Décision :**
+  - l'étape 12 (hébergement et lien de partage) démarre sans attendre la livraison de l'étape 11 ni le jalon v0.3. Les deux avancent en parallèle, sur deux branches distinctes. C'est la seule exception à la règle « une étape ne démarre que si la précédente est livrée » ; le jalon v0.3 garde sa place et reste décidé par le propriétaire ;
+  - l'hébergeur est **Scaleway**, avec les données en France (région Paris) ;
+  - une visite publiée est un ensemble de **fichiers statiques** : visionneuse, `visite.json` et panoramas, déposés dans un stockage de fichiers (Object Storage de Scaleway). Aucun serveur ne tourne pour la consulter ;
+  - le lien contient un **long identifiant tiré au hasard** (au moins 128 bits), seul secret de la visite. La liste du contenu du stockage n'est pas publique et les pages demandent aux moteurs de recherche de ne pas les indexer ;
+  - la publication se fait **depuis le Mac**, par une commande `visite360 publier`. Une commande `visite360 depublier` supprime tous les fichiers en ligne de la visite. Une visite reste en ligne jusqu'à sa dépublication, sans durée automatique ;
+  - la visite publiée montre les panoramas et la navigation entre points. Elle ne contient ni modifications, ni chiffrage, ni le mode `/agent` : ils arriveront en ligne à l'étape 13, avec la carte graphique louée (D32) ;
+  - les clés d'accès Scaleway ne sont jamais dans le dépôt.
+- **Raisons :**
+  - décision du propriétaire : l'hébergement ne dépend pas du chiffrage, rien ne justifie de l'attendre ;
+  - Scaleway : hébergeur français, données en France pour des photos d'intérieur qui sont des données personnelles, et location de cartes graphiques possible chez le même fournisseur pour l'étape 13 (à confirmer à cette étape) ;
+  - des fichiers statiques ne coûtent presque rien au repos, ne demandent ni mise à jour ni surveillance, et n'exposent aucune des routes d'écriture de la visionneuse locale (D29, D30, D31) ;
+  - un identifiant aléatoire suffit pour une visite qu'on partage soi-même et se révoque en dépubliant. Les liens qui expirent demandent un service pour les produire et des liens à renvoyer.
+- **Assouplit D22 :** l'hébergement de visites statiques, les liens de partage et leur coût commencent à l'étape 12, avant la fin de la v0.3. Le reste de D22 tient : jusqu'au jalon v1, les liens ne sont partagés que pour les essais du propriétaire, sans utilisateur extérieur (D28). Serveur de traitement, comptes et carte graphique louée restent aux étapes 13 et 14.
+- **Conséquences :**
+  - la visionneuse charge aujourd'hui ses fichiers par des adresses fixes servies par le Mac (`/info.json`, `/p/<numéro>/…`, `/api/…`). L'étape 12 doit lui apprendre un mode en lecture seule à adresses relatives, sans les boutons qui appellent le serveur ;
+  - le coût mensuel commence : stockage et trafic sortant, à estimer à l'étape 12 sur les tarifs publiés par Scaleway ;
+  - `PLAN.md` et `CLAUDE.md` sont mis à jour dans la même pull request.

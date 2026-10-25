@@ -7,7 +7,7 @@ Ce projet remplace le projet `scene3d` (reconstruction par Gaussian splatting), 
 ## Avant de travailler
 
 - Lire `PLAN.md`. L'étape à traiter est la première qui n'est pas « livrée ».
-- Ne jamais entamer une étape tant que la précédente n'est pas « livrée » sur `main` à jour. La fusion de sa pull request par le propriétaire du dépôt vaut validation.
+- Ne jamais entamer une étape tant que la précédente n'est pas « livrée » sur `main` à jour. La fusion de sa pull request par le propriétaire du dépôt vaut validation. Seule exception : l'étape 12, menée en parallèle de la v0.3 (D35).
 - Ne jamais dépasser un jalon sans la décision écrite du propriétaire dans `PLAN.md`.
 - Lire `docs/decisions.md` avant de remettre en cause un choix technique. Un nouveau choix structurant s'y ajoute dans la même pull request.
 - Proposer un plan court pour l'étape et attendre l'accord avant d'écrire du code.
@@ -69,5 +69,5 @@ Ces trois vérifications doivent passer avant tout commit.
 
 ## Hors périmètre
 
-- Jusqu'à la v1 (D22) : hébergement, serveur distant, lien de partage, comptes utilisateurs, tout service payant. Le produit tourne en local, sur le Mac et le téléphone.
+- Jusqu'à la v1 (D22) : serveur distant de traitement, comptes utilisateurs, tout service payant autre que l'hébergement de l'étape 12. Le produit tourne en local, sur le Mac et le téléphone. Seule exception : depuis l'étape 12, une visite peut être publiée en fichiers statiques chez Scaleway et partagée par lien (D35).
 - Toute la durée du plan actuel : plan du logement, Gaussian splatting.
