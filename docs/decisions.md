@@ -376,3 +376,13 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Conséquences :**
   - le coût de génération devient un coût fixe à l'heure de location, au lieu d'environ 0,014 $ par image par l'API. En dessous de quelques dizaines de milliers d'images par mois, une carte louée en permanence coûte plus cher que l'API : une location à la seconde, éteinte quand personne ne génère, réduit l'écart au prix de démarrages à froid ;
   - mflux ne tourne que sur Mac : sur une carte NVIDIA, le modèle passera par un autre logiciel (diffusers, Apache 2.0, à vérifier dans `docs/licences.md` le moment venu). Le découpage de la vue, le report dans le panorama et les fiches ne changent pas.
+
+## D33 : essai de cloison abattue repoussé après l'étape 13
+
+- **Date :** 2026-10-25
+- **Décision :** l'essai de l'étape 9.5 (montrer la pièce voisine à la place d'une cloison) quitte la v0.2. Il se fera après l'étape 13, quand la génération tournera sur la carte graphique louée (D32). Son contenu et sa validation ne changent pas.
+- **Raisons :** décision du propriétaire. Une génération prend 2 à 3 minutes sur le Mac, sans doute plus avec une deuxième image en référence. Sur une carte graphique, quelques secondes suffisent : on enchaîne les essais d'instruction et de vue de référence bien plus vite.
+- **Conséquences :**
+  - la v0.2 se termine sans cet essai. Le jalon v0.2 n'en dépend pas : la modification générée qu'il demande est celle de l'étape 9 ;
+  - la décision de faire de la cloison abattue une vraie étape arrive après la v1 commencée, donc après la préparation des versions v0.3 et v1 ;
+  - l'essai se fera avec le logiciel retenu à l'étape 13 pour la carte graphique, et non avec mflux (D32).
