@@ -45,3 +45,6 @@ app/.swiftpm/
 DerivedData/
 xcuserdata/
 *.xcuserstate
+
+# Réglages de l’app propres à un Mac (équipe de signature), voir app/Config/Local.xcconfig.exemple
+app/Config/Local.xcconfig

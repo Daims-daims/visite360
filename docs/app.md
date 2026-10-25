@@ -8,7 +8,8 @@ Il faut Xcode sur le Mac et un identifiant Apple, sans abonnement développeur.
 
 1. **Sur le Mac :** ouvrir `app/Visite360Capture.xcodeproj` dans Xcode.
 2. **Compte :** Xcode > Réglages > Comptes, ajouter son identifiant Apple s'il n'y est pas.
-3. **Signature :** cliquer sur le projet Visite360Capture (en haut à gauche), cible Visite360Capture, onglet *Signing & Capabilities*. Laisser *Automatically manage signing* coché et choisir dans *Team* l'équipe « (Personal Team) » de son identifiant.
+3. **Signature, une fois pour toutes :** copier `app/Config/Local.xcconfig.exemple` en `app/Config/Local.xcconfig` et y remplacer `ABCDE12345` par l'identifiant de son équipe « (Personal Team) », dix caractères visibles dans Xcode > Réglages > Comptes. Ce fichier est propre au Mac et ignoré par git : le projet du dépôt n'est plus modifié, et l'équipe reste choisie après chaque mise à jour.
+   - Sans ce fichier, choisir l'équipe dans Xcode : projet Visite360Capture (en haut à gauche), cible Visite360Capture, onglet *Signing & Capabilities*, *Automatically manage signing* coché, puis *Team*. Xcode écrit alors l'équipe dans `project.pbxproj`, modification à ne pas commiter.
    - Si Xcode dit que l'identifiant `io.github.daims-daims.visite360.capture` est déjà pris, changer la fin de *Bundle Identifier*, par exemple en ajoutant `.damien`.
 4. **iPhone :** le brancher au Mac par câble, le déverrouiller et répondre « Se fier » à la question « Faire confiance à cet ordinateur ? ».
 5. **Mode développeur :** sur l'iPhone, Réglages > Confidentialité et sécurité > Mode développeur, l'activer puis redémarrer. Le réglage n'apparaît qu'après le premier branchement à Xcode.
