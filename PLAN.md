@@ -30,7 +30,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 9 | Modification par génération d'image, en local | v0.2 | livrée |
 | J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | livrée |
 | 10 | Dimensions des pièces | v0.3 | livrée |
-| 11 | Chiffrage d'une modification | v0.3 | à faire |
+| 11 | Chiffrage d'une modification | v0.3 | en cours |
 | J3 | **Jalon v0.3 : validation du chiffrage par le propriétaire** | — | à faire |
 | 12 | Hébergement et lien de partage | v1 | à faire |
 | 13 | Envoi depuis l'app et traitement sur serveur | v1 | à faire |
