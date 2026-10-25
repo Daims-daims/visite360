@@ -27,7 +27,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | J1 | **Jalon v0.1 : validation de la visite par le propriétaire** | — | livrée |
 | 7 | Sélection d'une surface au clic | v0.2 | livrée |
 | 8 | Changement de couleur | v0.2 | livrée |
-| 9 | Modification par génération d'image, en local | v0.2 | en cours |
+| 9 | Modification par génération d'image, en local | v0.2 | livrée |
 | 9.5 | Essai : abattre une cloison | v0.2 | à faire |
 | J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | à faire |
 | 10 | Dimensions des pièces | v0.3 | à faire |
