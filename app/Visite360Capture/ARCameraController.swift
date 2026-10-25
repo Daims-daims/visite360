@@ -24,6 +24,9 @@ final class ARCameraController: NSObject, ObservableObject, ARSessionDelegate, P
     /// Direction horizontale visée par le téléphone dans le repère d'ARKit (y vers le haut).
     /// Quand il vise le plafond ou le sol, c'est la dernière direction horizontale connue.
     private(set) var heading: SIMD3<Double>?
+    /// Surfaces horizontales repérées par ARKit (sol, tables, plafond), pour en déduire la
+    /// hauteur de l'objectif au-dessus du sol (étape 10, FloorLevel).
+    private(set) var horizontalPlanes: [FloorLevel.Plane] = []
     /// Appelé sur le fil principal à chaque image, avec la position (ou nil).
     var onPosition: ((SIMD3<Double>?) -> Void)?
 
@@ -42,6 +45,8 @@ final class ARCameraController: NSObject, ObservableObject, ARSessionDelegate, P
         let configuration = ARWorldTrackingConfiguration()
         configuration.videoFormat = format
         configuration.worldAlignment = .gravity
+        // Le sol, vu pendant la rangée de photos vers le bas, donne la hauteur de l'objectif.
+        configuration.planeDetection = [.horizontal]
         session.delegate = self
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
         isRunning = true
@@ -109,6 +114,14 @@ final class ARCameraController: NSObject, ObservableObject, ARSessionDelegate, P
             if simd_length(flat) > 0.3 { heading = simd_normalize(flat) }
         } else {
             position = nil
+        }
+        let classifies = ARPlaneAnchor.isClassificationSupported
+        horizontalPlanes = frame.anchors.compactMap { anchor in
+            guard let plane = anchor as? ARPlaneAnchor, plane.alignment == .horizontal else { return nil }
+            let center = plane.transform * SIMD4(plane.center, 1)
+            let area = Double(plane.planeExtent.width * plane.planeExtent.height)
+            let isFloor: Bool? = classifies ? plane.classification == .floor : nil
+            return FloorLevel.Plane(height: Double(center.y), area: area, isFloor: isFloor)
         }
         onPosition?(position)
     }

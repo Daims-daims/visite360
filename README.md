@@ -84,6 +84,10 @@ bash scripts/installer-generation.sh
 
 Seul l'intérieur du cadre change, et le panorama d'origine reste intact. Mode d'emploi, temps et coût : [docs/generation.md](docs/generation.md).
 
+## Mesurer une pièce
+
+À l'adresse des outils de l'agent, `http://localhost:8360/agent` (affichée par `visite360 serve`), le bouton **Mesurer la pièce** calcule la longueur et la surface de chaque mur et la surface au sol, à partir des coins cliqués dans le panorama. L'échelle vient de la hauteur de l'objectif au-dessus du sol, mesurée par l'app pendant la prise de vue « ×1 + AR ». Mode d'emploi et précision : [docs/dimensions.md](docs/dimensions.md).
+
 ## Organisation du dépôt
 
 ```
@@ -100,6 +104,7 @@ visite360/
 │   ├── selection.md   sélectionner une surface au clic, format des sélections
 │   ├── couleur.md     repeindre une surface, format des recolorations
 │   ├── generation.md  remplacer un objet, format, temps et coût
+│   ├── dimensions.md  mesurer une pièce, précision, format
 │   ├── prise-de-vue.md  comment photographier un point
 │   └── ressources.md  ce qu'il faut lire ou regarder pour comprendre chaque étape
 ├── app/               app iPhone de capture guidée (SwiftUI, D25)

@@ -138,10 +138,10 @@ Mesurer une pièce dans son panorama, puis chiffrer une modification à partir d
 
 ### Étape 10 : dimensions des pièces
 
-- **Contenu :** dans la visionneuse, l'utilisateur pointe les coins de la pièce au plafond et au sol, en faisant le tour, et saisit une mesure réelle, par exemple la hauteur sous plafond : tourner sur soi-même ne donne pas l'échelle. L'outil en déduit le contour de la pièce, la longueur et la surface de chaque mur, et la surface au sol (D13). Le contour calculé est dessiné par-dessus le panorama pour qu'on voie s'il suit les murs. La pièce est enregistrée dans le dossier du point.
-- **Tests automatiques :** sur une pièce de synthèse aux dimensions connues, les directions de ses coins redonnent ses dimensions ; effet chiffré d'une erreur d'horizon ou de clic ; lecture et refus d'une fiche mal formée.
-- **Validation :** sur l'appartement du propriétaire, surface d'un mur à moins de 10 % de la mesure au mètre.
-- **À trancher pendant l'étape :** pièces rectangulaires seulement, ou forme libre ; mesure saisie (hauteur sous plafond ou longueur d'un mur) ; coins cachés par un meuble.
+- **Contenu :** pendant la prise de vue « ×1 + AR », l'app mesure la hauteur de l'objectif au-dessus du sol : tourner sur soi-même ne donne pas l'échelle. Une fois le panorama fait, l'agent pointe les coins de la pièce dans un mode qui lui est réservé, que le client ne voit pas. L'outil en déduit le contour de la pièce, la longueur et la surface de chaque mur, et la surface au sol (D13). Le contour calculé est dessiné par-dessus le panorama pour qu'on voie s'il suit les murs. La pièce est enregistrée dans le dossier du point.
+- **Tests automatiques :** sur une pièce de synthèse aux dimensions connues, les directions de ses coins redonnent ses dimensions ; effet chiffré d'une erreur d'horizon ou de clic ; lecture et refus d'une fiche mal formée ; choix du sol parmi les surfaces repérées par ARKit.
+- **Validation :** sur l'appartement du propriétaire, hauteur de l'objectif notée par l'app à 2 cm près de la mesure au mètre ; surface d'un mur à moins de 10 % de la mesure au mètre.
+- **Tranché le 2026-10-25 (D34) :** l'échelle vient de la hauteur de l'objectif mesurée par ARKit, sans mètre ruban ; hauteur sous plafond saisie en secours ; coins pointés par l'agent à l'adresse `/agent` de la visionneuse, après l'assemblage, au sol ou au plafond quand un meuble cache le bas ; pièces de forme libre, murs droits et verticaux. Mode d'emploi et précision dans `docs/dimensions.md`.
 
 ### Étape 11 : chiffrage d'une modification
 
