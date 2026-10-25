@@ -14,7 +14,7 @@ import sys
 from dataclasses import dataclass
 from typing import TextIO
 
-from visite360 import segment
+from visite360 import generation, segment
 from visite360.opencv import INSTALL_COMMAND, uses_ffmpeg
 
 MIN_PYTHON = (3, 11)
@@ -174,9 +174,32 @@ def check_sam2() -> CheckResult:
     return CheckResult(name, True, False, f"{segment.MODEL_NAME}, poids vérifiés")
 
 
+def check_generation() -> CheckResult:
+    """Signale si FLUX.2 klein, facultatif, est prêt pour remplacer un objet (étape 9).
+
+    Les empreintes des 15 Go de poids sont vérifiées à l'installation, pas ici : trop long.
+    """
+    name = f"{generation.MODEL_NAME} (remplacement d'un objet)"
+    problem = generation.missing()
+    if problem:
+        hint = (
+            "Nécessaire seulement pour remplacer un objet. "
+            f"L'installer : {generation.INSTALL_COMMAND}"
+        )
+        return CheckResult(name, False, False, problem, hint)
+    return CheckResult(name, True, False, f"mflux et poids présents ({generation.model_folder()})")
+
+
 def run_checks() -> list[CheckResult]:
     """Lance toutes les vérifications, dans l'ordre d'affichage."""
-    return [check_python(), check_opencv(), check_heic(), check_hugin(), check_sam2()]
+    return [
+        check_python(),
+        check_opencv(),
+        check_heic(),
+        check_hugin(),
+        check_sam2(),
+        check_generation(),
+    ]
 
 
 def report(results: list[CheckResult], out: TextIO) -> int:

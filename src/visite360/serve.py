@@ -18,6 +18,11 @@ reçoivent la vue regardée et les clics, et répondent avec le contour trouvé 
 Étape 8 : une sélection peut être repeinte. Les routes `/api/couleur/` essaient, appliquent et
 annulent une recoloration (voir `couleur.py`) ; `/p/<numéro>/apres.jpg` sert le panorama modifié,
 fabriqué dans `cache/`, que la visionneuse montre en « après ».
+
+Étape 9 : un objet encadré dans la vue regardée peut être remplacé par génération d'image. Les
+routes `/api/generation/` lancent, refont et annulent une génération (voir `generation.py`) ; elle
+dure quelques minutes, dans un fil à part, et `/api/generation` en donne l'avancement. Le résultat
+entre dans le panorama modifié.
 """
 
 from __future__ import annotations
@@ -34,7 +39,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
 
-from visite360 import couleur, segment, selection, stitch, visite
+from visite360 import couleur, generation, segment, selection, stitch, visite
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import PhotoError
 
@@ -284,6 +289,26 @@ def default_selector(tour: visite.Tour) -> selection.Selector:
     return selection.Selector(tour, segment.load_segmenter, segment.MODEL_NAME, message)
 
 
+def default_generations(
+    tour: visite.Tour, painter: couleur.Painter, selector: selection.Selector
+) -> generation.Generations:
+    """Génération avec FLUX.2 klein, s'il est installé (sinon la visionneuse dit quoi installer)."""
+    problem = generation.missing()
+    message = (
+        f"Le remplacement d'objet demande {generation.MODEL_NAME} ({problem}). "
+        f"L'installer : {generation.INSTALL_COMMAND}"
+        if problem
+        else None
+    )
+    return generation.Generations(
+        tour,
+        generation.MfluxGenerator,
+        lambda point: painter.base(point.folders.point, point.folders.panorama),
+        message,
+        selector.release,
+    )
+
+
 class RequestError(Exception):
     """Requête refusée, avec son code HTTP et un message en français pour la visionneuse."""
 
@@ -353,23 +378,53 @@ def handle_color(
     return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
 
 
+def handle_generation(
+    generations: generation.Generations,
+    selector: selection.Selector,
+    route: str,
+    body: dict[str, Any],
+) -> tuple[bytes, str]:
+    """Traite une route POST `/api/generation/...`. Renvoie (contenu, type)."""
+    index = body.get("point")
+    point = selector.point(index)
+    if route == "lancer":
+        screen = selection.ViewSpec(body.get("cap"), body.get("hauteur"), body.get("champ"))
+        request = generation.Request.parse(
+            screen, body.get("cadre"), body.get("objet"), body.get("nouveau"), body.get("nom")
+        )
+        result: Any = generations.start(index, point, request, None).to_json()
+    elif route == "refaire":
+        op = generation.find(point.folders.point, body.get("id"))
+        request = generation.Request.from_record(op.record)
+        result = generations.start(index, point, request, op.record["id"]).to_json()
+    elif route == "supprimer":
+        generation.delete(point.folders.point, body.get("id"))
+        result = {"supprimee": body.get("id")}
+    else:
+        raise RequestError(404, "Introuvable")
+    return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
+
+
 def make_server(
     tour: visite.Tour,
     host: str,
     port: int,
     force: bool = False,
     selector: selection.Selector | None = None,
+    generations: generation.Generations | None = None,
 ) -> ThreadingHTTPServer:
     """Prépare le serveur d'une visite, sans le lancer.
 
     Si un panorama manque (ou avec `force`), la visite reste « en cours de génération » : c'est
     à l'appelant de lancer `server.visit.generate(...)`. Sinon elle est prête tout de suite.
-    `selector` remplace la sélection par SAM 2.1 (les tests y passent un modèle simulé).
+    `selector` remplace la sélection par SAM 2.1 et `generations` la génération par FLUX.2 klein
+    (les tests y passent des modèles simulés).
     """
     visit = Visit(tour)
     fixed = viewer_assets()
     selector = selector or default_selector(tour)
     painter = couleur.Painter(MOBILE_WIDTH)
+    generations = generations or default_generations(tour, painter, selector)
     if tour_needs_generation(tour, force):
         for point in tour.points:
             if needs_generation(point.folders, force):
@@ -388,6 +443,11 @@ def make_server(
                 message = selector.unavailable
                 state = {"disponible": message is None, "message": message}
                 self._send(json.dumps(state, ensure_ascii=False).encode("utf-8"), JSON)
+                return
+            if path == "/api/generation":
+                self._send(
+                    json.dumps(generations.state(), ensure_ascii=False).encode("utf-8"), JSON
+                )
                 return
             if SELECTIONS_PATH.match(path) or PREVIEW_PATH.match(path):
                 self._answer(lambda: self._selection_file(path))
@@ -412,6 +472,8 @@ def make_server(
                 self._answer(lambda: handle_selection(selector, route, self._body()))
             elif path.startswith("/api/couleur/"):
                 self._answer(lambda: handle_color(selector, route, self._body()))
+            elif path.startswith("/api/generation/"):
+                self._answer(lambda: handle_generation(generations, selector, route, self._body()))
             else:
                 self.send_error(404, "Introuvable")
 
@@ -423,7 +485,11 @@ def make_server(
                 data, kind = produce()
             except RequestError as error:
                 self._send_error(error.status, str(error))
-            except (selection.SelectionError, couleur.ColorError) as error:
+            except (
+                selection.SelectionError,
+                couleur.ColorError,
+                generation.GenerationError,
+            ) as error:
                 self._send_error(400, str(error))
             except (segment.SegmentError, OpenCVError) as error:
                 print(f"Erreur : {error}", file=sys.stderr)

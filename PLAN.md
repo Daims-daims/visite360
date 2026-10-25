@@ -123,6 +123,7 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 - **Tests automatiques :** découpage, report dans le panorama et pixels hors du masque inchangés, sur des images de synthèse. Le modèle est simulé.
 - **Validation :** sur de vrais panoramas, la modification est crédible vue dans la visite, sans raccord au bord de la zone modifiée.
 - **À trancher avant l'étape :** modèle utilisé. Code, poids et données d'entraînement doivent avoir une licence autorisée (`CLAUDE.md`), et beaucoup de modèles de génération d'image ont des poids non commerciaux. Le modèle doit aussi tenir dans les 24 Go du Mac. Si aucun modèle local ne convient, le propriétaire décide s'il accepte une API payante.
+- **Tranché le 2026-10-25 (D31) :** FLUX.2 [klein] 4B (Apache 2.0, données d'entraînement non publiées, risque accepté par le propriétaire), sur le Mac par mflux ; exemple retenu : remplacement d'un meuble ; la zone modifiée est un cadre tracé dans la vue, pas le masque de l'étape 7. Mode d'emploi, temps et coût dans `docs/generation.md`.
 
 ### Étape 9.5 : essai, abattre une cloison
 

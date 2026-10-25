@@ -249,7 +249,7 @@ def test_after_combines_colors_and_undo_restores_original(tmp_path: Path) -> Non
     left = add_selection(point, panorama, (100, 300, 100, 400))
     right = add_selection(point, panorama, (100, 300, 600, 900))
     painter = couleur.Painter(mobile_width=512)
-    assert painter.state(point, panorama) == {"couleurs": [], "version": None}
+    assert painter.state(point, panorama) == {"couleurs": [], "generations": [], "version": None}
 
     couleur.save(point, left, SAGE, current=PHOTO)
     green = couleur.save(point, right, TERRACOTTA, current=PHOTO)

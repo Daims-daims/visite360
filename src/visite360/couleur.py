@@ -27,6 +27,9 @@ Une recoloration est une opération enregistrée dans `<point>/modifications/` (
 modifié, avec toutes les recolorations du point appliquées dans l'ordre, est une image dérivée
 rangée dans `cache/`, refaite quand une opération change. Le panorama d'origine n'est jamais
 modifié. Le format est décrit dans `docs/couleur.md`.
+
+Étape 9 : le panorama modifié comprend aussi les objets remplacés par génération d'image (voir
+`generation.py`), appliqués après les recolorations.
 """
 
 from __future__ import annotations
@@ -43,7 +46,7 @@ from typing import Any
 
 import numpy as np
 
-from visite360 import selection
+from visite360 import generation, selection
 from visite360.opencv import load_cv2
 
 FORMAT_VERSION = 1
@@ -359,28 +362,34 @@ def _encode(image: np.ndarray) -> bytes:
     return encoded.tobytes()
 
 
-def signature(panorama: Path, ops: Sequence[Operation]) -> str | None:
-    """Empreinte de ce qui fait le panorama modifié. `None` s'il n'y a aucune recoloration.
+def signature(
+    panorama: Path, ops: Sequence[Operation], generated: Sequence[generation.Operation] = ()
+) -> str | None:
+    """Empreinte de ce qui fait le panorama modifié. `None` s'il n'y a aucune modification.
 
-    Elle change si une opération, un masque ou le panorama change : l'image dérivée est refaite.
+    Elle change si une opération, un masque, une image générée ou le panorama change : l'image
+    dérivée est refaite.
     """
-    if not ops:
+    if not ops and not generated:
         return None
-    digest = hashlib.sha256(f"calcul {ALGORITHM_VERSION};".encode())
-    for path in (panorama, *(op.mask_path for op in ops)):
+    versions = f"calcul {ALGORITHM_VERSION}, génération {generation.ALGORITHM_VERSION};"
+    digest = hashlib.sha256(versions.encode())
+    paths = (panorama, *(op.mask_path for op in ops), *(op.image_path for op in generated))
+    for path in paths:
         stat = path.stat()
         digest.update(f"{path.name}:{stat.st_size}:{stat.st_mtime_ns};".encode())
-    for op in ops:
-        digest.update(json.dumps(op.record, sort_keys=True).encode("utf-8"))
+    for record in (*(op.record for op in ops), *(op.record for op in generated)):
+        digest.update(json.dumps(record, sort_keys=True).encode("utf-8"))
     return digest.hexdigest()[:16]
 
 
 def preview(
     panorama: Path, point: Path, selection_id: Any, color: Any, width: int, current: Any = None
 ) -> bytes:
-    """Panorama réduit à `width` avec les recolorations du point et l'essai demandé (JPEG).
+    """Panorama réduit à `width` avec les modifications du point et l'essai demandé (JPEG).
 
-    L'essai remplace la couleur actuelle de la sélection, s'il y en a une. Rien n'est enregistré.
+    L'essai remplace la couleur actuelle de la sélection, s'il y en a une. Les objets remplacés
+    (étape 9) restent par-dessus. Rien n'est enregistré.
     """
     selection_id = _check_selection(point, selection_id)
     rgb = parse_color(color)
@@ -392,11 +401,13 @@ def preview(
     mask = cv2.imread(str(trial_mask), cv2.IMREAD_GRAYSCALE)
     if mask is None:
         raise ColorError(f"Masque illisible : {trial_mask}")
-    return _encode(apply(_read_panorama(panorama, width), [*loaded, (mask, rgb, known)]))
+    image = apply(_read_panorama(panorama, width), [*loaded, (mask, rgb, known)])
+    return _encode(generation.apply(image, generation.operations(point)))
 
 
 class Painter:
-    """Panoramas modifiés des points d'une visite, pour `visite360 serve`.
+    """Panoramas modifiés des points d'une visite, pour `visite360 serve` : recolorations, puis
+    objets remplacés par génération d'image (étape 9).
 
     Un verrou évite que deux requêtes fabriquent la même image en même temps.
     """
@@ -406,22 +417,33 @@ class Painter:
         self._lock = threading.Lock()
 
     def state(self, point: Path, panorama: Path) -> dict[str, Any]:
-        """Recolorations du point et version du panorama modifié (`None` sans recoloration)."""
-        ops = operations(point)
-        return {"couleurs": [op.record for op in ops], "version": signature(panorama, ops)}
+        """Modifications du point et version du panorama modifié (`None` sans modification)."""
+        ops, generated = operations(point), generation.operations(point)
+        return {
+            "couleurs": [op.record for op in ops],
+            "generations": [op.record for op in generated],
+            "version": signature(panorama, ops, generated),
+        }
+
+    def base(self, point: Path, panorama: Path) -> Path:
+        """Panorama sur lequel travailler : le panorama modifié s'il y en a un, sinon l'original."""
+        if signature(panorama, operations(point), generation.operations(point)) is None:
+            return panorama
+        return self.after(point, panorama, mobile=False)
 
     def after(self, point: Path, panorama: Path, mobile: bool) -> Path:
         """Panorama modifié (ou sa copie pour téléphone), refait s'il est périmé."""
         with self._lock:
-            ops = operations(point)
-            current = signature(panorama, ops)
+            ops, generated = operations(point), generation.operations(point)
+            current = signature(panorama, ops, generated)
             if current is None:
-                raise ColorError("Ce point n'a aucune recoloration.")
+                raise ColorError("Ce point n'a aucune modification.")
             cache = point / "cache"
             full, small, state = cache / AFTER_NAME, cache / AFTER_MOBILE_NAME, cache / AFTER_STATE
             saved = _read(state) if state.is_file() else None
             if saved is None or saved.get("signature") != current or not small.is_file():
                 image = apply(_read_panorama(panorama), _load_masks(ops))
+                image = generation.apply(image, generated)
                 cache.mkdir(exist_ok=True)
                 selection.write_atomic(full, _encode(image))
                 if image.shape[1] > self.mobile_width:

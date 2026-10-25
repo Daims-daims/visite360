@@ -336,6 +336,33 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - un mur visible depuis plusieurs points se repeint dans chaque point ;
   - comme les routes de sélection (D29), les routes de couleur acceptent les requêtes de tout appareil du Wi-Fi et n'écrivent que dans `modifications/` et `cache/`, avec des noms choisis par le serveur. À revoir avant tout hébergement (v1).
 
+## D31 : remplacement d'un objet par FLUX.2 klein 4B sur le Mac, dans un cadre tracé
+
+- **Date :** 2026-10-25
+- **Décision :**
+  - le modèle de génération est FLUX.2 [klein] 4B de Black Forest Labs (code et poids sous Apache 2.0), à la révision `e7b7dc2` de Hugging Face, en 4 passes, sur une vue de 1024 pixels. Il tourne sur la puce graphique du Mac par mflux 0.23.0 (MIT), installé par `scripts/installer-generation.sh` dans un environnement Python à part (`~/.cache/visite360/generation/`), sans résolution automatique des dépendances, et appelé en ligne de commande, jamais importé. Les poids (15 Go) sont rangés dans `~/.cache/visite360/modeles/` et leurs empreintes vérifiées à l'installation ;
+  - le propriétaire accepte par écrit que les données d'entraînement du modèle ne soient pas publiées : code et poids sont sous Apache 2.0, les données ne sont pas déclarées réservées à la recherche, mais elles sont inconnues. Il ajoute la licence CNRI Python 1.6 à la liste autorisée, pour le paquet regex utilisé sans modification ;
+  - l'exemple de l'étape est le **remplacement d'un meuble**, à la place du revêtement de sol, à la demande du propriétaire, qui juge la sélection de surface de l'étape 7 peu probante ;
+  - la zone modifiée est un **cadre tracé** dans la vue regardée, et non le masque de l'étape 7 comme le prévoyait le plan : un nouveau meuble n'a pas la forme de l'ancien. Le serveur découpe une vue centrée sur le cadre, qui en occupe le milieu avec 20 % de marge de chaque côté. Le modèle refait toute la vue d'après une consigne en français (« Remplace … par … », ou « Retire … »), et seul l'intérieur du cadre est gardé : couleurs recalées dans une bande de 40 pixels autour du cadre, bord adouci sur 24 pixels vers l'intérieur, report dans le panorama. Hors du cadre, aucun pixel ne change ;
+  - une génération est une fiche `generation-<n>.json` et l'image générée `generation-<n>.png` dans `<point>/modifications/` (format dans `docs/generation.md`). Le report est refait sans relancer le modèle. La vue est prise dans le panorama modifié du moment ; les générations s'appliquent après les recolorations, par numéro croissant. « Refaire » relance la même demande avec une autre graine et garde le numéro ;
+  - dans `visite360 serve`, une seule génération à la fois, dans un fil à part, avec l'avancement passe par passe. SAM 2 est libéré de la mémoire avant chaque génération.
+- **Raisons :**
+  - essai du 2026-10-25 sur 11 meubles des visites du propriétaire : 9 nettement réussis (bibliothèque, chaise, buffet, vitrine, meuble télé, canapé, fauteuil, lit, chaise de bureau). Les objets posés dessus ou devant sont souvent conservés. Moins bons : une table encombrée (un chat et des objets ont disparu) et des façades de cuisine (hotte modifiée, colonne oubliée) ;
+  - klein 4B est le plus petit modèle d'édition d'image sous licence autorisée connu, et le seul à l'aise dans les 24 Go du Mac : 16,6 Go au plus haut. Qwen-Image-Edit-2511 (Apache 2.0, données non publiées aussi) fait 20 milliards de paramètres ; la comparaison a été abandonnée par le propriétaire pour ne pas télécharger 29 à 58 Go de plus. Les autres candidats sont non commerciaux (FLUX.2 klein 9B, FLUX.2 dev, FLUX.1 Fill), sous OpenRAIL (Stable Diffusion) ou entraînés sur des données de recherche (LaMa) ;
+  - temps mesurés : 123 à 174 s par génération, le Mac sans ventilateur ralentissant sur une série. Le propriétaire ne cherche pas à réduire ce temps en local : il le sera sur du matériel loué (D32) ;
+  - un environnement à part évite trois conflits : Pillow 13.0, utilisé par SAM 2, ne s'importe pas avec mflux sous Python 3.13 ; mflux déclare opencv-python, qui embarque FFmpeg (interdit, D19) et masquerait l'OpenCV du projet ; il déclare aussi matplotlib, sous une licence propre. Ni opencv-python, ni matplotlib, ni PyTorch ne servent à l'édition par klein : ils ne sont pas installés ;
+  - le cadre au milieu d'une vue plus large montre au modèle la lumière et la perspective de la pièce, et garde tout le meuble dans l'image. Un premier essai, avec une vue qui coupait le canapé, avait laissé l'accoudoir hors champ inchangé ;
+  - le recalage des couleurs corrige le léger décalage de teinte et de contraste que le modèle donne à toute l'image : sur le canapé et la bibliothèque, le bord du cadre est invisible ;
+  - garder l'image générée rend le panorama modifié reproductible et rapide à refaire, sans dépendre du hasard du modèle (D9).
+- **Modifie :** l'étape 9 du plan, qui prévoyait une génération limitée au masque de l'étape 7.
+- **Limites :**
+  - le résultat est inventé : il donne une idée, pas un meuble réel ;
+  - la vue de 1024 pixels est moins fine que le panorama (environ 15 pixels par degré contre 23) : un meuble petit à l'écran ressort flou ;
+  - un cadre trop serré laisse dépasser l'ancien meuble ; un cadre qui coupe un objet ou une ombre laisse un trait au bord ;
+  - une recoloration ajoutée après une génération n'apparaît pas à l'intérieur de son cadre : refaire la génération ;
+  - un objet visible depuis plusieurs points se remplace dans chaque point, avec un résultat différent ;
+  - comme les autres routes de la visionneuse (D29, D30), les routes de génération acceptent les requêtes de tout appareil du Wi-Fi et n'écrivent que dans `modifications/` et `cache/`, avec des noms choisis par le serveur. À revoir avant tout hébergement (v1), avec les filtres de contenu conseillés par Black Forest Labs pour un service ouvert au public.
+
 ## D32 : génération sur du matériel loué en v1, pas par une API de génération
 
 - **Date :** 2026-10-25
