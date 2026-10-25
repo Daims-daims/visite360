@@ -11,7 +11,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 - Chaque étape a un critère de validation à vérifier sur le Mac ou le téléphone. Les tests automatiques ne le remplacent pas.
 - Tout fonctionne en local jusqu'à la v1 : traitement sur le Mac, visite servie par le Mac, aucun hébergement ni service payant (D22). Aucun utilisateur extérieur n'a accès au produit avant la v1.
 - Les jalons v0.1, v0.2 et v0.3 sont validés par le propriétaire seul. La première présentation à des agents immobiliers a lieu au jalon v1, une fois la v1 réalisée (D28).
-- Les versions v0.3 et v1 sont esquissées. Chacune sera détaillée dans une pull request dédiée après le jalon de la version précédente.
+- La version v1 est esquissée. Elle sera détaillée dans une pull request dédiée après le jalon v0.3.
 
 ## Vue d'ensemble
 
@@ -28,7 +28,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 7 | Sélection d'une surface au clic | v0.2 | livrée |
 | 8 | Changement de couleur | v0.2 | livrée |
 | 9 | Modification par génération d'image, en local | v0.2 | livrée |
-| J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | à faire |
+| J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | livrée |
 | 10 | Dimensions des pièces | v0.3 | à faire |
 | 11 | Chiffrage d'une modification | v0.3 | à faire |
 | J3 | **Jalon v0.3 : validation du chiffrage par le propriétaire** | — | à faire |
@@ -130,12 +130,24 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 - **Contenu :** la visite du jalon v0.1 avec un mur repeint et au moins une modification générée, jugée par le propriétaire.
 - **Livrable :** temps et coût de génération mesurés.
 - **Décision :** le propriétaire décide de la suite et l'écrit ici.
+- **Décision du propriétaire (2026-10-25) :** le mur repeint et le meuble remplacé lui conviennent. Poursuivre avec la v0.3. Les temps et coûts de génération sont dans `docs/generation.md`. L'essai de cloison abattue est repoussé après l'étape 13 (D33).
 
-## v0.3 : chiffrage (esquisse)
+## v0.3 : chiffrage
 
-- **Étape 10 : dimensions des pièces.** L'utilisateur pointe les coins au sol et au plafond dans le panorama, l'outil en déduit une boîte 3D (D13). Tourner sur soi-même ne donne pas l'échelle : une mesure réelle est saisie, par exemple la hauteur sous plafond. Validation : surface d'un mur à moins de 10 % de la mesure au mètre.
-- **Étape 11 : chiffrage d'une modification.** Surface touchée en m², multipliée par un prix unitaire tiré d'une grille modifiable (peinture, revêtement, pose). Validation : ordre de grandeur cohérent avec un devis réel.
-- **À trancher :** source des prix ; chiffrage des modifications générées, comme un meuble remplacé.
+Mesurer une pièce dans son panorama, puis chiffrer une modification à partir de la surface touchée. Tout reste calculé sur le Mac, sans coût (D22).
+
+### Étape 10 : dimensions des pièces
+
+- **Contenu :** dans la visionneuse, l'utilisateur pointe les coins de la pièce au plafond et au sol, en faisant le tour, et saisit une mesure réelle, par exemple la hauteur sous plafond : tourner sur soi-même ne donne pas l'échelle. L'outil en déduit le contour de la pièce, la longueur et la surface de chaque mur, et la surface au sol (D13). Le contour calculé est dessiné par-dessus le panorama pour qu'on voie s'il suit les murs. La pièce est enregistrée dans le dossier du point.
+- **Tests automatiques :** sur une pièce de synthèse aux dimensions connues, les directions de ses coins redonnent ses dimensions ; effet chiffré d'une erreur d'horizon ou de clic ; lecture et refus d'une fiche mal formée.
+- **Validation :** sur l'appartement du propriétaire, surface d'un mur à moins de 10 % de la mesure au mètre.
+- **À trancher pendant l'étape :** pièces rectangulaires seulement, ou forme libre ; mesure saisie (hauteur sous plafond ou longueur d'un mur) ; coins cachés par un meuble.
+
+### Étape 11 : chiffrage d'une modification
+
+- **Contenu :** surface touchée en m², multipliée par un prix unitaire tiré d'une grille modifiable (peinture, revêtement, pose). La surface vient des dimensions de l'étape 10 et de la sélection de l'étape 7.
+- **Validation :** ordre de grandeur cohérent avec un devis réel.
+- **À trancher avant l'étape :** source des prix ; chiffrage des modifications générées, comme un meuble remplacé ; déduction des portes et fenêtres de la surface d'un mur.
 
 ## Jalon v0.3 : validation du chiffrage par le propriétaire
 
