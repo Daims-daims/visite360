@@ -9,7 +9,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from visite360 import __version__, doctor, receive, serve, stitch
+from visite360 import __version__, chiffrage, doctor, receive, serve, stitch
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -103,6 +103,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=receive.DEFAULT_PORT,
         help=f"port du serveur (par défaut {receive.DEFAULT_PORT})",
     )
+    pricing_parser = subparsers.add_parser(
+        "chiffrage",
+        help="donne l'ordre de grandeur du prix des modifications d'une visite",
+        description=(
+            "Donne, pour chaque modification d'une visite (mur repeint, objet remplacé), une "
+            "fourchette de prix tirée de la grille tarifs.json de la visite, ou de la grille "
+            "indicative par défaut. Les surfaces viennent des pièces mesurées à l'adresse /agent."
+        ),
+    )
+    pricing_parser.add_argument(
+        "dossier", type=Path, help="dossier d'une visite (visites/<visite>/) ou d'un point"
+    )
     return parser
 
 
@@ -116,6 +128,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return stitch.run(args.dossier, args.largeur, args.force)
     if args.command == "serve":
         return serve.run(args.dossier, args.port, args.local, args.force)
+    if args.command == "chiffrage":
+        return chiffrage.run(args.dossier)
     if args.command == "receive":
         return receive.run(args.dossier, args.port)
     parser.print_help()
