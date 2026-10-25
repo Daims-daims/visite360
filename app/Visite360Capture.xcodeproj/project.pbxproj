@@ -8,10 +8,15 @@
 
 /* Begin PBXFileReference section */
 		5A0000000000000000000001 /* Visite360Capture.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Visite360Capture.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A0000000000000000000010 /* Visite360Capture.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Visite360Capture.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		5A0000000000000000000002 /* Visite360Capture */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Visite360Capture; sourceTree = "<group>"; };
+		5A0000000000000000000002 /* Visite360Capture */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Visite360Capture;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -28,6 +33,7 @@
 		5A0000000000000000000004 = {
 			isa = PBXGroup;
 			children = (
+				5A0000000000000000000010 /* Visite360Capture.xcconfig */,
 				5A0000000000000000000002 /* Visite360Capture */,
 				5A0000000000000000000005 /* Products */,
 			);
@@ -161,15 +167,16 @@
 		};
 		5A000000000000000000000E /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5A0000000000000000000010 /* Visite360Capture.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Visite360;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "La caméra prend les photos de chaque point de la visite.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -184,15 +191,16 @@
 		};
 		5A000000000000000000000F /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5A0000000000000000000010 /* Visite360Capture.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Visite360;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "La caméra prend les photos de chaque point de la visite.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

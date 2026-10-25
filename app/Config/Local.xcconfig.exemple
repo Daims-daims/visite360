@@ -1,0 +1,7 @@
+// Réglages propres à ce Mac, jamais dans le dépôt.
+//
+// Copier ce fichier en Local.xcconfig dans le même dossier, puis remplacer la valeur par
+// l'identifiant de son équipe de signature (dix caractères, visible dans Xcode : Settings,
+// Accounts, l'équipe « (Personal Team) » de son identifiant Apple).
+
+DEVELOPMENT_TEAM = ABCDE12345
