@@ -70,6 +70,28 @@
       background: conic-gradient(#e05a4f, #e0c14f, #5ac46a, #4fa3e0, #9b5ae0, #e05a4f); }
     #nuancier .perso input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
       border: 0; padding: 0; }
+    /* Étape 9 : remplacement d'un objet par génération d'image. */
+    #calque-cadre { position: fixed; inset: 0; z-index: 5; display: none; cursor: crosshair; touch-action: none; }
+    #cadre { position: absolute; display: none; border: 2px dashed #fff; background: rgba(77, 163, 255, .18);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, .35); pointer-events: none; }
+    #remplacement { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%);
+      margin: 12px 0; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .85); display: none;
+      flex-direction: column; gap: 8px; width: min(560px, calc(100vw - 24px)); box-sizing: border-box; font-size: 14px; }
+    #remplacement.haut { bottom: auto; top: 0; }
+    #remplacement label { display: flex; flex-direction: column; gap: 4px; color: #ccc; font-size: 13px; }
+    #remplacement textarea { font: inherit; padding: 6px 8px; border-radius: 6px; border: 0; background: #333; color: #fff;
+      resize: vertical; min-height: 3.2em; }
+    #remplacement .boutons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+    #remplacement button { padding: 8px 12px; border-radius: 8px; border: 0; background: #333; color: #fff; }
+    #remplacement button.principal { background: #4da3ff; }
+    #suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
+    #suggestions button { padding: 4px 8px; font-size: 12px; border-radius: 12px; background: #2a2a2a; }
+    #remplacement .note { color: #999; font-size: 12px; }
+    #suivi { position: fixed; z-index: 10; top: 52px; left: 50%; transform: translateX(-50%); margin: 0 12px;
+      padding: 8px 12px; border-radius: 8px; background: rgba(0, 0, 0, .75); font-size: 14px; display: none;
+      width: min(360px, calc(100vw - 48px)); box-sizing: border-box; text-align: center; }
+    #suivi .barre { height: 6px; margin-top: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+    #suivi .barre div { height: 100%; width: 0; background: #4da3ff; transition: width .6s ease; }
     .pastille { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border-radius: 3px;
       border: 1px solid #fff; vertical-align: -2px; }
   </style>
@@ -99,7 +121,24 @@
     </div>
     <div id="nuancier"></div>
   </div>
+  <div id="calque-cadre"><div id="cadre"></div></div>
+  <div id="remplacement">
+    <label>Que faire dans le cadre ? Dire l'objet et ce qu'il devient.
+      <textarea id="instruction" maxlength="200" rows="2"
+        placeholder="par exemple : Remplace le canapé gris par un canapé en velours vert"></textarea>
+    </label>
+    <div id="suggestions"></div>
+    <div class="note">Le modèle refait la vue autour du cadre, puis seul l'intérieur du cadre est gardé.
+      Environ 2 minutes sur le Mac : on peut continuer la visite pendant ce temps.</div>
+    <div class="boutons">
+      <button id="generer" class="principal">Générer</button>
+      <button id="renoncer-generation">Annuler</button>
+    </div>
+  </div>
+  <div id="suivi"><span id="suivi-texte"></span><div class="barre"><div id="suivi-barre"></div></div></div>
   <div id="outils">
+    <button id="transformer" hidden>Remplacer un objet</button>
+    <button id="mes-remplacements" hidden>Remplacements</button>
     <button id="choisir" hidden>Sélectionner une surface</button>
     <button id="mes-selections" hidden>Sélections</button>
     <button id="avant-apres" hidden>Voir l'original</button>
@@ -529,7 +568,7 @@
         const toggle = $("avant-apres");
         toggle.hidden = !(colors && colors.version) || state !== null;
         toggle.textContent = look.after ? "Voir l'original" : "Voir les modifications";
-        toggle.title = look.after ? "Montrer le panorama d'origine (avant)" : "Montrer les recolorations (après)";
+        toggle.title = look.after ? "Montrer le panorama d'origine (avant)" : "Montrer les modifications (après)";
       }
 
       // Remplace l'image de chaque scène selon le mode, et recharge la scène affichée si elle change.
@@ -555,7 +594,7 @@
       $("avant-apres").onclick = () => {
         look.after = !look.after;
         updateScenes();
-        say(look.after ? "Après : avec les recolorations." : "Avant : panorama d'origine.");
+        say(look.after ? "Après : avec les modifications." : "Avant : panorama d'origine.");
       };
 
       let trial = 0, timer = null;
@@ -710,6 +749,220 @@
       };
       document.addEventListener("keydown", (event) => { if (paint && event.key === "Escape") { endPaint(); say(""); } });
       updateToggle();
+
+      // Étape 9 : remplacement d'un objet. On trace un cadre sur la vue immobilisée ; le serveur
+      // découpe une vue centrée sur le cadre, le modèle la refait d'après la consigne (2 minutes
+      // environ, dans un fil à part), et seul l'intérieur du cadre entre dans le panorama modifié.
+      const frameLayer = $("calque-cadre"), frame = $("cadre");
+      let drawing = null, polling = null;
+      // Exemples d'instructions, à compléter : le modèle doit savoir quel objet est visé.
+      const SUGGESTIONS = [
+        "Remplace le … par un canapé en velours vert",
+        "Remplace le … par un fauteuil en tissu gris clair",
+        "Remplace le … par une bibliothèque en bois foncé",
+        "Retire complètement le … et ce qui est posé dessus, montre le sol et le mur vides",
+        "Ajoute une plante verte en pot",
+      ];
+      for (const text of SUGGESTIONS) {
+        const chip = document.createElement("button");
+        chip.textContent = text;
+        chip.onclick = () => {
+          const field = $("instruction");
+          field.value = text;
+          field.focus();
+          const hole = text.indexOf("…");
+          if (hole >= 0) field.setSelectionRange(hole, hole + 1);
+        };
+        $("suggestions").appendChild(chip);
+      }
+
+      // Vue carrée de l'écran, comme pour la sélection : même direction, champ couvrant l'écran.
+      function screenView() {
+        const rect = $("panorama").getBoundingClientRect();
+        const hfov = viewer.getHfov();
+        const vfov = 2 * Math.atan(Math.tan(toRad(hfov) / 2) * rect.height / rect.width) * 180 / Math.PI;
+        const fov = Math.min(Math.max(hfov, vfov), 120);
+        const scale = ((rect.width / 2) / Math.tan(toRad(hfov) / 2)) / (512 / Math.tan(toRad(fov) / 2));
+        return { cap: viewer.getYaw(), hauteur: viewer.getPitch(), champ: fov, size: 1024, rect, scale };
+      }
+      const toView = (view, x, y) => [
+        view.size / 2 + (x - view.rect.left - view.rect.width / 2) / view.scale,
+        view.size / 2 + (y - view.rect.top - view.rect.height / 2) / view.scale,
+      ];
+
+      function setDrawing(on) {
+        frameLayer.style.display = on ? "block" : "none";
+        $("outils").style.display = on ? "none" : "flex";
+        if (!on) { frame.style.display = "none"; $("remplacement").style.display = "none"; drawing = null; }
+      }
+
+      $("transformer").onclick = async () => {
+        if (state || paint) return;
+        const answer = await fetch("/api/generation").then((r) => r.json());
+        if (!answer.disponible) { say(answer.message); return; }
+        if (answer.travail && answer.travail.etat === "en_cours") {
+          say("Une génération est déjà en cours : attendre qu'elle finisse."); return;
+        }
+        drawing = { view: screenView(), start: null, box: null };
+        setDrawing(true);
+        say("Tracer un cadre autour de l'objet à remplacer, en le prenant en entier.");
+      };
+
+      frameLayer.addEventListener("pointerdown", (event) => {
+        if (!drawing) return;
+        event.preventDefault();
+        frameLayer.setPointerCapture(event.pointerId);
+        drawing.start = [event.clientX, event.clientY];
+        drawing.box = null;
+        $("remplacement").style.display = "none";
+      });
+      frameLayer.addEventListener("pointermove", (event) => {
+        if (!drawing || !drawing.start) return;
+        const [x0, y0] = drawing.start;
+        const left = Math.min(x0, event.clientX), top = Math.min(y0, event.clientY);
+        drawing.box = [left, top, Math.max(x0, event.clientX), Math.max(y0, event.clientY)];
+        Object.assign(frame.style, {
+          display: "block", left: left + "px", top: top + "px",
+          width: drawing.box[2] - left + "px", height: drawing.box[3] - top + "px",
+        });
+      });
+      frameLayer.addEventListener("pointerup", () => {
+        if (!drawing || !drawing.start) return;
+        drawing.start = null;
+        const box = drawing.box;
+        if (!box || box[2] - box[0] < 20 || box[3] - box[1] < 20) {
+          frame.style.display = "none";
+          say("Cadre trop petit : tracer un cadre autour de l'objet entier.");
+          return;
+        }
+        // Le panneau se met du côté où il ne cache pas le cadre.
+        $("remplacement").classList.toggle("haut", (box[1] + box[3]) / 2 > window.innerHeight / 2);
+        $("remplacement").style.display = "flex";
+        say($("remplacement").classList.contains("haut")
+          ? "" : "Écrire ce qu'il faut faire, puis Générer. On peut retracer le cadre.");
+        $("instruction").focus();
+      });
+
+      $("renoncer-generation").onclick = () => { setDrawing(false); say(""); };
+      document.addEventListener("keydown", (event) => {
+        if (drawing && event.key === "Escape") { setDrawing(false); say(""); }
+      });
+
+      $("generer").onclick = async () => {
+        if (!drawing || !drawing.box) return;
+        const view = drawing.view;
+        const [ax, ay] = toView(view, drawing.box[0], drawing.box[1]);
+        const [bx, by] = toView(view, drawing.box[2], drawing.box[3]);
+        const instruction = $("instruction").value.trim();
+        if (!instruction || instruction.includes("…")) {
+          say("Écrire ce qu'il faut faire, en nommant l'objet : « Remplace le canapé gris par… »."); return;
+        }
+        // Nom court pour la liste (80 caractères au plus côté serveur).
+        let name = instruction;
+        if (name.length > 60) name = name.slice(0, 59).trimEnd() + "…";
+        try {
+          await postJson("/api/generation/lancer", {
+            point: pointIndex(), cap: view.cap, hauteur: view.hauteur, champ: view.champ,
+            cadre: [ax, ay, bx, by], instruction, nom: name,
+          });
+          setDrawing(false);
+          say("");
+          follow();
+        } catch (error) {
+          say(error.message);
+        }
+      };
+
+      // Suivi de la génération en cours, par le serveur : passe après passe.
+      function follow() {
+        clearTimeout(polling);
+        const box = $("suivi");
+        const tick = async () => {
+          let job = null;
+          try { job = (await fetch("/api/generation").then((r) => r.json())).travail; } catch (error) { /* réessai */ }
+          if (!job) { polling = setTimeout(tick, 2000); return; }
+          if (job.etat === "en_cours") {
+            box.style.display = "block";
+            $("suivi-texte").textContent = "Génération : " + job.message + " · " + job.secondes + " s";
+            $("suivi-barre").style.width = Math.round(100 * job.passe / job.passes) + "%";
+            polling = setTimeout(tick, 1500);
+            return;
+          }
+          box.style.display = "none";
+          if (job.etat === "terminee") {
+            look.after = true;
+            await refreshColors(job.point);
+            say("« " + job.fiche.nom + " » : fait en " + job.secondes + " s. « Voir l'original » pour comparer.");
+          } else {
+            say(job.message.startsWith("Le modèle n'a presque rien changé")
+              ? job.message : "La génération a échoué : " + job.message);
+          }
+          refreshReplacements();
+        };
+        tick();
+      }
+
+      // Remplacements enregistrés du point affiché : refaire (autre essai), supprimer.
+      function replacements(index) {
+        const colors = look.colors[index];
+        return colors && colors.generations ? colors.generations : [];
+      }
+      function refreshReplacements() {
+        const index = pointIndex();
+        const count = index < 0 ? 0 : replacements(index).length;
+        $("mes-remplacements").textContent = "Remplacements (" + count + ")";
+        $("mes-remplacements").hidden = count === 0;
+      }
+      viewer.on("scenechange", refreshReplacements);
+
+      $("mes-remplacements").onclick = () => {
+        const box = $("liste");
+        if (box.style.display === "block") { box.style.display = "none"; return; }
+        const index = pointIndex();
+        box.replaceChildren();
+        for (const record of replacements(index)) {
+          const line = document.createElement("div");
+          line.className = "ligne";
+          const label = document.createElement("span");
+          label.textContent = record.nom;
+          const again = document.createElement("button");
+          again.textContent = "Refaire";
+          again.title = "Autre essai avec le même cadre et la même consigne (2 minutes environ)";
+          again.onclick = async () => {
+            try {
+              await postJson("/api/generation/refaire", { point: index, id: record.id });
+              box.style.display = "none";
+              follow();
+            } catch (error) {
+              say(error.message);
+            }
+          };
+          const remove = document.createElement("button");
+          remove.textContent = "Supprimer";
+          remove.onclick = async () => {
+            if (!window.confirm("Supprimer « " + record.nom + " » ? Le panorama d'origine ne change pas.")) return;
+            try {
+              await postJson("/api/generation/supprimer", { point: index, id: record.id });
+              box.style.display = "none";
+              await refreshColors(index);
+              refreshReplacements();
+              say("« " + record.nom + " » supprimé.");
+            } catch (error) {
+              say(error.message);
+            }
+          };
+          line.append(label, again, remove);
+          box.appendChild(line);
+        }
+        box.style.display = "block";
+      };
+
+      fetch("/api/generation").then((r) => r.json()).then((answer) => {
+        $("transformer").hidden = false;
+        if (!answer.disponible) $("transformer").title = answer.message;
+        if (answer.travail && answer.travail.etat === "en_cours") follow();
+      });
+      refreshReplacements();
 
       fetch("/api/selection").then((r) => r.json()).then((answer) => {
         $("choisir").hidden = false;

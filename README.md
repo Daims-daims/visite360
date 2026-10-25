@@ -27,7 +27,7 @@ ruff check .
 ruff format --check .
 ```
 
-`visite360 doctor` vérifie Python, OpenCV, la conversion des photos HEIC et, s'il est installé, SAM 2.1, et dit quoi installer s'il manque quelque chose.
+`visite360 doctor` vérifie Python, OpenCV, la conversion des photos HEIC et, s'ils sont installés, SAM 2.1 et FLUX.2 klein, et dit quoi installer s'il manque quelque chose.
 
 Pour photographier un point de la visite : [docs/prise-de-vue.md](docs/prise-de-vue.md). Avec l'app iPhone, qui guide la prise de vue : [docs/app.md](docs/app.md) (installation par câble depuis Xcode).
 
@@ -74,6 +74,16 @@ Les sélections sont enregistrées dans `visites/<visite>/<point>/modifications/
 
 Dans la liste **Sélections**, le bouton **Repeindre** change la couleur d'une surface sélectionnée, en gardant ses ombres et sa lumière. **Voir l'original** et **Voir les modifications** comparent avant et après. Rien à installer : c'est un calcul, sans IA. Mode d'emploi : [docs/couleur.md](docs/couleur.md).
 
+## Remplacer un objet
+
+Dans la visite, le bouton **Remplacer un objet** remplace un meuble encadré par ce qu'on décrit (« un canapé en velours vert »), avec le modèle d'IA FLUX.2 klein qui tourne sur le Mac. Environ 2 minutes par génération sur un MacBook Air M4. Il s'installe à part, une fois (15 Go) :
+
+```bash
+bash scripts/installer-generation.sh
+```
+
+Seul l'intérieur du cadre change, et le panorama d'origine reste intact. Mode d'emploi, temps et coût : [docs/generation.md](docs/generation.md).
+
 ## Organisation du dépôt
 
 ```
@@ -89,11 +99,12 @@ visite360/
 │   ├── visite-json.md  points et flèches d'une visite
 │   ├── selection.md   sélectionner une surface au clic, format des sélections
 │   ├── couleur.md     repeindre une surface, format des recolorations
+│   ├── generation.md  remplacer un objet, format, temps et coût
 │   ├── prise-de-vue.md  comment photographier un point
 │   └── ressources.md  ce qu'il faut lire ou regarder pour comprendre chaque étape
 ├── app/               app iPhone de capture guidée (SwiftUI, D25)
 ├── visionneuse/       page web de la visite et Pannellum
-├── scripts/           compilation d'OpenCV sans FFmpeg, installation de SAM 2.1
+├── scripts/           compilation d'OpenCV sans FFmpeg, installation de SAM 2.1 et de FLUX.2 klein
 ├── src/visite360/     le traitement en Python
 ├── tests/             tests automatiques
 ├── .github/           tests lancés à chaque pull request, modèle de pull request

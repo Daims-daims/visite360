@@ -27,7 +27,8 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | J1 | **Jalon v0.1 : validation de la visite par le propriétaire** | — | livrée |
 | 7 | Sélection d'une surface au clic | v0.2 | livrée |
 | 8 | Changement de couleur | v0.2 | livrée |
-| 9 | Modification par génération d'image, en local | v0.2 | à faire |
+| 9 | Modification par génération d'image, en local | v0.2 | livrée |
+| 9.5 | Essai : abattre une cloison | v0.2 | à faire |
 | J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | à faire |
 | 10 | Dimensions des pièces | v0.3 | à faire |
 | 11 | Chiffrage d'une modification | v0.3 | à faire |
@@ -122,6 +123,14 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 - **Tests automatiques :** découpage, report dans le panorama et pixels hors du masque inchangés, sur des images de synthèse. Le modèle est simulé.
 - **Validation :** sur de vrais panoramas, la modification est crédible vue dans la visite, sans raccord au bord de la zone modifiée.
 - **À trancher avant l'étape :** modèle utilisé. Code, poids et données d'entraînement doivent avoir une licence autorisée (`CLAUDE.md`), et beaucoup de modèles de génération d'image ont des poids non commerciaux. Le modèle doit aussi tenir dans les 24 Go du Mac. Si aucun modèle local ne convient, le propriétaire décide s'il accepte une API payante.
+- **Tranché le 2026-10-25 (D31) :** FLUX.2 [klein] 4B (Apache 2.0, données d'entraînement non publiées, risque accepté par le propriétaire), sur le Mac par mflux ; exemple retenu : remplacement d'un meuble ; la zone modifiée est un cadre tracé dans la vue, pas le masque de l'étape 7. Mode d'emploi, temps et coût dans `docs/generation.md`.
+
+### Étape 9.5 : essai, abattre une cloison
+
+- **Décision du propriétaire (2026-10-25) :** essai à mener une fois l'étape 9 validée. Il sort l'idée du « hors plan » le temps d'un essai, sans engager la suite.
+- **Contenu :** sur une ou deux cloisons de l'appartement du propriétaire, montrer la pièce voisine à la place du mur, par la génération de l'étape 9 avec en référence une vue de la pièce voisine prise dans son propre panorama.
+- **Validation :** le propriétaire juge si le rendu est assez crédible pour en faire une vraie étape. La reconstruction par la géométrie des pièces (étape 10) et le chiffrage d'une démolition restent hors de l'essai.
+- **Limite connue :** l'outil ne sait pas si un mur est porteur. Toute image de cloison abattue est une projection indicative.
 
 ## Jalon v0.2 : validation des modifications par le propriétaire
 
@@ -147,6 +156,7 @@ Les coûts d'hébergement et de traitement commencent ici, au moment du déploie
 - **Étape 13 : envoi depuis l'app et traitement sur serveur.** L'agent prend la visite, l'envoie, le serveur assemble et produit le lien à transmettre au client.
 - **Étape 14 : retours d'engagement pour l'agent.** Comptes agents. Statistiques par lien : ouvertures, durée, pièces vues, modifications essayées.
 - **À trancher :** hébergeur et coût mensuel ; consentement des clients au suivi de leur consultation (RGPD).
+- **Tranché le 2026-10-25 (D32) :** la génération d'image tourne sur du matériel loué par le projet, pas par une API de génération, pour la confidentialité des images. Temps d'allumage à optimiser à l'étape 13.
 
 ## Jalon v1 : présentation aux agents et premiers accès
 
@@ -158,4 +168,4 @@ Les coûts d'hébergement et de traitement commencent ici, au moment du déploie
 
 - Suivi de position entre les points par la réalité augmentée du téléphone, pour placer les liens tout seuls (D14).
 - Modèle 3D commun à toutes les pièces et propagation d'une modification d'un panorama à l'autre.
-- Abattre une cloison.
+- Abattre une cloison, au-delà de l'essai de l'étape 9.5.

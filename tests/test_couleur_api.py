@@ -47,7 +47,11 @@ def decode(body: bytes) -> np.ndarray:
 def test_full_color_round(server: ThreadingHTTPServer, folders: stitch.Folders) -> None:
     original = folders.panorama.read_bytes()
     status, body, _ = request(server, "/p/0/couleurs.json")
-    assert status == 200 and json.loads(body) == {"couleurs": [], "version": None}
+    assert status == 200 and json.loads(body) == {
+        "couleurs": [],
+        "generations": [],
+        "version": None,
+    }
     assert request(server, "/p/0/apres.jpg")[0] == 400
 
     trial = {"point": 0, "selection": "selection-1", "couleur": "#8fa58a"}

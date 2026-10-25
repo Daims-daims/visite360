@@ -14,12 +14,14 @@ Le format est décrit dans `docs/selection.md`.
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import math
 import os
 import re
 import secrets
+import sys
 import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -471,6 +473,22 @@ class Selector:
             token = secrets.token_hex(8)
             self._view = _OpenView(token, point, spec, image, panorama.shape[:2])
         return token
+
+    def release(self) -> None:
+        """Libère le modèle et la vue ouverte, pour rendre la mémoire avant une génération.
+
+        Le modèle sera rechargé à la prochaine sélection (quelques secondes).
+        """
+        with self._lock:
+            if self._segmenter is None:
+                return
+            self._segmenter = None
+            self._view = None
+            gc.collect()
+            # PyTorch garde la mémoire de la puce graphique en réserve tant qu'on ne la vide pas.
+            torch = sys.modules.get("torch")
+            if torch is not None and torch.backends.mps.is_available():
+                torch.mps.empty_cache()
 
     def _current(self, token: Any) -> _OpenView:
         view = self._view

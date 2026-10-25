@@ -37,6 +37,17 @@ Les licences changent : revérifier chaque ligne avant une mise en production.
 | typing_extensions 4.16.0 | Dépendance de PyTorch | PSF 2.0 (licence de Python) | Paquet Python facultatif | 2026-10-25 | LICENSE du paquet |
 | sympy 1.14.0, mpmath 1.3.0, networkx 3.7, Jinja2 3.1.6, MarkupSafe 3.0.4, fsspec 2026.9.0 | Dépendances de PyTorch | BSD | Paquets Python facultatifs | 2026-10-25 | LICENSE ou métadonnées de chaque paquet |
 | filelock 4.2.4, PyYAML 6.0.3, setuptools 84.2.1 | Dépendances de PyTorch et hydra-core | MIT | Paquets Python facultatifs | 2026-10-25 | LICENSE de chaque paquet |
+| mflux 0.23.0 | Fait tourner FLUX.2 klein sur la puce graphique du Mac (étape 9) | MIT | Programme externe facultatif, dans un environnement Python à part créé par `scripts/installer-generation.sh`, appelé sans shell | 2026-10-25 | métadonnées du paquet mflux 0.23.0 |
+| MLX 0.32.4, mlx-metal 0.32.4 (Apple) | Calcul sur la puce graphique, pour mflux | MIT | Paquets de l'environnement de génération | 2026-10-25 | métadonnées des paquets |
+| Poids FLUX.2 [klein] 4B, révision e7b7dc2 | Modèle de génération d'image (étape 9) | Apache 2.0 (« Open weights available for commercial use under the Apache 2.0 license ») | Téléchargés depuis huggingface.co/black-forest-labs/FLUX.2-klein-4B, empreintes vérifiées, rangés hors du dépôt dans `~/.cache/visite360/modeles/` | 2026-10-25 | fiche du modèle sur Hugging Face. Données d'entraînement : voir la remarque sur FLUX.2 klein |
+| transformers 5.20.2, huggingface_hub 1.33.0, hf-xet 1.7.0, tokenizers 0.23.3, safetensors 0.8.0, sentencepiece 0.2.2, requests 2.34.2 | Lecture de la consigne, téléchargement et lecture des poids, pour mflux | Apache 2.0 | Paquets de l'environnement de génération | 2026-10-25 | métadonnées de chaque paquet |
+| regex 2026.9.29 | Découpage de la consigne en mots, pour transformers | Apache 2.0 ; partie reprise du module `re` de Python sous CNRI Python 1.6 | Paquet de l'environnement de génération, sans modification | 2026-10-25 | LICENSE.txt du paquet |
+| packaging 26.3 | Dépendance de transformers | Apache 2.0 ou BSD 2 clauses | Paquet de l'environnement de génération | 2026-10-25 | métadonnées du paquet |
+| httpx 0.28.1, httpcore 1.0.9, idna 3.20, click 8.5.0, Pygments 2.21.0, protobuf 7.36.2, fsspec 2026.9.0, Jinja2 3.1.6, MarkupSafe 3.0.4, numpy 2.5.4 | Dépendances de huggingface_hub, transformers et mflux | BSD (numpy : voir sa ligne) | Paquets de l'environnement de génération | 2026-10-25 | métadonnées de chaque paquet |
+| anyio 4.15.1, h11 0.16.0, charset-normalizer 3.5.2, urllib3 2.8.0, piexif 1.1.3, platformdirs 4.13.5, rich 15.0.0, markdown-it-py 4.2.0, mdurl 0.1.2, toml 0.10.2, typer 0.27.3, annotated-doc 0.0.5, filelock 4.2.4, PyYAML 6.0.3 | Dépendances de mflux et huggingface_hub | MIT | Paquets de l'environnement de génération | 2026-10-25 | métadonnées de chaque paquet |
+| shellingham 1.5.4 | Dépendance de typer | ISC | Paquet de l'environnement de génération | 2026-10-25 | métadonnées du paquet |
+| certifi 2026.10.23 | Certificats pour le téléchargement des poids | MPL 2.0 | Paquet de l'environnement de génération, sans modification (D29) | 2026-10-25 | métadonnées du paquet |
+| Pillow 12.3.0, tqdm 4.70.1, typing_extensions 4.16.0 | Dépendances de mflux | MIT-CMU ; MPL 2.0 et MIT ; PSF 2.0 | Paquets de l'environnement de génération. Pillow 12.3 et non 13.0 : la 13.0 ne s'importe pas avec mflux sous Python 3.13 | 2026-10-25 | LICENSE de chaque paquet |
 
 ## Prévu par le plan
 
@@ -57,6 +68,9 @@ Remarques :
 - **SAM 2.1 est facultatif** : il n'est pas déclaré dans `pyproject.toml` et s'installe par `scripts/installer-sam2.sh`, aux versions de ce tableau. Sans lui, tout fonctionne sauf la sélection.
 - **PyTorch** embarque d'autres composants, listés dans son fichier LICENSE ; les licences déclarées par le paquet sont celles du tableau. Aucun n'est sous GPL.
 - **Licences ajoutées à la liste autorisée** le 2026-10-25 par le propriétaire (D29) : MIT-CMU, PSF 2.0, Boost (BSL-1.0), et MPL 2.0 pour une bibliothèque utilisée sans modifier ses fichiers.
+- **FLUX.2 klein et ses données d'entraînement** : code et poids sont sous Apache 2.0, mais Black Forest Labs ne publie pas les données d'entraînement. Sa fiche dit seulement qu'elles ont été filtrées contre les contenus illicites. Elles ne sont pas déclarées réservées à la recherche, mais elles sont inconnues. Risque accepté par écrit par le propriétaire le 2026-10-25 (D31). La fiche du modèle liste aussi des usages interdits (activité illégale, contenu trompeur ou frauduleux, entre autres) et conseille des filtres de contenu pour un service ouvert au public : à prévoir en v1.
+- **Environnement de génération** : il est séparé de celui du projet et installé sans résolution automatique (`pip --no-deps`), aux versions de `scripts/generation-requirements.txt`. mflux déclare aussi matplotlib (licence propre à matplotlib), opencv-python (embarque FFmpeg, voir la section Interdit) et hf-transfer : ils ne servent pas à l'édition d'image par klein et ne sont pas installés. mflux est appelé en ligne de commande, jamais importé par visite360.
+- **CNRI Python 1.6** (dans regex) : ajoutée à la liste autorisée le 2026-10-25 par le propriétaire, pour ce paquet utilisé sans modification (D31). C'est l'ancienne licence de Python, permissive, dont dérive la PSF 2.0.
 
 ## Interdit
 
@@ -70,6 +84,8 @@ Remarques :
 | FLUX [dev] auto-hébergé | Licence non commerciale. Passer par l'API payante ou une licence commerciale | 2026-10-09 |
 | Hunyuan3D | La licence communautaire Tencent exclut l'Union européenne | 2026-10-09 |
 | Depth Anything V2 Base, Large, Giant | CC BY-NC 4.0. La version Small est sous Apache 2.0 | 2026-10-09 |
+| FLUX.2 [klein] 9B, FLUX.2 [dev], FLUX.1 Fill [dev] | Licence non commerciale de Black Forest Labs. Seul klein 4B est sous Apache 2.0 | 2026-10-25 |
+| LaMa (poids publiés) | Code sous Apache 2.0, poids entraînés sur Places365, réservé à la recherche et à l'enseignement | 2026-10-25 |
 | MobileSAM (poids) | Code sous Apache 2.0, mais poids entraînés par un tiers sur 1 % des images de SA-1B, réservées à la recherche. Même cas que ZInD | 2026-10-25 |
 
 ## Zone grise, à éviter sans vérification complète
@@ -78,6 +94,9 @@ Remarques :
 |---|---|---|
 | HorizonNet | Code sous MIT. Poids publiés entraînés sur des jeux de données dont ZInD et Structured3D, à licence restrictive ou non vérifiée | 2026-10-22 |
 | LGT-Net | Même situation que HorizonNet | 2026-10-22 |
+| Stable Diffusion (versions de remplissage d'une zone) | Licence OpenRAIL, hors de la liste autorisée, avec des restrictions d'usage ; entraîné sur LAION, contesté | 2026-10-25 |
+| FLUX.3 image klein | Licence « other » et accès sur demande, non lue en détail ; 43 Go | 2026-10-25 |
+| Qwen-Image-Edit-2511 | Code et poids sous Apache 2.0, données d'entraînement non publiées, comme FLUX.2 klein. Non retenu : 20 milliards de paramètres, trop lourd pour le Mac (D31) | 2026-10-25 |
 
 ## Brevets
 

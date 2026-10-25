@@ -186,6 +186,22 @@ def test_hugin_present(monkeypatch: pytest.MonkeyPatch) -> None:
     assert doctor.check_hugin().ok
 
 
+def test_generation_absent_is_optional(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(doctor.generation, "missing", lambda: "mflux absent")
+
+    result = doctor.check_generation()
+
+    assert not result.ok
+    assert not result.required
+    assert result.hint and "installer-generation.sh" in result.hint
+
+
+def test_generation_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(doctor.generation, "missing", lambda: None)
+
+    assert doctor.check_generation().ok
+
+
 def test_report_all_ok() -> None:
     out = io.StringIO()
     results = [doctor.CheckResult("Python", True, True, "3.13.0")]
