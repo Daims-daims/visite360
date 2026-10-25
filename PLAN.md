@@ -6,12 +6,12 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 
 - Statuts : **à faire**, **en cours**, **livrée**.
 - Une étape passe à « livrée » dans le dernier commit de sa pull request. Sur `main`, « livrée » signifie donc fusionnée et validée par le propriétaire du dépôt.
-- Une étape ne démarre que si la précédente est « livrée » sur `main`.
+- Une étape ne démarre que si la précédente est « livrée » sur `main`. Seule exception : l'étape 12 avance en parallèle de la v0.3 (D35).
 - Un jalon est une décision du propriétaire, pas du code. Il s'inscrit dans ce fichier avant qu'on passe à la suite.
 - Chaque étape a un critère de validation à vérifier sur le Mac ou le téléphone. Les tests automatiques ne le remplacent pas.
-- Tout fonctionne en local jusqu'à la v1 : traitement sur le Mac, visite servie par le Mac, aucun hébergement ni service payant (D22). Aucun utilisateur extérieur n'a accès au produit avant la v1.
+- Tout fonctionne en local jusqu'à la v1 : traitement sur le Mac, visite servie par le Mac, aucun hébergement ni service payant (D22). Exception : à partir de l'étape 12, une visite peut être publiée en fichiers statiques chez Scaleway (D35). Aucun utilisateur extérieur n'a accès au produit avant le jalon v1.
 - Les jalons v0.1, v0.2 et v0.3 sont validés par le propriétaire seul. La première présentation à des agents immobiliers a lieu au jalon v1, une fois la v1 réalisée (D28).
-- La version v1 est esquissée. Elle sera détaillée dans une pull request dédiée après le jalon v0.3.
+- La version v1 est esquissée. L'étape 12 est détaillée (D35) ; les étapes 13 et 14 le seront dans une pull request dédiée après le jalon v0.3.
 
 ## Vue d'ensemble
 
@@ -148,20 +148,27 @@ Mesurer une pièce dans son panorama, puis chiffrer une modification à partir d
 - **Contenu :** surface touchée en m², multipliée par un prix unitaire tiré d'une grille modifiable (peinture, revêtement, pose). La surface vient des dimensions de l'étape 10 et de la sélection de l'étape 7.
 - **Validation :** ordre de grandeur cohérent avec un devis réel.
 - **À trancher avant l'étape :** source des prix ; chiffrage des modifications générées, comme un meuble remplacé ; déduction des portes et fenêtres de la surface d'un mur.
-- **Tranché le 2026-10-26 (D35) :** un ordre de grandeur en fourchette, pas un devis ; grille indicative par défaut aux prix relevés dans des guides de travaux, sources citées, remplaçable par l'agent visite par visite ; seule la surface sélectionnée est chiffrée, portes et fenêtres laissées hors de la sélection exclues d'elles-mêmes ; objet remplacé chiffré au forfait selon son type, reconnu dans la demande de génération et corrigeable par l'agent. Mode d'emploi, sources et précision dans `docs/chiffrage.md`.
+- **Tranché le 2026-10-26 (D36) :** un ordre de grandeur en fourchette, pas un devis ; grille indicative par défaut aux prix relevés dans des guides de travaux, sources citées, remplaçable par l'agent visite par visite ; seule la surface sélectionnée est chiffrée, portes et fenêtres laissées hors de la sélection exclues d'elles-mêmes ; objet remplacé chiffré au forfait selon son type, reconnu dans la demande de génération et corrigeable par l'agent. Mode d'emploi, sources et précision dans `docs/chiffrage.md`.
 
 ## Jalon v0.3 : validation du chiffrage par le propriétaire
 
-- **Décision :** le propriétaire décide du passage à la v1, qui engage les premiers coûts d'hébergement, et l'écrit ici.
+- **Décision :** le propriétaire décide de la suite de la v1 (étapes 13 et 14) et l'écrit ici. Les premiers coûts d'hébergement commencent dès l'étape 12, menée en parallèle (D35).
 
 ## v1 : partage et retours pour l'agent (esquisse)
 
-Les coûts d'hébergement et de traitement commencent ici, au moment du déploiement (D22).
+Les coûts d'hébergement commencent à l'étape 12, ceux du traitement à l'étape 13 (D22, D35).
 
-- **Étape 12 : hébergement et lien de partage.** Une visite est publiée et consultable par un lien difficile à deviner, sans installer d'app.
+### Étape 12 : hébergement et lien de partage
+
+- **Lancée en parallèle de la v0.3 (D35)**, sans attendre l'étape 11 ni le jalon v0.3.
+- **Contenu :** la commande `visite360 publier <visite>` dépose chez Scaleway (stockage de fichiers, région Paris) la visionneuse, `visite.json` et les panoramas, et affiche le lien. Le lien contient un long identifiant tiré au hasard. N'importe quel téléphone ou ordinateur ouvre la visite dans son navigateur, sans app ni compte, et passe d'un point à l'autre. `visite360 depublier <visite>` supprime tout ce qui est en ligne. Relancer `publier` n'envoie que ce qui a changé et garde le même lien. La visionneuse gagne un mode en lecture seule à adresses relatives. Pas de modifications, de chiffrage ni de mode `/agent` en ligne : ils viendront avec l'étape 13.
+- **Tests automatiques :** liste des fichiers publiés à partir d'une visite de synthèse, sans photo d'origine ni fichier de travail ; identifiant de taille suffisante et stable d'une publication à l'autre ; message clair en français sans clés d'accès ou sans réseau ; envois et suppressions vérifiés contre un faux stockage, sans appel réel à Scaleway.
+- **Validation :** sur un téléphone en 4G, hors du Wi-Fi du Mac, le lien ouvre la visite de l'appartement du propriétaire et la navigation fonctionne ; un lien modifié d'un caractère n'affiche rien ; la liste des visites n'est pas consultable ; après `depublier`, le lien n'affiche plus rien ; temps d'ouverture du premier panorama noté.
+- **Tranché le 2026-10-26 (D35) :** hébergeur Scaleway, fichiers statiques sans serveur, identifiant aléatoire, publication depuis le Mac, conservation jusqu'à dépublication, visite sans modifications.
+- **À trancher pendant l'étape :** adresse des liens (nom de domaine du projet ou adresse fournie par Scaleway) ; services Scaleway exacts et coût mensuel estimé ; taille des panoramas envoyés ; bibliothèque d'envoi des fichiers et sa licence ; rangement des clés d'accès sur le Mac.
 - **Étape 13 : envoi depuis l'app et traitement sur serveur.** L'agent prend la visite, l'envoie, le serveur assemble et produit le lien à transmettre au client.
 - **Étape 14 : retours d'engagement pour l'agent.** Comptes agents. Statistiques par lien : ouvertures, durée, pièces vues, modifications essayées.
-- **À trancher :** hébergeur et coût mensuel ; consentement des clients au suivi de leur consultation (RGPD).
+- **À trancher :** coût mensuel (hébergeur tranché : Scaleway, D35) ; consentement des clients au suivi de leur consultation (RGPD).
 - **Tranché le 2026-10-25 (D32) :** la génération d'image tourne sur du matériel loué par le projet, pas par une API de génération, pour la confidentialité des images. Temps d'allumage à optimiser à l'étape 13.
 
 ### Étape 9.5 : essai, abattre une cloison

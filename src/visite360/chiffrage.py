@@ -1,4 +1,4 @@
-"""Étape 11 : ordre de grandeur du prix des modifications d'une visite (D35).
+"""Étape 11 : ordre de grandeur du prix des modifications d'une visite (D36).
 
 Le but n'est pas un devis mais un ordre d'idée : chaque prix est une fourchette, basse et haute,
 tirée d'une grille modifiable (`tarifs.json` dans le dossier de la visite, sinon la grille par

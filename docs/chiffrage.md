@@ -1,6 +1,6 @@
 # Chiffrer les modifications d'une visite
 
-Étape 11. Pour chaque modification d'une visite, l'outil donne **un ordre de grandeur du prix, en fourchette**. Une modification, c'est un mur repeint (étape 8) ou un objet remplacé (étape 9). Ce n'est pas un devis : le but est de dire au client « plutôt 300 € » ou « plutôt 3 000 € » (D35).
+Étape 11. Pour chaque modification d'une visite, l'outil donne **un ordre de grandeur du prix, en fourchette**. Une modification, c'est un mur repeint (étape 8) ou un objet remplacé (étape 9). Ce n'est pas un devis : le but est de dire au client « plutôt 300 € » ou « plutôt 3 000 € » (D36).
 
 ## Ce qu'il faut avant
 
