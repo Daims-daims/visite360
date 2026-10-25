@@ -29,7 +29,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 8 | Changement de couleur | v0.2 | livrée |
 | 9 | Modification par génération d'image, en local | v0.2 | livrée |
 | J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | livrée |
-| 10 | Dimensions des pièces | v0.3 | à faire |
+| 10 | Dimensions des pièces | v0.3 | en cours |
 | 11 | Chiffrage d'une modification | v0.3 | à faire |
 | J3 | **Jalon v0.3 : validation du chiffrage par le propriétaire** | — | à faire |
 | 12 | Hébergement et lien de partage | v1 | à faire |
