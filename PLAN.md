@@ -28,6 +28,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 7 | Sélection d'une surface au clic | v0.2 | livrée |
 | 8 | Changement de couleur | v0.2 | livrée |
 | 9 | Modification par génération d'image, en local | v0.2 | en cours |
+| 9.5 | Essai : abattre une cloison | v0.2 | à faire |
 | J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | à faire |
 | 10 | Dimensions des pièces | v0.3 | à faire |
 | 11 | Chiffrage d'une modification | v0.3 | à faire |
@@ -123,6 +124,13 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 - **Validation :** sur de vrais panoramas, la modification est crédible vue dans la visite, sans raccord au bord de la zone modifiée.
 - **À trancher avant l'étape :** modèle utilisé. Code, poids et données d'entraînement doivent avoir une licence autorisée (`CLAUDE.md`), et beaucoup de modèles de génération d'image ont des poids non commerciaux. Le modèle doit aussi tenir dans les 24 Go du Mac. Si aucun modèle local ne convient, le propriétaire décide s'il accepte une API payante.
 
+### Étape 9.5 : essai, abattre une cloison
+
+- **Décision du propriétaire (2026-10-25) :** essai à mener une fois l'étape 9 validée. Il sort l'idée du « hors plan » le temps d'un essai, sans engager la suite.
+- **Contenu :** sur une ou deux cloisons de l'appartement du propriétaire, montrer la pièce voisine à la place du mur, par la génération de l'étape 9 avec en référence une vue de la pièce voisine prise dans son propre panorama.
+- **Validation :** le propriétaire juge si le rendu est assez crédible pour en faire une vraie étape. La reconstruction par la géométrie des pièces (étape 10) et le chiffrage d'une démolition restent hors de l'essai.
+- **Limite connue :** l'outil ne sait pas si un mur est porteur. Toute image de cloison abattue est une projection indicative.
+
 ## Jalon v0.2 : validation des modifications par le propriétaire
 
 - **Contenu :** la visite du jalon v0.1 avec un mur repeint et au moins une modification générée, jugée par le propriétaire.
@@ -158,4 +166,4 @@ Les coûts d'hébergement et de traitement commencent ici, au moment du déploie
 
 - Suivi de position entre les points par la réalité augmentée du téléphone, pour placer les liens tout seuls (D14).
 - Modèle 3D commun à toutes les pièces et propagation d'une modification d'un panorama à l'autre.
-- Abattre une cloison.
+- Abattre une cloison, au-delà de l'essai de l'étape 9.5.
