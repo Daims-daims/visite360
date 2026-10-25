@@ -10,10 +10,17 @@ Deux temps :
    ce rayon, rien ne bouge.
 2. **Repeindre en lumière linéaire.** Les valeurs d'un JPEG sont compressées pour l'œil ; on les
    ramène d'abord à la quantité de lumière reçue par le capteur. Chaque pixel du mur y vaut
-   « couleur de la peinture × éclairage reçu ». On divise par la couleur typique du mur (sa
-   médiane, canal par canal), ce qui laisse l'éclairage seul, avec ses ombres, ses reflets et la
-   teinte des lampes, puis on multiplie par la couleur choisie. Le changement s'adoucit sur deux
-   pixels à l'intérieur du contour.
+   « couleur de la peinture × éclairage reçu ». On divise par la couleur de peinture actuelle du
+   mur, ce qui laisse l'éclairage seul, avec ses ombres, ses reflets et la teinte des lampes, puis
+   on multiplie par la couleur de peinture choisie. Le changement s'adoucit sur deux pixels à
+   l'intérieur du contour.
+
+La couleur choisie est celle du pot de peinture, pas celle qu'aura le mur sur la photo : un mur
+blanc paraît gris-beige sur une photo, et repeint en vert sauge il paraîtra plus sombre que la
+pastille, comme un vrai mur. Il faut donc connaître la couleur actuelle du mur : blanc par
+défaut, une autre couleur si on la connaît, ou « comme sur la photo » (la couleur typique du mur
+sur la photo, sa médiane canal par canal) quand on ne la connaît pas. Dans ce dernier cas, la
+couleur choisie est celle qu'aura le mur sur la photo.
 
 Une recoloration est une opération enregistrée dans `<point>/modifications/` (D9) : une fiche
 `couleur-<n>.json` qui désigne une sélection de l'étape 7 et la couleur choisie. Le panorama
@@ -41,7 +48,12 @@ from visite360.opencv import load_cv2
 
 FORMAT_VERSION = 1
 # À augmenter quand le calcul change : les panoramas modifiés déjà fabriqués sont alors refaits.
-ALGORITHM_VERSION = 2
+ALGORITHM_VERSION = 3
+# Couleur de peinture supposée d'un mur dont on ne dit rien : un blanc mat ordinaire.
+DEFAULT_CURRENT = "#f4f4f0"
+DEFAULT_CURRENT_RGB = (0xF4, 0xF4, 0xF0)
+# Couleur actuelle « comme sur la photo » : la médiane du mur sur la photo.
+FROM_PHOTO = "photo"
 ID_PATTERN = re.compile(r"^couleur-(\d+)$")
 HEX_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 # Rayon de l'accrochage du contour aux bords, en degrés de panorama (32 pixels sur 8192).
@@ -59,6 +71,21 @@ MAX_SHADE = 40
 
 class ColorError(Exception):
     """Demande de recoloration invalide, ou recoloration introuvable."""
+
+
+def parse_current(value: Any) -> tuple[int, int, int] | None:
+    """Lit la couleur actuelle d'un mur : « #rrggbb », ou « photo » (renvoie `None`).
+
+    Absente, c'est le blanc par défaut.
+    """
+    if value is None:
+        value = DEFAULT_CURRENT
+    if value == FROM_PHOTO:
+        return None
+    try:
+        return parse_color(value)
+    except ColorError:
+        raise ColorError("Couleur actuelle invalide : « #rrggbb » ou « photo » attendu.") from None
 
 
 def parse_color(value: Any) -> tuple[int, int, int]:
@@ -121,9 +148,16 @@ def snap_mask(image: np.ndarray, mask: np.ndarray, radius: int) -> np.ndarray:
 
 
 def recolor(
-    image: np.ndarray, mask: np.ndarray, rgb: tuple[int, int, int], snap: bool = True
+    image: np.ndarray,
+    mask: np.ndarray,
+    rgb: tuple[int, int, int],
+    snap: bool = True,
+    current: tuple[int, int, int] | None = DEFAULT_CURRENT_RGB,
 ) -> np.ndarray:
     """Repeint la surface `mask` (uint8, blanc = sélectionné) de `image` (BGR) en `rgb`.
+
+    `rgb` est la couleur de peinture choisie et `current` la couleur de peinture actuelle de la
+    surface (`None` : la couleur typique de la surface sur la photo).
 
     Renvoie une nouvelle image ; `image` n'est pas modifiée. Avec `snap`, le contour est d'abord
     recalé sur les bords de la photo (voir `snap_mask`) : seuls les pixels à moins de
@@ -145,7 +179,10 @@ def recolor(
     inside = selected[top:bottom, left:right]
 
     linear = _to_linear(crop.astype(np.float32) / 255.0)
-    reference = np.maximum(np.median(linear[inside], axis=0), 1e-4)
+    if current is None:
+        reference = np.maximum(np.median(linear[inside], axis=0), 1e-4)
+    else:
+        reference = np.maximum(_to_linear(np.array(current[::-1], np.float32) / 255.0), 1e-4)
     target = _to_linear(np.array(rgb[::-1], dtype=np.float32) / 255.0)
     painted = _to_srgb(linear / reference * target) * 255.0
 
@@ -213,15 +250,19 @@ def _check_selection(point: Path, selection_id: Any) -> str:
     return selection_id
 
 
-def save(point: Path, selection_id: Any, color: Any, shade: Any = None) -> dict[str, Any]:
+def save(
+    point: Path, selection_id: Any, color: Any, shade: Any = None, current: Any = None
+) -> dict[str, Any]:
     """Repeint une sélection et renvoie la fiche de l'opération.
 
+    `current` est la couleur actuelle de la surface (« #rrggbb » ou « photo », blanc si absente).
     `shade` est le nom de la teinte du nuancier (« Vert sauge »), absent pour une couleur
     personnalisée. Une sélection n'a qu'une couleur : la repeindre remplace sa recoloration
     précédente, qui garde son numéro et donc sa place dans l'ordre d'application.
     """
     selection_id = _check_selection(point, selection_id)
     parse_color(color)
+    parse_current(current)
     if shade is not None and (not isinstance(shade, str) or len(shade.strip()) > MAX_SHADE):
         raise ColorError("Nom de teinte invalide.")
     folder = point / selection.FOLDER
@@ -237,6 +278,7 @@ def save(point: Path, selection_id: Any, color: Any, shade: Any = None) -> dict[
         "selection": selection_id,
         "couleur": color.lower(),
         **({"teinte": shade.strip()} if shade and shade.strip() else {}),
+        "couleur_actuelle": (current or DEFAULT_CURRENT).lower(),
         "creee_le": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
     selection.write_atomic(
@@ -263,28 +305,39 @@ def delete_for_selection(point: Path, selection_id: str) -> None:
             (point / selection.FOLDER / f"{op.record['id']}.json").unlink(missing_ok=True)
 
 
-def apply(image: np.ndarray, ops: Sequence[tuple[np.ndarray, tuple[int, int, int]]]) -> np.ndarray:
-    """Applique des recolorations (masque, couleur) dans l'ordre. Un masque est mis à l'échelle
-    de l'image s'il le faut."""
+Color = tuple[int, int, int]
+Paint = tuple[np.ndarray, Color, Color | None]
+
+
+def apply(image: np.ndarray, ops: Sequence[Paint]) -> np.ndarray:
+    """Applique des recolorations (masque, couleur choisie, couleur actuelle) dans l'ordre. Un
+    masque est mis à l'échelle de l'image s'il le faut."""
     cv2 = load_cv2()
     height, width = image.shape[:2]
     out = image
-    for mask, rgb in ops:
+    for mask, rgb, current in ops:
         if mask.shape != (height, width):
             mask = cv2.resize(mask, (width, height), interpolation=cv2.INTER_AREA)
             mask = np.where(mask >= 128, 255, 0).astype(np.uint8)
-        out = recolor(out, mask, rgb)
+        out = recolor(out, mask, rgb, current=current)
     return out
 
 
-def _load_masks(ops: Sequence[Operation]) -> list[tuple[np.ndarray, tuple[int, int, int]]]:
+def _load_masks(ops: Sequence[Operation]) -> list[Paint]:
     cv2 = load_cv2()
     loaded = []
     for op in ops:
         mask = cv2.imread(str(op.mask_path), cv2.IMREAD_GRAYSCALE)
         if mask is None:
             raise ColorError(f"Masque illisible : {op.mask_path}")
-        loaded.append((mask, parse_color(op.record.get("couleur"))))
+        record = op.record
+        loaded.append(
+            (
+                mask,
+                parse_color(record.get("couleur")),
+                parse_current(record.get("couleur_actuelle")),
+            )
+        )
     return loaded
 
 
@@ -322,13 +375,16 @@ def signature(panorama: Path, ops: Sequence[Operation]) -> str | None:
     return digest.hexdigest()[:16]
 
 
-def preview(panorama: Path, point: Path, selection_id: Any, color: Any, width: int) -> bytes:
+def preview(
+    panorama: Path, point: Path, selection_id: Any, color: Any, width: int, current: Any = None
+) -> bytes:
     """Panorama réduit à `width` avec les recolorations du point et l'essai demandé (JPEG).
 
     L'essai remplace la couleur actuelle de la sélection, s'il y en a une. Rien n'est enregistré.
     """
     selection_id = _check_selection(point, selection_id)
     rgb = parse_color(color)
+    known = parse_current(current)
     ops = [op for op in operations(point) if op.record["selection"] != selection_id]
     trial_mask = point / selection.FOLDER / f"{selection_id}.png"
     loaded = _load_masks(ops)
@@ -336,7 +392,7 @@ def preview(panorama: Path, point: Path, selection_id: Any, color: Any, width: i
     mask = cv2.imread(str(trial_mask), cv2.IMREAD_GRAYSCALE)
     if mask is None:
         raise ColorError(f"Masque illisible : {trial_mask}")
-    return _encode(apply(_read_panorama(panorama, width), [*loaded, (mask, rgb)]))
+    return _encode(apply(_read_panorama(panorama, width), [*loaded, (mask, rgb, known)]))
 
 
 class Painter:

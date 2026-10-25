@@ -8,7 +8,8 @@
 2. Sélectionner la surface si ce n'est pas déjà fait (**Sélectionner une surface**).
 3. **Sélections**, puis **Repeindre** sur la ligne de la surface.
 4. Choisir une teinte dans le nuancier, en bas de l'écran. Les teintes sont rangées par famille (blancs, gris, beiges, verts, bleus, roses) ; passer la souris sur une pastille donne son nom. La case **+** de « Sur mesure » ouvre un sélecteur libre pour n'importe quelle autre couleur. Un aperçu du panorama entier s'affiche au bout d'une seconde environ : on peut tourner autour pour juger.
-5. **Appliquer** enregistre la couleur. **Annuler** ou la touche Échap reviennent à la visite sans rien enregistrer.
+5. Si le mur n'est pas blanc aujourd'hui, l'indiquer dans **Couleur actuelle du mur** : **Autre couleur…** pour donner sa couleur, ou **Je ne sais pas (comme sur la photo)**. Voir plus bas pourquoi.
+6. **Appliquer** enregistre la couleur. **Annuler** ou la touche Échap reviennent à la visite sans rien enregistrer.
 
 Une fois la couleur appliquée, la visite montre le panorama modifié, sur le Mac comme sur le téléphone. Le bouton **Voir l'original** montre le panorama d'origine, et **Voir les modifications** y revient : c'est la comparaison avant et après.
 
@@ -22,7 +23,17 @@ La première ouverture après un changement prend quelques secondes : le serveur
 ## Comment c'est calculé
 
 1. **Le contour est recalé sur les bords réels.** Le contour de l'étape 7 suit mal un bord peu marqué (porte blanche sur mur blanc) et, reporté dans le panorama, il est agrandi en marches d'escalier. Un « filtre guidé » le recale sur le bord visible le plus proche de la photo (ligne d'ombre, cadre de porte, angle avec le plafond), dans un rayon de 1,4° (32 pixels sur un panorama de 8192). Au-delà, rien ne change. La sélection enregistrée n'est pas modifiée : le recalage est refait à chaque calcul.
-2. **La couleur est changée en lumière linéaire.** Les valeurs d'une photo sont compressées pour l'œil ; on les ramène à la quantité de lumière reçue. Un pixel du mur vaut alors « couleur de la peinture × éclairage ». On divise par la couleur typique du mur, ce qui laisse l'éclairage seul (ombres, reflets, teinte chaude d'une lampe), puis on multiplie par la couleur choisie. C'est ce que ferait la lumière sur un mur vraiment repeint.
+2. **La couleur est changée en lumière linéaire.** Les valeurs d'une photo sont compressées pour l'œil ; on les ramène à la quantité de lumière reçue. Un pixel du mur vaut alors « couleur de la peinture × éclairage ». On divise par la couleur de peinture actuelle du mur, ce qui laisse l'éclairage seul (ombres, reflets, teinte chaude d'une lampe), puis on multiplie par la couleur de peinture choisie. C'est ce que ferait la lumière sur un mur vraiment repeint.
+
+### Couleur de peinture, couleur actuelle du mur
+
+La teinte choisie est celle du pot de peinture, pas celle qu'aura le mur sur la photo. Un mur blanc paraît gris-beige sur une photo prise à l'intérieur (environ `#cac1b6` sur le mur de la cuisine de `appart-x1`) : repeint en « Bleu gris », il paraîtra plus sombre que la pastille, comme le serait un vrai mur sous la même lumière. Repeindre un mur blanc en « Blanc pur » ne change rien.
+
+Pour cela, l'outil doit connaître la couleur de peinture actuelle du mur :
+
+- **Blanc** (par défaut) : le cas de la plupart des murs.
+- **Autre couleur…** : si le mur est déjà peint d'une couleur connue. Une couleur actuelle mal donnée décale le résultat : un mur crème déclaré blanc ressortira un peu trop jaune.
+- **Je ne sais pas (comme sur la photo)** : l'outil prend la couleur du mur sur la photo. La teinte choisie est alors celle qu'aura le mur **sur la photo**, et plus celle du pot : le mur paraît plus clair que dans la réalité.
 3. **Le bord s'adoucit** sur deux pixels à l'intérieur du contour recalé.
 
 ## Ce qui marche bien, ce qui marche mal
@@ -48,6 +59,7 @@ Dans le dossier du point, `visites/<visite>/<point>/modifications/`, une fiche p
   "selection": "selection-2",
   "couleur": "#a3b09a",
   "teinte": "Vert sauge",
+  "couleur_actuelle": "#f4f4f0",
   "creee_le": "2026-10-25T16:20:03+02:00"
 }
 ```
@@ -55,6 +67,7 @@ Dans le dossier du point, `visites/<visite>/<point>/modifications/`, une fiche p
 - `selection` : la sélection repeinte. Son masque `selection-2.png` dit quels pixels changent.
 - `couleur` : la couleur choisie, en code hexadécimal (rouge, vert, bleu).
 - `teinte` : le nom de la teinte du nuancier. Absent pour une couleur choisie sur mesure.
+- `couleur_actuelle` : la couleur de peinture du mur avant modification, `#f4f4f0` (blanc) par défaut, ou `photo` pour « comme sur la photo ».
 - Le numéro de `id` donne l'ordre d'application.
 
 Le panorama modifié est une image fabriquée à partir du panorama d'origine et de ces fiches. Il est rangé dans `cache/` du point : `apres.jpg`, sa copie réduite pour téléphone `apres-mobile.jpg`, et `apres.json`, qui sert à savoir s'il est à jour. Ces trois fichiers peuvent être effacés sans risque : ils sont refaits à la demande. Le panorama d'origine n'est jamais modifié (D9).

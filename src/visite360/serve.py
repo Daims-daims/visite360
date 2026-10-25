@@ -334,11 +334,16 @@ def handle_color(
             body.get("selection"),
             body.get("couleur"),
             MOBILE_WIDTH,
+            body.get("actuelle"),
         )
         return image, "image/jpeg"
     if route == "appliquer":
         result: Any = couleur.save(
-            folders.point, body.get("selection"), body.get("couleur"), body.get("teinte")
+            folders.point,
+            body.get("selection"),
+            body.get("couleur"),
+            body.get("teinte"),
+            body.get("actuelle"),
         )
     elif route == "annuler":
         couleur.delete(folders.point, body.get("id"))

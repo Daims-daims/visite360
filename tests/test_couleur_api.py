@@ -37,6 +37,9 @@ def server(folders: stitch.Folders) -> Iterator[ThreadingHTTPServer]:
     running.server_close()
 
 
+TRIAL = {"point": 0, "selection": "selection-1", "couleur": "#8fa58a"}
+
+
 def decode(body: bytes) -> np.ndarray:
     return cv2.imdecode(np.frombuffer(body, np.uint8), cv2.IMREAD_COLOR)
 
@@ -77,6 +80,7 @@ def test_palette_is_served_and_shade_is_saved(server: ThreadingHTTPServer) -> No
     status, body, _ = request(server, "/api/couleur/appliquer", {**trial, "teinte": first["nom"]})
 
     assert status == 200 and json.loads(body)["teinte"] == first["nom"]
+    assert json.loads(body)["couleur_actuelle"] == "#f4f4f0"
     state = json.loads(request(server, "/p/0/couleurs.json")[1])
     assert state["couleurs"][0]["teinte"] == first["nom"]
 
@@ -111,6 +115,8 @@ def test_deleting_a_selection_removes_its_color(
         ),
         ("/api/couleur/annuler", {"point": 0, "id": "couleur-1"}, 400),
         ("/api/couleur/annuler", {"point": 0, "id": "../visite.json"}, 400),
+        ("/api/couleur/apercu", {**TRIAL, "actuelle": "bleu"}, 400),
+        ("/api/couleur/appliquer", {**TRIAL, "actuelle": 4}, 400),
         ("/api/couleur/autre", {"point": 0}, 404),
     ],
 )

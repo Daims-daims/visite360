@@ -58,6 +58,9 @@
     #peinture button { padding: 8px 12px; border-radius: 8px; border: 0; background: #333; color: #fff; }
     #peinture button.principal { background: #4da3ff; }
     #nuancier { max-height: 26vh; overflow-y: auto; }
+    #peinture .actuelle { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: #ccc; font-size: 13px; }
+    #peinture select { max-width: 260px; font: inherit; padding: 4px 6px; border-radius: 6px; border: 0; background: #333; color: #fff; }
+    #actuelle-couleur { width: 34px; height: 26px; border: 0; padding: 0; background: none; }
     #nuancier .famille { color: #aaa; font-size: 12px; margin: 6px 0 4px; }
     #nuancier .teintes { display: flex; flex-wrap: wrap; gap: 6px; }
     #nuancier .teinte { position: relative; width: 34px; height: 34px; padding: 0; border-radius: 6px;
@@ -84,6 +87,15 @@
       <span><span id="peinture-nom"></span> <span id="teinte-choisie"></span></span>
       <button id="appliquer" class="principal">Appliquer</button>
       <button id="renoncer">Annuler</button>
+    </div>
+    <div class="actuelle">
+      <label for="actuelle">Couleur actuelle du mur :</label>
+      <select id="actuelle">
+        <option value="blanc">Blanc</option>
+        <option value="autre">Autre couleur…</option>
+        <option value="photo">Je ne sais pas (comme sur la photo)</option>
+      </select>
+      <input id="actuelle-couleur" type="color" value="#e8e2d6" aria-label="Couleur actuelle du mur" hidden>
     </div>
     <div id="nuancier"></div>
   </div>
@@ -591,6 +603,28 @@
           box.append(title, row);
         });
 
+      // Couleur de peinture actuelle du mur, pour en déduire l'éclairage : blanc par défaut, une
+      // couleur connue, ou « photo » (la couleur du mur sur la photo, quand on ne la connaît pas).
+      const WHITE = "#f4f4f0";
+      function currentValue() {
+        const mode = $("actuelle").value;
+        if (mode === "blanc") return WHITE;
+        if (mode === "photo") return "photo";
+        return $("actuelle-couleur").value.toLowerCase();
+      }
+      function showCurrent(value) {
+        $("actuelle").value = value === "photo" ? "photo" : (!value || value === WHITE ? "blanc" : "autre");
+        if ($("actuelle").value === "autre") $("actuelle-couleur").value = value;
+        $("actuelle-couleur").hidden = $("actuelle").value !== "autre";
+      }
+      $("actuelle").addEventListener("change", () => {
+        showCurrent(currentValue());
+        if (paint) { clearTimeout(timer); timer = setTimeout(tryColor, 0); }
+      });
+      $("actuelle-couleur").addEventListener("input", () => {
+        if (paint) { clearTimeout(timer); timer = setTimeout(tryColor, 300); }
+      });
+
       // Choisit une couleur ; `shade` est le nom de la teinte du nuancier, null pour une couleur libre.
       function choose(color, shade, now) {
         if (!paint) return;
@@ -614,6 +648,7 @@
         custom.style.background = "";
         custom.classList.remove("actif");
         for (const swatch of swatches) swatch.button.classList.remove("actif");
+        showCurrent(painted ? painted.couleur_actuelle : WHITE);
         $("outils").style.display = "none";
         $("peinture").style.display = "flex";
         say("Choisir une teinte : l'aperçu s'affiche dans la visite.");
@@ -629,7 +664,7 @@
         const { index, record, color, shade } = paint;
         try {
           const response = await postJson("/api/couleur/apercu", {
-            point: index, selection: record.id, couleur: color,
+            point: index, selection: record.id, couleur: color, actuelle: currentValue(),
           });
           const url = URL.createObjectURL(await response.blob());
           blobs.push(url);
@@ -661,7 +696,7 @@
         const { index, record, color, shade } = paint;
         try {
           await postJson("/api/couleur/appliquer", {
-            point: index, selection: record.id, couleur: color, teinte: shade,
+            point: index, selection: record.id, couleur: color, teinte: shade, actuelle: currentValue(),
           });
           look.after = true;
           say("Recoloration enregistrée. Préparation du panorama modifié...");

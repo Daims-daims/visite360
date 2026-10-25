@@ -12,6 +12,7 @@ from visite360.selection import Click, ViewSpec
 
 SAGE = "#8fa58a"
 TERRACOTTA = "#c0603a"
+PHOTO = couleur.FROM_PHOTO
 
 
 def lab(image: np.ndarray) -> np.ndarray:
@@ -61,18 +62,58 @@ def test_lighting_is_kept() -> None:
     image = wall()
     mask = rect_mask(image.shape, 20, 180, 20, 280)
 
-    out = couleur.recolor(image, mask, couleur.parse_color(SAGE), snap=False)
+    out = couleur.recolor(image, mask, couleur.parse_color(SAGE), snap=False, current=None)
 
     inner = rect_mask(image.shape, 30, 170, 30, 270) > 0  # loin du bord adouci
     ratio = linear(out)[inner] / linear(image)[inner]
     # Un même facteur pour tous les pixels de chaque canal : l'ombre garde sa profondeur.
     assert np.all(np.std(ratio, axis=0) / np.mean(ratio, axis=0) < 0.03)
-    # La couleur typique de la surface est celle choisie.
+    # Couleur actuelle « comme sur la photo » : la surface prend la couleur choisie.
     assert np.allclose(np.median(out[inner], axis=0), [0x8A, 0xA5, 0x8F], atol=2)
     # Le côté sombre reste plus sombre que le côté éclairé, dans le même rapport.
     left, right = linear(image)[100, 40].mean(), linear(image)[100, 260].mean()
     new_left, new_right = linear(out)[100, 40].mean(), linear(out)[100, 260].mean()
     assert new_left / new_right == pytest.approx(left / right, rel=0.1)
+
+
+def test_paint_color_is_relative_to_the_current_wall_color() -> None:
+    """Un mur blanc paraît gris sur la photo : repeint, il paraît plus sombre que la pastille."""
+    image = wall()
+    mask = rect_mask(image.shape, 20, 180, 20, 280)
+    white = couleur.parse_color(couleur.DEFAULT_CURRENT)
+
+    same = couleur.recolor(image, mask, white, snap=False)
+    sage = couleur.recolor(image, mask, couleur.parse_color(SAGE), snap=False)
+
+    # Repeindre un mur blanc en blanc ne change rien.
+    assert np.abs(same.astype(int) - image.astype(int)).max() <= 1
+    # Chaque canal est multiplié par (peinture choisie / peinture actuelle), en lumière linéaire.
+    inner = rect_mask(image.shape, 30, 170, 30, 270) > 0
+    factor = (
+        linear(np.array([[[0x8A, 0xA5, 0x8F]]], np.uint8))[0, 0]
+        / linear(np.array([[white[::-1]]], np.uint8))[0, 0]
+    )
+    ratio = linear(sage)[inner] / linear(image)[inner]
+    assert np.allclose(np.median(ratio, axis=0), factor, rtol=0.03)
+    # Le mur photographié est plus sombre que la pastille, comme le serait un vrai mur.
+    assert np.all(np.median(sage[inner], axis=0) < [0x8A, 0xA5, 0x8F])
+
+
+@pytest.mark.parametrize("value", ["blanc", "#fff", 3])
+def test_bad_current_color_is_refused(tmp_path: Path, value: object) -> None:
+    point, panorama = make_point(tmp_path)
+    wall_id = add_selection(point, panorama, (100, 300, 100, 400))
+    with pytest.raises(ColorError):
+        couleur.save(point, wall_id, SAGE, current=value)
+
+
+def test_current_color_is_saved_with_white_by_default(tmp_path: Path) -> None:
+    point, panorama = make_point(tmp_path)
+    wall_id = add_selection(point, panorama, (100, 300, 100, 400))
+
+    assert couleur.save(point, wall_id, SAGE)["couleur_actuelle"] == couleur.DEFAULT_CURRENT
+    assert couleur.save(point, wall_id, SAGE, current="#C0C0C0")["couleur_actuelle"] == "#c0c0c0"
+    assert couleur.save(point, wall_id, SAGE, current=PHOTO)["couleur_actuelle"] == PHOTO
 
 
 def test_pixels_outside_the_mask_are_untouched_without_snapping() -> None:
@@ -210,8 +251,8 @@ def test_after_combines_colors_and_undo_restores_original(tmp_path: Path) -> Non
     painter = couleur.Painter(mobile_width=512)
     assert painter.state(point, panorama) == {"couleurs": [], "version": None}
 
-    couleur.save(point, left, SAGE)
-    green = couleur.save(point, right, TERRACOTTA)
+    couleur.save(point, left, SAGE, current=PHOTO)
+    green = couleur.save(point, right, TERRACOTTA, current=PHOTO)
     state = painter.state(point, panorama)
     after = cv2.imread(str(painter.after(point, panorama, mobile=False)))
     small = cv2.imread(str(painter.after(point, panorama, mobile=True)))
@@ -240,14 +281,14 @@ def test_after_is_reused_then_redone_when_an_operation_changes(tmp_path: Path) -
     point, panorama = make_point(tmp_path)
     wall_id = add_selection(point, panorama, (100, 300, 100, 400))
     painter = couleur.Painter(mobile_width=512)
-    couleur.save(point, wall_id, SAGE)
+    couleur.save(point, wall_id, SAGE, current=PHOTO)
 
     first = painter.after(point, panorama, mobile=False)
     stamp = first.stat().st_mtime_ns
     version = painter.state(point, panorama)["version"]
     assert painter.after(point, panorama, mobile=False).stat().st_mtime_ns == stamp
 
-    couleur.save(point, wall_id, TERRACOTTA)
+    couleur.save(point, wall_id, TERRACOTTA, current=PHOTO)
     assert painter.state(point, panorama)["version"] != version
     redone = cv2.imread(str(painter.after(point, panorama, mobile=False)))
     terracotta_ab = lab(np.array([[[0x3A, 0x60, 0xC0]]], np.uint8))[0, 0, 1:]
@@ -282,7 +323,7 @@ def test_preview_tries_a_color_without_saving(tmp_path: Path) -> None:
     wall_id = add_selection(point, panorama, (100, 300, 100, 400))
     couleur.save(point, wall_id, SAGE)
 
-    data = couleur.preview(panorama, point, wall_id, TERRACOTTA, width=512)
+    data = couleur.preview(panorama, point, wall_id, TERRACOTTA, width=512, current=PHOTO)
 
     image = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
     assert image.shape == (256, 512, 3)
