@@ -40,6 +40,9 @@ final class CaptureModel: ObservableObject {
     @Published private(set) var drift = LensDrift()
     /// Place de l'objectif par rapport à sa place de départ, vue par le photographe.
     @Published private(set) var placement: Placement?
+    /// Hauteur de l'objectif au-dessus du sol à sa place de départ (mode « ×1 + AR »), nil tant
+    /// que le sol n'est pas repéré.
+    @Published private(set) var lensHeight: Double?
     @Published var problem: String?
 
     private var file: CaptureFile
@@ -72,6 +75,10 @@ final class CaptureModel: ObservableObject {
             let wasTooFar = drift.isTooFar
             drift.update(position, started: phase == .shooting)
             placement = drift.placement(position, heading: tracker?.heading)
+            if let start = drift.reference, let planes = tracker?.horizontalPlanes,
+               let height = FloorLevel.lensHeight(lens: start.y, planes: planes) {
+                lensHeight = height
+            }
             if drift.isTooFar, !wasTooFar {
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
             }
@@ -214,6 +221,8 @@ final class CaptureModel: ObservableObject {
         done[target.id] = entry
         order.append(target.id)
         file.photos.append(entry)
+        // La dernière estimation : ARKit affine le sol à mesure qu'il en voit davantage.
+        file.lensHeight = lensHeight.map { ($0 * 1000).rounded() / 1000 }
         save()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }

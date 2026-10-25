@@ -92,6 +92,18 @@
       width: min(360px, calc(100vw - 48px)); box-sizing: border-box; text-align: center; }
     #suivi .barre { height: 6px; margin-top: 6px; background: #333; border-radius: 3px; overflow: hidden; }
     #suivi .barre div { height: 100%; width: 0; background: #4da3ff; transition: width .6s ease; }
+    /* Étape 10 : mesure de la pièce, à l'adresse /agent. */
+    #mesure { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%);
+      margin: 12px 0; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .85); display: none;
+      flex-direction: column; gap: 8px; width: min(560px, calc(100vw - 24px)); box-sizing: border-box; font-size: 14px; }
+    #mesure .entete, #mesure .reglage { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #mesure .entete span { flex: 1; min-width: 160px; }
+    #mesure button { padding: 8px 12px; border-radius: 8px; border: 0; background: #333; color: #fff; }
+    #mesure button.principal { background: #4da3ff; }
+    #mesure input { width: 5em; font: inherit; padding: 4px 6px; border-radius: 6px; border: 0; background: #333; color: #fff; }
+    #mesure-resultat { max-height: 24vh; overflow-y: auto; color: #ddd; font-variant-numeric: tabular-nums; }
+    #mesure-resultat .alerte { color: #ffb84d; }
+    #mesure .reglage { color: #ccc; font-size: 13px; }
     .pastille { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border-radius: 3px;
       border: 1px solid #fff; vertical-align: -2px; }
   </style>
@@ -135,8 +147,24 @@
       <button id="renoncer-generation">Annuler</button>
     </div>
   </div>
+  <div id="mesure">
+    <div class="entete">
+      <span id="mesure-etat"></span>
+      <button id="mesure-defaire">Annuler le dernier clic</button>
+      <button id="mesure-enregistrer" class="principal">Enregistrer</button>
+      <button id="mesure-fermer">Fermer</button>
+    </div>
+    <div class="reglage">
+      <label for="plafond">Hauteur sous plafond (m) :</label>
+      <input id="plafond" type="number" step="0.01" min="1.8" max="6" placeholder="calculée">
+      <button id="mesure-effacer">Tout effacer</button>
+      <button id="mesure-supprimer" hidden>Supprimer la mesure</button>
+    </div>
+    <div id="mesure-resultat"></div>
+  </div>
   <div id="suivi"><span id="suivi-texte"></span><div class="barre"><div id="suivi-barre"></div></div></div>
   <div id="outils">
+    <button id="mesurer" hidden>Mesurer la pièce</button>
     <button id="transformer" hidden>Remplacer un objet</button>
     <button id="mes-remplacements" hidden>Remplacements</button>
     <button id="choisir" hidden>Sélectionner une surface</button>
@@ -956,6 +984,158 @@
         }
         box.style.display = "block";
       };
+
+      // Étape 10 : mesure de la pièce, réservée à l'agent (adresse /agent). L'agent clique les
+      // coins dans l'ordre ; le serveur regroupe les clics en coins, calcule la pièce avec la
+      // hauteur de l'objectif mesurée par l'app, et renvoie le panorama avec le contour dessiné.
+      const AGENT = location.pathname === "/agent";
+      let measure = null, measureTicket = 0;
+      const metres = (value, digits = 2) =>
+        value.toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+      const measureBody = () => ({
+        point: measure.index, clics: measure.clicks,
+        hauteur_plafond: $("plafond").value === "" ? null : Number($("plafond").value),
+      });
+
+      function showRoom(room, error) {
+        const box = $("mesure-resultat");
+        box.replaceChildren();
+        const count = measure.clicks.length;
+        $("mesure-etat").textContent = count ? count + " clic" + (count > 1 ? "s" : "") : "Aucun clic";
+        if (!room) {
+          const line = document.createElement("div");
+          line.textContent = error || "";
+          box.appendChild(line);
+          return;
+        }
+        const lines = [
+          "Plafond " + metres(room.hauteur_plafond_m) + " m"
+            + (room.source_hauteur_plafond === "coins" ? " (calculé)" : " (saisi)")
+            + " · objectif à " + metres(room.hauteur_objectif_m) + " m"
+            + (room.source_hauteur_objectif === "app" ? " (mesuré par l'app)" : " (calculé)"),
+          "Sol " + metres(room.surface_sol_m2, 1) + " m² · périmètre " + metres(room.perimetre_m) + " m",
+          ...room.murs.map((wall) => "Mur " + wall.numero + " : " + metres(wall.longueur_m)
+            + " m · " + metres(wall.surface_m2, 1) + " m²"),
+        ];
+        for (const text of lines) {
+          const line = document.createElement("div");
+          line.textContent = text;
+          box.appendChild(line);
+        }
+        if (room.ecart_hauteur_plafond_m !== null && room.ecart_hauteur_plafond_m > 0.1) {
+          const warn = document.createElement("div");
+          warn.className = "alerte";
+          warn.textContent = "Les coins donnent des hauteurs de plafond qui diffèrent de "
+            + Math.round(room.ecart_hauteur_plafond_m * 100) + " cm : un clic est peut-être à côté de son coin.";
+          box.appendChild(warn);
+        }
+      }
+
+      // Panorama avec les clics et le contour, puis dimensions : à chaque changement.
+      async function updateMeasure() {
+        if (!measure) return;
+        const ticket = ++measureTicket;
+        const body = measureBody();
+        try {
+          const response = await postJson("/api/piece/apercu", body);
+          const url = URL.createObjectURL(await response.blob());
+          if (ticket !== measureTicket || !measure) { URL.revokeObjectURL(url); return; }
+          viewer.addScene("apercu:piece", { type: "equirectangular", panorama: url });
+          viewer.loadScene("apercu:piece", viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
+          previewOf = { pointId: measure.pointId };
+          if (measure.blob) setTimeout(URL.revokeObjectURL, 2000, measure.blob);
+          measure.blob = url;
+        } catch (error) {
+          say(error.message);
+        }
+        let room = null, problem = "";
+        if (measure.clicks.length) {
+          try {
+            room = await postJson("/api/piece/calculer", body).then((r) => r.json());
+          } catch (error) {
+            problem = error.message;
+          }
+        }
+        if (ticket === measureTicket && measure) showRoom(room, problem);
+      }
+
+      async function startMeasure() {
+        if (state || paint || drawing || measure) return;
+        const index = pointIndex();
+        const answer = await fetch("/p/" + index + "/piece.json").then((r) => r.json());
+        const saved = answer.piece;
+        measure = { index, pointId: currentId, clicks: saved ? saved.clics.slice() : [], blob: null };
+        $("plafond").value = saved && saved.hauteur_plafond_saisie_m ? saved.hauteur_plafond_saisie_m : "";
+        $("mesure-supprimer").hidden = !saved;
+        $("outils").style.display = "none";
+        $("liste").style.display = "none";
+        $("mesure").style.display = "flex";
+        const height = answer.hauteur_objectif_app_m;
+        say((height ? "Objectif à " + metres(height) + " m du sol (mesuré par l'app). "
+          : "L'app n'a pas mesuré la hauteur de l'objectif : saisir la hauteur sous plafond. ")
+          + "Cliquer les coins dans l'ordre, en faisant le tour : au sol (jaune), ou au plafond (bleu) "
+          + "si un meuble le cache, et au moins un coin aux deux."
+          + (saved && saved.perimee ? " Panorama refait depuis la mesure : vérifier les coins." : ""));
+        updateMeasure();
+      }
+
+      function endMeasure() {
+        if (!measure) return;
+        const back = measure.pointId, blob = measure.blob;
+        measure = null;
+        measureTicket++;
+        $("mesure").style.display = "none";
+        $("outils").style.display = "flex";
+        viewer.loadScene(back, viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
+        if (blob) setTimeout(URL.revokeObjectURL, 2000, blob);
+        say("");
+      }
+
+      // Un clic ajoute un coin ; un glissement tourne la vue, comme d'habitude.
+      let pressed = null;
+      $("panorama").addEventListener("pointerdown", (event) => { pressed = [event.clientX, event.clientY]; });
+      $("panorama").addEventListener("click", (event) => {
+        if (!measure || !pressed) return;
+        if (Math.hypot(event.clientX - pressed[0], event.clientY - pressed[1]) > 6) return;
+        if (event.target.closest(".pnlm-controls-container, .pnlm-hotspot-base")) return;
+        const [pitch, yaw] = viewer.mouseEventToCoords(event);
+        measure.clicks.push({ cap: Math.round(yaw * 100) / 100, hauteur: Math.round(pitch * 100) / 100 });
+        updateMeasure();
+      });
+      $("mesure-defaire").onclick = () => { if (measure && measure.clicks.pop()) updateMeasure(); };
+      $("mesure-effacer").onclick = () => {
+        if (measure && measure.clicks.length && window.confirm("Effacer tous les clics ?")) {
+          measure.clicks = [];
+          updateMeasure();
+        }
+      };
+      $("plafond").addEventListener("change", updateMeasure);
+      $("mesure-fermer").onclick = endMeasure;
+      $("mesure-enregistrer").onclick = async () => {
+        if (!measure) return;
+        try {
+          const record = await postJson("/api/piece/enregistrer", measureBody()).then((r) => r.json());
+          endMeasure();
+          say("Pièce enregistrée : " + metres(record.resultat.surface_sol_m2, 1) + " m² au sol, "
+            + record.resultat.murs.length + " murs.");
+        } catch (error) {
+          say(error.message);
+        }
+      };
+      $("mesure-supprimer").onclick = async () => {
+        if (!measure || !window.confirm("Supprimer la mesure de cette pièce ?")) return;
+        try {
+          await postJson("/api/piece/supprimer", { point: measure.index });
+          endMeasure();
+          say("Mesure supprimée.");
+        } catch (error) {
+          say(error.message);
+        }
+      };
+      viewer.on("scenechange", (id) => { if (measure && !id.startsWith("apercu:")) endMeasure(); });
+      document.addEventListener("keydown", (event) => { if (measure && event.key === "Escape") endMeasure(); });
+      $("mesurer").onclick = startMeasure;
+      $("mesurer").hidden = !AGENT;
 
       fetch("/api/generation").then((r) => r.json()).then((answer) => {
         $("transformer").hidden = false;

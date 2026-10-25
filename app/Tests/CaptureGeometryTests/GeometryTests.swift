@@ -131,3 +131,35 @@ final class GeometryTests: XCTestCase {
         XCTAssertEqual(rows[2][2], axis.z, accuracy: 1e-12)
     }
 }
+
+final class FloorLevelTests: XCTestCase {
+    private typealias Plane = FloorLevel.Plane
+
+    func testLowestFloorUnderTheLens() {
+        let planes = [
+            Plane(height: -1.48, area: 3, isFloor: true),
+            Plane(height: -0.75, area: 1, isFloor: false),  // table
+            Plane(height: 1.0, area: 4, isFloor: false),    // plafond
+        ]
+        XCTAssertEqual(FloorLevel.lensHeight(lens: 0.02, planes: planes)!, 1.50, accuracy: 1e-9)
+    }
+
+    func testTableIsNotTheFloorWhenArKitClassifies() {
+        let planes = [Plane(height: -0.75, area: 1, isFloor: false)]
+        XCTAssertNil(FloorLevel.lensHeight(lens: 0, planes: planes))
+    }
+
+    func testWithoutClassificationTheLowestLargePlaneIsTheFloor() {
+        let planes = [
+            Plane(height: -0.7, area: 1, isFloor: nil),
+            Plane(height: -1.5, area: 2, isFloor: nil),
+            Plane(height: -1.9, area: 0.05, isFloor: nil),  // trop petite
+        ]
+        XCTAssertEqual(FloorLevel.lensHeight(lens: 0, planes: planes)!, 1.5, accuracy: 1e-9)
+    }
+
+    func testNothingBeforeTheFloorIsSeen() {
+        XCTAssertNil(FloorLevel.lensHeight(lens: 0, planes: []))
+        XCTAssertNil(FloorLevel.lensHeight(lens: 0, planes: [Plane(height: -4, area: 3, isFloor: true)]))
+    }
+}

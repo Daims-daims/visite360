@@ -39,6 +39,9 @@ class Capture:
     # les rotations. Le panorama la place en son centre, pour que les flèches visées dans l'app
     # (étape 6) tombent au bon endroit. Absent des fichiers de l'étape 5.
     start_yaw: float | None = None
+    # Hauteur de l'objectif au-dessus du sol, en mètres, mesurée par ARKit (étape 10, D34) :
+    # elle donne l'échelle des dimensions de la pièce. Absente sans « ×1 + AR » ou sans sol repéré.
+    lens_height: float | None = None
 
 
 def find(point: Path) -> Path | None:
@@ -101,11 +104,19 @@ def parse(data: Any, path: Path) -> Capture:
         or not -360 <= start_yaw <= 360
     ):
         raise CaptureError(f"{name} : « cap_depart » doit être un angle en degrés.")
+    lens_height = data.get("hauteur_objectif_m")
+    if lens_height is not None and (
+        isinstance(lens_height, bool)
+        or not isinstance(lens_height, int | float)
+        or not 0 < lens_height < 5
+    ):
+        raise CaptureError(f"{name} : « hauteur_objectif_m » doit être un nombre de mètres.")
     return Capture(
         path,
         rotations,
         device if isinstance(device, str) else None,
         None if start_yaw is None else float(start_yaw),
+        None if lens_height is None else float(lens_height),
     )
 
 

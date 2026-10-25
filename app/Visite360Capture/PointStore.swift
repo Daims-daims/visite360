@@ -53,6 +53,9 @@ struct CaptureFile: Codable {
     var startYaw: Double?
     /// « arkit » quand la position de l'objectif a été suivie (mode « ×1 + AR »).
     var tracking: String?
+    /// Hauteur de l'objectif au-dessus du sol à sa place de départ, en mètres, mesurée par
+    /// ARKit : l'échelle des dimensions de la pièce (étape 10). Absente si le sol n'a pas été repéré.
+    var lensHeight: Double?
     var photos: [PhotoEntry] = []
 
     enum CodingKeys: String, CodingKey {
@@ -60,6 +63,7 @@ struct CaptureFile: Codable {
         case lens = "objectif"
         case startYaw = "cap_depart"
         case tracking = "suivi_position"
+        case lensHeight = "hauteur_objectif_m"
         case device = "appareil"
         case started = "debut"
         case frame = "repere"

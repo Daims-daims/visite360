@@ -386,3 +386,26 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - la v0.2 se termine sans cet essai. Le jalon v0.2 n'en dépend pas : la modification générée qu'il demande est celle de l'étape 9 ;
   - la décision de faire de la cloison abattue une vraie étape arrive après la v1 commencée, donc après la préparation des versions v0.3 et v1 ;
   - l'essai se fera avec le logiciel retenu à l'étape 13 pour la carte graphique, et non avec mflux (D32).
+
+## D34 : dimensions des pièces, échelle mesurée par ARKit, coins pointés par l'agent
+
+- **Date :** 2026-10-25
+- **Décision :**
+  - l'échelle vient de la **hauteur de l'objectif au-dessus du sol**, mesurée par ARKit pendant la prise de vue « ×1 + AR » (D27), et non d'une mesure saisie. La séance ARKit détecte aussi les surfaces horizontales ; le sol est la plus basse sous l'objectif, d'au moins 0,25 m², parmi celles qu'ARKit classe comme sol quand il sait classer. L'app note sa dernière estimation dans `capture.json` (`hauteur_objectif_m`) à chaque photo, et l'affiche sous le guide de placement ;
+  - les coins se pointent **après l'assemblage, par l'agent**, dans un mode de la visionneuse servi à l'adresse `/agent`. La visite à l'adresse habituelle, celle du client, n'a pas ce bouton. Jusqu'à la v1, l'adresse sépare les usages sans rien protéger ;
+  - l'agent clique les coins dans l'ordre du tour de la pièce, au sol, ou au plafond quand un meuble cache le bas, et au moins un coin aux deux, qui donne la hauteur sous plafond. Un clic à moins de 4° de cap du clic de l'autre niveau du coin précédent le complète. Les clics à moins de 3° de l'horizon sont refusés ;
+  - en secours, sans hauteur mesurée (sol non repéré, réglages ×1 ou ×0,5, anciennes visites), l'agent saisit la hauteur sous plafond, et les coins cliqués aux deux donnent la hauteur de l'objectif ;
+  - la pièce est de forme libre, à murs droits et verticaux, sol et plafond plats. Une mesure est une fiche `<point>/piece.json` qui garde les clics et les hauteurs connues à l'enregistrement ; les dimensions en sont recalculées à chaque lecture. Le panorama avec le contour dessiné est fabriqué à la demande dans `cache/` (D9). Aucune nouvelle dépendance.
+- **Raisons :**
+  - une hauteur saisie au mètre ruban obligeait quelqu'un à mesurer sur place. ARKit tourne déjà pendant toute la prise de vue conseillée (D27) et voit le sol pendant la rangée de photos vers le bas : la mesure ne demande rien de plus à l'agent. Une erreur d'1 cm sur cette hauteur change les longueurs de moins de 1 % ;
+  - viser les coins sur place, en réalité augmentée, a été écarté : sans LiDAR (iPhone 15), ARKit repère mal les murs unis et le plafond, la mesure dériverait sans qu'on le voie, et elle ne serait pas dans le repère du panorama dont l'étape 11 a besoin. Viser les coins avec la croix de l'app, comme les flèches (D26), a été écarté par le propriétaire au profit d'un pointage après l'assemblage : plus précis (on zoome), contrôlable (le contour s'affiche sur la photo) et corrigeable sans retourner dans le logement ;
+  - le client ne doit avoir aucune charge : la mesure est un travail de l'agent, fait une fois ;
+  - dans le panorama, une arête verticale est une ligne de cap constant : le haut et le bas d'un même coin ont le même cap, à l'erreur de clic près. Le seuil de 4° évite de fondre deux coins différents vus presque dans la même direction ;
+  - ne pas imposer de pièce rectangulaire : un L, un couloir ou une entrée se mesurent de la même façon.
+- **Ne modifie pas** D22 ni D26 : la réalité augmentée reste limitée à un point à la fois. La position des points entre eux n'est toujours pas mesurée.
+- **Limites :**
+  - précision calculée sur des pièces de synthèse : un horizon penché d'1° fausse la longueur d'un mur d'environ 4 % et sa surface d'environ 8 %. L'objectif de 10 % sur la surface demande un horizon juste à moins d'un degré ;
+  - si ARKit prend une table basse ou un tapis épais pour le sol, toutes les dimensions sont fausses dans la même proportion. Le contour tracé trop grand ou trop petit le montre ;
+  - la surface d'un mur comprend portes et fenêtres ; plafonds en pente, mansardes et murs arrondis sont hors de l'étape ;
+  - la mesure ARKit n'a été que compilée et testée sur des données simulées : elle reste à vérifier sur l'iPhone ;
+  - un clic posé, la visionneuse recharge le panorama réduit avec le contour, ce qui prend une fraction de seconde.

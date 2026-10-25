@@ -23,6 +23,12 @@ fabriqué dans `cache/`, que la visionneuse montre en « après ».
 routes `/api/generation/` lancent, refont et annulent une génération (voir `generation.py`) ; elle
 dure quelques minutes, dans un fil à part, et `/api/generation` en donne l'avancement. Le résultat
 entre dans le panorama modifié.
+
+Étape 10 : l'adresse `/agent` sert la même visionneuse avec en plus « Mesurer la pièce », réservé
+à l'agent. Les routes `/api/piece/` calculent la pièce à partir des coins cliqués, en montrent le
+contour et l'enregistrent dans `<point>/piece.json` (voir `piece.py`) ; `/p/<numéro>/piece.json`
+et `/p/<numéro>/piece.jpg` la relisent. Jusqu'à la v1, l'adresse sépare les deux usages sans
+rien protéger : tout appareil du Wi-Fi peut l'ouvrir.
 """
 
 from __future__ import annotations
@@ -39,7 +45,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
 
-from visite360 import couleur, generation, segment, selection, stitch, visite
+from visite360 import couleur, generation, piece, segment, selection, stitch, visite
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import PhotoError
 
@@ -53,6 +59,7 @@ SELECTIONS_PATH = re.compile(r"^/p/(\d+)/selections\.json$")
 PREVIEW_PATH = re.compile(r"^/p/(\d+)/selections/(selection-\d+)\.jpg$")
 COLORS_PATH = re.compile(r"^/p/(\d+)/couleurs\.json$")
 AFTER_PATH = re.compile(r"^/p/(\d+)/(apres|apres-mobile)\.jpg$")
+PIECE_PATH = re.compile(r"^/p/(\d+)/piece\.(json|jpg)$")
 
 
 class ServeError(Exception):
@@ -264,6 +271,8 @@ def viewer_assets() -> dict[str, Asset]:
     viewer = viewer_folder()
     return {
         "/": Asset(viewer / "index.html", "text/html; charset=utf-8"),
+        # Même page : elle montre les outils de l'agent quand elle est ouverte à cette adresse.
+        "/agent": Asset(viewer / "index.html", "text/html; charset=utf-8"),
         "/pannellum/pannellum.js": Asset(
             viewer / "pannellum" / "pannellum.js", "text/javascript; charset=utf-8"
         ),
@@ -405,6 +414,27 @@ def handle_generation(
     return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
 
 
+def handle_piece(
+    selector: selection.Selector, route: str, body: dict[str, Any]
+) -> tuple[bytes, str]:
+    """Traite une route POST `/api/piece/...`. Renvoie (contenu, type)."""
+    folders = selector.point(body.get("point")).folders
+    clicks, ceiling = body.get("clics"), body.get("hauteur_plafond")
+    if route == "apercu":
+        image = piece.preview(folders.panorama, folders.point, clicks, ceiling, MOBILE_WIDTH)
+        return image, "image/jpeg"
+    if route == "calculer":
+        result: Any = piece.measure(folders.point, clicks, ceiling).to_json()
+    elif route == "enregistrer":
+        result = piece.save(folders.point, folders.panorama, clicks, ceiling)
+    elif route == "supprimer":
+        piece.delete(folders.point)
+        result = {"supprimee": True}
+    else:
+        raise RequestError(404, "Introuvable")
+    return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
+
+
 def make_server(
     tour: visite.Tour,
     host: str,
@@ -455,6 +485,9 @@ def make_server(
             if COLORS_PATH.match(path) or AFTER_PATH.match(path):
                 self._answer(lambda: self._color_file(path))
                 return
+            if PIECE_PATH.match(path):
+                self._answer(lambda: self._piece_file(path))
+                return
             info, asset = visit.lookup(path)
             if info is not None:
                 self._send(info, JSON)
@@ -474,6 +507,8 @@ def make_server(
                 self._answer(lambda: handle_color(selector, route, self._body()))
             elif path.startswith("/api/generation/"):
                 self._answer(lambda: handle_generation(generations, selector, route, self._body()))
+            elif path.startswith("/api/piece/"):
+                self._answer(lambda: handle_piece(selector, route, self._body()))
             else:
                 self.send_error(404, "Introuvable")
 
@@ -489,6 +524,7 @@ def make_server(
                 selection.SelectionError,
                 couleur.ColorError,
                 generation.GenerationError,
+                piece.PieceError,
             ) as error:
                 self._send_error(400, str(error))
             except (segment.SegmentError, OpenCVError) as error:
@@ -536,6 +572,19 @@ def make_server(
                 return json.dumps(state, ensure_ascii=False).encode("utf-8"), JSON
             mobile = match.group(2) == "apres-mobile"
             return painter.after(folders.point, folders.panorama, mobile).read_bytes(), "image/jpeg"
+
+        def _piece_file(self, path: str) -> tuple[bytes, str]:
+            match = PIECE_PATH.match(path)
+            assert match is not None
+            folders = selector.point(int(match.group(1))).folders
+            if match.group(2) == "jpg":
+                image = piece.contour(folders.point, folders.panorama, MOBILE_WIDTH)
+                return image.read_bytes(), "image/jpeg"
+            state = {
+                "piece": piece.load(folders.point, folders.panorama),
+                "hauteur_objectif_app_m": piece.lens_height(folders.point),
+            }
+            return json.dumps(state, ensure_ascii=False).encode("utf-8"), JSON
 
         def _send_error(self, status: int, message: str) -> None:
             data = json.dumps({"erreur": message}, ensure_ascii=False).encode("utf-8")
@@ -601,13 +650,16 @@ def run(
         )
     actual_port = server.server_address[1]
     print(f"Visite servie. Sur ce Mac : http://localhost:{actual_port}", file=out)
-    if not local_only:
-        address = lan_address()
-        if address:
-            print(
-                f"Sur un téléphone connecté au même Wi-Fi : http://{address}:{actual_port}",
-                file=out,
-            )
+    address = None if local_only else lan_address()
+    if address:
+        print(
+            f"Sur un téléphone connecté au même Wi-Fi : http://{address}:{actual_port}",
+            file=out,
+        )
+    print(
+        f"Outils de l'agent (mesure des pièces) : http://localhost:{actual_port}/agent",
+        file=out,
+    )
     print("Ctrl+C pour arrêter.", file=out)
     visit: Visit = server.visit  # type: ignore[attr-defined]
     if tour_needs_generation(tour, force):

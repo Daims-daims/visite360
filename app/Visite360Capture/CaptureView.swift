@@ -207,7 +207,7 @@ struct CaptureView: View {
     private var footer: some View {
         VStack(spacing: 12) {
             if model.tracker != nil, model.phase == .shooting {
-                PlacementGuide(placement: model.placement, drift: model.drift)
+                PlacementGuide(placement: model.placement, drift: model.drift, lensHeight: model.lensHeight)
             }
             if arrowsDone {
                 Button {
@@ -327,6 +327,8 @@ struct ArrowTargetSheet: View {
 struct PlacementGuide: View {
     let placement: Placement?
     let drift: LensDrift
+    /// Hauteur de l'objectif au-dessus du sol, une fois le sol repéré (étape 10).
+    let lensHeight: Double?
 
     /// Rayon du guide, en mètres : au-delà, le point reste collé au bord.
     private let range = 0.08
@@ -388,6 +390,13 @@ struct PlacementGuide: View {
                 } else {
                     Text("Suivi de position…").font(.subheadline.bold())
                     Text("Bougez doucement pour qu'ARKit repère la pièce.").font(.caption)
+                }
+                if let lensHeight {
+                    Text("Sol repéré : objectif à \(lensHeight.formatted(.number.precision(.fractionLength(2)))) m")
+                        .font(.caption)
+                } else {
+                    Text("Sol pas encore repéré : il le sera pendant les photos vers le bas.")
+                        .font(.caption)
                 }
             }
             .foregroundStyle(.white)

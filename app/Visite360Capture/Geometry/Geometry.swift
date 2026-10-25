@@ -363,3 +363,40 @@ public struct LensDrift: Sendable {
         return Placement(right: simd_dot(d, right), forward: simd_dot(d, forward), up: d.y)
     }
 }
+
+/// Hauteur de l'objectif au-dessus du sol, à partir des surfaces horizontales repérées par
+/// ARKit (étape 10, D34). Elle donne l'échelle des dimensions de la pièce, calculées sur le Mac
+/// à partir des coins pointés dans le panorama.
+public enum FloorLevel {
+    /// Surface horizontale repérée par ARKit, dans son repère (y vers le haut), en mètres.
+    public struct Plane: Equatable, Sendable {
+        public let height: Double
+        public let area: Double
+        /// true : ARKit la classe comme sol ; false : autre chose (table, plafond) ; nil : ARKit
+        /// ne sait pas classer les surfaces sur cet appareil.
+        public let isFloor: Bool?
+
+        public init(height: Double, area: Double, isFloor: Bool?) {
+            self.height = height
+            self.area = area
+            self.isFloor = isFloor
+        }
+    }
+
+    /// Une surface plus petite est souvent un reflet ou un bout de meuble, en m².
+    public static let minimumArea = 0.25
+    /// Hauteurs d'objectif plausibles pour un téléphone tenu à la main, en mètres.
+    public static let plausible = 0.3...2.5
+
+    /// Hauteur de l'objectif (à la hauteur `lens` dans le repère d'ARKit) au-dessus du sol : la
+    /// surface la plus basse sous lui, parmi celles classées comme sol quand ARKit sait classer.
+    /// nil tant qu'aucun sol n'est repéré.
+    public static func lensHeight(lens: Double, planes: [Plane]) -> Double? {
+        let large = planes.filter { $0.area >= minimumArea }
+        let classified = large.contains { $0.isFloor != nil }
+        let floors = classified ? large.filter { $0.isFloor == true } : large
+        guard let floor = floors.map(\.height).filter({ plausible.contains(lens - $0) }).min()
+        else { return nil }
+        return lens - floor
+    }
+}
