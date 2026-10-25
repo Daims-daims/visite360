@@ -48,6 +48,30 @@
     #liste .ligne { display: flex; gap: 6px; align-items: center; justify-content: space-between;
       padding: 4px 0; }
     #liste .perimee { color: #ffb84d; font-size: 12px; }
+    /* Étape 8 : changement de couleur. */
+    #peinture { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%);
+      margin: 12px 0; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .8); display: none;
+      flex-direction: column; gap: 8px; width: min(560px, calc(100vw - 24px)); box-sizing: border-box;
+      font-size: 14px; }
+    #peinture .entete { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #peinture .entete span { flex: 1; min-width: 140px; }
+    #peinture button { padding: 8px 12px; border-radius: 8px; border: 0; background: #333; color: #fff; }
+    #peinture button.principal { background: #4da3ff; }
+    #nuancier { max-height: 26vh; overflow-y: auto; }
+    #peinture .actuelle { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: #ccc; font-size: 13px; }
+    #peinture select { max-width: 260px; font: inherit; padding: 4px 6px; border-radius: 6px; border: 0; background: #333; color: #fff; }
+    #actuelle-couleur { width: 34px; height: 26px; border: 0; padding: 0; background: none; }
+    #nuancier .famille { color: #aaa; font-size: 12px; margin: 6px 0 4px; }
+    #nuancier .teintes { display: flex; flex-wrap: wrap; gap: 6px; }
+    #nuancier .teinte { position: relative; width: 34px; height: 34px; padding: 0; border-radius: 6px;
+      border: 2px solid rgba(255, 255, 255, .25); cursor: pointer; }
+    #nuancier .teinte.actif { border-color: #4da3ff; box-shadow: 0 0 0 2px #4da3ff; }
+    #nuancier .perso { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;
+      background: conic-gradient(#e05a4f, #e0c14f, #5ac46a, #4fa3e0, #9b5ae0, #e05a4f); }
+    #nuancier .perso input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
+      border: 0; padding: 0; }
+    .pastille { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border-radius: 3px;
+      border: 1px solid #fff; vertical-align: -2px; }
   </style>
 </head>
 <body>
@@ -58,9 +82,27 @@
   <div id="consigne"></div>
   <div id="apercu"><span id="apercu-nom"></span><button id="retour">Revenir à la visite</button></div>
   <div id="liste"></div>
+  <div id="peinture">
+    <div class="entete">
+      <span><span id="peinture-nom"></span> <span id="teinte-choisie"></span></span>
+      <button id="appliquer" class="principal">Appliquer</button>
+      <button id="renoncer">Annuler</button>
+    </div>
+    <div class="actuelle">
+      <label for="actuelle">Couleur actuelle du mur :</label>
+      <select id="actuelle">
+        <option value="blanc">Blanc</option>
+        <option value="autre">Autre couleur…</option>
+        <option value="photo">Je ne sais pas (comme sur la photo)</option>
+      </select>
+      <input id="actuelle-couleur" type="color" value="#e8e2d6" aria-label="Couleur actuelle du mur" hidden>
+    </div>
+    <div id="nuancier"></div>
+  </div>
   <div id="outils">
     <button id="choisir" hidden>Sélectionner une surface</button>
     <button id="mes-selections" hidden>Sélections</button>
+    <button id="avant-apres" hidden>Voir l'original</button>
     <button id="ajouter" hidden title="Ajouter à la sélection">+ Ajouter</button>
     <button id="retirer" hidden title="Retirer de la sélection (ou Alt + clic)">− Retirer</button>
     <button id="defaire" hidden>Annuler le dernier clic</button>
@@ -106,14 +148,14 @@
     }
 
     // Une scène Pannellum par point, avec une flèche cliquable par lien déclaré dans visite.json.
-    function buildScenes(info, useFull) {
+    // `panoramaUrl(index)` choisit l'image : d'origine, ou modifiée (étape 8).
+    function buildScenes(info, panoramaUrl) {
       const scenes = {};
-      for (const point of info.points) {
-        const choice = useFull ? point.full : point.mobile;
+      for (const [index, point] of info.points.entries()) {
         scenes[point.id] = {
           title: point.name,
           type: "equirectangular",
-          panorama: choice.url,
+          panorama: panoramaUrl(index),
           hotSpots: point.links.map((link) => ({
             type: "scene",
             sceneId: link.to,
@@ -132,13 +174,27 @@
     function startViewer() {
       fetch("/info.json")
         .then((response) => response.json())
-        .then((info) => {
+        .then(async (info) => {
           box.style.display = "none";
           document.title = info.name + " — visite 360°";
           const useFull = info.points.every((point) => maxTextureSize() >= point.full.width);
+          // Étape 8 : recolorations de chaque point, pour ouvrir la visite en « après ».
+          const colors = await Promise.all(info.points.map((point, index) =>
+            fetch("/p/" + index + "/couleurs.json").then((r) => r.ok ? r.json() : null).catch(() => null)));
+          const look = { useFull, colors, after: true };
+          look.url = (index) => {
+            const state = look.colors[index];
+            if (look.after && state && state.version) {
+              return "/p/" + index + "/" + (useFull ? "apres" : "apres-mobile") + ".jpg?v=" + state.version;
+            }
+            const point = info.points[index];
+            return (useFull ? point.full : point.mobile).url;
+          };
+          const scenes = buildScenes(info, look.url);
+          look.scenes = scenes;
           const viewer = pannellum.viewer("panorama", {
             default: { firstScene: info.start, sceneFadeDuration: 800, autoLoad: true, hfov: 100 },
-            scenes: buildScenes(info, useFull),
+            scenes: Object.assign({}, scenes),
             showControls: true,
           });
 
@@ -169,7 +225,7 @@
           viewer.on("scenechange", () => { click = null; });
           setInterval(refresh, 200);
 
-          setupSelection(info, viewer);
+          setupSelection(info, viewer, look);
         })
         .catch(() => show("Impossible de charger la visite.", null, ""));
     }
@@ -191,18 +247,21 @@
     // Étape 7 : sélection d'une surface. Le serveur découpe la vue regardée (une photo carrée,
     // sans la déformation du panorama), SAM 2.1 y trouve le contour autour des clics, et la
     // page pose ce contour par-dessus la visionneuse, immobilisée le temps de la sélection.
-    function setupSelection(info, viewer) {
+    function setupSelection(info, viewer, look) {
       const $ = (id) => document.getElementById(id);
       const layer = $("calque"), maskImage = $("masque"), hint = $("consigne");
       const selectButtons = ["ajouter", "retirer", "defaire", "valider", "abandonner"];
-      let currentId = info.start, previewOf = null, state = null, busy = false;
+      let currentId = info.start, previewOf = null, state = null, busy = false, paint = null;
 
       viewer.on("scenechange", (id) => {
         if (!id.startsWith("apercu:")) {
           currentId = id;
           previewOf = null;
           $("apercu").style.display = "none";
+          $("peinture").style.display = "none";
           $("outils").style.display = "flex";
+          paint = null;
+          updateToggle();
         }
         $("liste").style.display = "none";
         refreshList();
@@ -215,6 +274,7 @@
       function setMode(selecting) {
         $("choisir").hidden = selecting;
         $("mes-selections").hidden = selecting;
+        if (selecting) $("avant-apres").hidden = true; else updateToggle();
         for (const id of selectButtons) $(id).hidden = !selecting;
         layer.style.display = selecting ? "block" : "none";
         $("liste").style.display = "none";
@@ -397,26 +457,259 @@
             note.textContent = "panorama refait depuis : à reprendre";
             label.appendChild(note);
           }
+          const painted = colorOf(index, record.id);
+          if (painted) {
+            const swatch = document.createElement("span");
+            swatch.className = "pastille";
+            swatch.style.background = painted.couleur;
+            swatch.title = "Repeinte en " + (painted.teinte || painted.couleur);
+            label.prepend(swatch);
+            if (painted.teinte) {
+              const shade = document.createElement("div");
+              shade.className = "perimee";
+              shade.style.color = "#bbb";
+              shade.textContent = painted.teinte;
+              label.appendChild(shade);
+            }
+          }
           const see = document.createElement("button");
           see.textContent = "Voir";
           see.onclick = () => { box.style.display = "none"; showPreview(index, record); };
+          const repaint = document.createElement("button");
+          repaint.textContent = "Repeindre";
+          repaint.onclick = () => { box.style.display = "none"; startPaint(index, record); };
+          const buttons = [see, repaint];
+          if (painted) {
+            const undo = document.createElement("button");
+            undo.textContent = "Sans couleur";
+            undo.title = "Annuler la recoloration de cette surface";
+            undo.onclick = async () => {
+              try {
+                await postJson("/api/couleur/annuler", { point: index, id: painted.id });
+                box.style.display = "none";
+                await refreshColors(index);
+                say("Couleur de « " + record.nom + " » annulée.");
+              } catch (error) {
+                say(error.message);
+              }
+            };
+            buttons.push(undo);
+          }
           const remove = document.createElement("button");
           remove.textContent = "Supprimer";
           remove.onclick = async () => {
-            if (!window.confirm("Supprimer « " + record.nom + " » ? Le panorama ne change pas.")) return;
+            const extra = painted ? " Sa couleur sera aussi annulée." : "";
+            if (!window.confirm("Supprimer « " + record.nom + " » ? Le panorama ne change pas." + extra)) return;
             try {
               await postJson("/api/selection/supprimer", { point: index, id: record.id });
               line.remove();
               refreshList();
+              if (painted) await refreshColors(index);
             } catch (error) {
               say(error.message);
             }
           };
-          line.append(label, see, remove);
+          buttons.push(remove);
+          line.append(label, ...buttons);
           box.appendChild(line);
         }
         box.style.display = "block";
       };
+
+      // Étape 8 : changement de couleur d'une sélection. L'aperçu est un panorama réduit calculé par
+      // le serveur ; « Appliquer » enregistre l'opération, et la visite montre le panorama modifié.
+      const colorOf = (index, selectionId) => {
+        const colors = look.colors[index];
+        return colors ? colors.couleurs.find((c) => c.selection === selectionId) : undefined;
+      };
+
+      function updateToggle() {
+        const index = pointIndex();
+        const colors = index < 0 ? null : look.colors[index];
+        const toggle = $("avant-apres");
+        toggle.hidden = !(colors && colors.version) || state !== null;
+        toggle.textContent = look.after ? "Voir l'original" : "Voir les modifications";
+        toggle.title = look.after ? "Montrer le panorama d'origine (avant)" : "Montrer les recolorations (après)";
+      }
+
+      // Remplace l'image de chaque scène selon le mode, et recharge la scène affichée si elle change.
+      function updateScenes() {
+        for (const [index, point] of info.points.entries()) {
+          const url = look.url(index);
+          const changed = look.scenes[point.id].panorama !== url;
+          look.scenes[point.id] = Object.assign({}, look.scenes[point.id], { panorama: url });
+          viewer.addScene(point.id, look.scenes[point.id]);
+          if (changed && point.id === currentId && !previewOf) {
+            viewer.loadScene(point.id, viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
+          }
+        }
+        updateToggle();
+      }
+
+      async function refreshColors(index) {
+        const answer = await fetch("/p/" + index + "/couleurs.json");
+        look.colors[index] = answer.ok ? await answer.json() : null;
+        updateScenes();
+      }
+
+      $("avant-apres").onclick = () => {
+        look.after = !look.after;
+        updateScenes();
+        say(look.after ? "Après : avec les recolorations." : "Avant : panorama d'origine.");
+      };
+
+      let trial = 0, timer = null;
+      const blobs = [];
+      const swatches = [];
+
+      // Nuancier : teintes murales de visionneuse/nuancier.json, plus une case « Personnaliser ».
+      const custom = document.createElement("label");
+      custom.className = "teinte perso";
+      custom.title = "Personnaliser : choisir n'importe quelle couleur";
+      custom.innerHTML = "<span aria-hidden=\"true\">+</span>";
+      const picker = document.createElement("input");
+      picker.type = "color";
+      picker.value = "#e8e2d6";
+      picker.setAttribute("aria-label", "Couleur personnalisée");
+      custom.appendChild(picker);
+
+      fetch("/nuancier.json").then((r) => r.ok ? r.json() : { familles: [] }).catch(() => ({ familles: [] }))
+        .then((palette) => {
+          const box = $("nuancier");
+          for (const family of palette.familles || []) {
+            const title = document.createElement("div");
+            title.className = "famille";
+            title.textContent = family.nom;
+            const row = document.createElement("div");
+            row.className = "teintes";
+            for (const shade of family.teintes || []) {
+              const button = document.createElement("button");
+              button.className = "teinte";
+              button.style.background = shade.couleur;
+              button.title = shade.nom;
+              button.setAttribute("aria-label", shade.nom);
+              button.onclick = () => choose(shade.couleur, shade.nom, true);
+              swatches.push({ button, couleur: shade.couleur.toLowerCase(), nom: shade.nom });
+              row.appendChild(button);
+            }
+            box.append(title, row);
+          }
+          const title = document.createElement("div");
+          title.className = "famille";
+          title.textContent = "Sur mesure";
+          const row = document.createElement("div");
+          row.className = "teintes";
+          row.appendChild(custom);
+          box.append(title, row);
+        });
+
+      // Couleur de peinture actuelle du mur, pour en déduire l'éclairage : blanc par défaut, une
+      // couleur connue, ou « photo » (la couleur du mur sur la photo, quand on ne la connaît pas).
+      const WHITE = "#f4f4f0";
+      function currentValue() {
+        const mode = $("actuelle").value;
+        if (mode === "blanc") return WHITE;
+        if (mode === "photo") return "photo";
+        return $("actuelle-couleur").value.toLowerCase();
+      }
+      function showCurrent(value) {
+        $("actuelle").value = value === "photo" ? "photo" : (!value || value === WHITE ? "blanc" : "autre");
+        if ($("actuelle").value === "autre") $("actuelle-couleur").value = value;
+        $("actuelle-couleur").hidden = $("actuelle").value !== "autre";
+      }
+      $("actuelle").addEventListener("change", () => {
+        showCurrent(currentValue());
+        if (paint) { clearTimeout(timer); timer = setTimeout(tryColor, 0); }
+      });
+      $("actuelle-couleur").addEventListener("input", () => {
+        if (paint) { clearTimeout(timer); timer = setTimeout(tryColor, 300); }
+      });
+
+      // Choisit une couleur ; `shade` est le nom de la teinte du nuancier, null pour une couleur libre.
+      function choose(color, shade, now) {
+        if (!paint) return;
+        paint.color = color.toLowerCase();
+        paint.shade = shade;
+        for (const swatch of swatches) {
+          swatch.button.classList.toggle("actif", shade !== null && swatch.couleur === paint.color);
+        }
+        custom.classList.toggle("actif", shade === null);
+        if (shade === null) custom.style.background = paint.color;
+        $("teinte-choisie").textContent = "· " + (shade || "Personnalisée " + paint.color);
+        clearTimeout(timer);
+        timer = setTimeout(tryColor, now ? 0 : 300);
+      }
+
+      function startPaint(index, record) {
+        const painted = colorOf(index, record.id);
+        paint = { index, record, color: null, shade: null };
+        $("peinture-nom").textContent = record.nom;
+        $("teinte-choisie").textContent = "· choisir une teinte";
+        custom.style.background = "";
+        custom.classList.remove("actif");
+        for (const swatch of swatches) swatch.button.classList.remove("actif");
+        showCurrent(painted ? painted.couleur_actuelle : WHITE);
+        $("outils").style.display = "none";
+        $("peinture").style.display = "flex";
+        say("Choisir une teinte : l'aperçu s'affiche dans la visite.");
+        if (painted) {
+          picker.value = painted.couleur;
+          choose(painted.couleur, painted.teinte || null, true);
+        }
+      }
+
+      async function tryColor() {
+        if (!paint || !paint.color) return;
+        const ticket = ++trial;
+        const { index, record, color, shade } = paint;
+        try {
+          const response = await postJson("/api/couleur/apercu", {
+            point: index, selection: record.id, couleur: color, actuelle: currentValue(),
+          });
+          const url = URL.createObjectURL(await response.blob());
+          blobs.push(url);
+          if (ticket !== trial || !paint) return;
+          const pointId = previewOf ? previewOf.pointId : currentId;
+          viewer.addScene("apercu:peinture", { type: "equirectangular", panorama: url });
+          viewer.loadScene("apercu:peinture", viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
+          previewOf = { pointId };
+          say("Aperçu : " + (shade || color) + ". Appliquer pour l'enregistrer.");
+        } catch (error) {
+          say(error.message);
+        }
+      }
+
+      function endPaint() {
+        const back = previewOf ? previewOf.pointId : currentId;
+        paint = null;
+        $("peinture").style.display = "none";
+        $("outils").style.display = "flex";
+        if (previewOf) viewer.loadScene(back, viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
+        setTimeout(() => { while (blobs.length) URL.revokeObjectURL(blobs.pop()); }, 2000);
+      }
+
+      picker.addEventListener("input", () => choose(picker.value, null, false));
+      $("renoncer").onclick = () => { endPaint(); say(""); };
+      $("appliquer").onclick = async () => {
+        if (!paint) return;
+        if (!paint.color) { say("Choisir d'abord une teinte dans le nuancier."); return; }
+        const { index, record, color, shade } = paint;
+        try {
+          await postJson("/api/couleur/appliquer", {
+            point: index, selection: record.id, couleur: color, teinte: shade, actuelle: currentValue(),
+          });
+          look.after = true;
+          say("Recoloration enregistrée. Préparation du panorama modifié...");
+          // Les scènes d'abord : le retour à la visite charge alors directement le panorama modifié.
+          await refreshColors(index);
+          endPaint();
+          say("« " + record.nom + " » repeinte. « Voir l'original » pour comparer.");
+        } catch (error) {
+          say(error.message);
+        }
+      };
+      document.addEventListener("keydown", (event) => { if (paint && event.key === "Escape") { endPaint(); say(""); } });
+      updateToggle();
 
       fetch("/api/selection").then((r) => r.json()).then((answer) => {
         $("choisir").hidden = false;

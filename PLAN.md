@@ -26,7 +26,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 6 | App : capture d'une visite et transfert vers le Mac | v0.1 | livrée |
 | J1 | **Jalon v0.1 : validation de la visite par le propriétaire** | — | livrée |
 | 7 | Sélection d'une surface au clic | v0.2 | livrée |
-| 8 | Changement de couleur | v0.2 | à faire |
+| 8 | Changement de couleur | v0.2 | livrée |
 | 9 | Modification par génération d'image, en local | v0.2 | à faire |
 | J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | à faire |
 | 10 | Dimensions des pièces | v0.3 | à faire |
@@ -113,6 +113,7 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 - **Validation :** résultat crédible sur trois murs : un blanc, un coloré, un éclairé par une fenêtre.
 - **Limite connue :** passer d'un mur foncé à un mur clair est plus difficile que l'inverse.
 - À ce stade, un mur visible depuis plusieurs points se repeint dans chaque panorama séparément.
+- **Tranché le 2026-10-25 (D30) :** contour recalé sur les bords de la photo par un filtre guidé, puis couleur changée en lumière linéaire (« couleur du mur × éclairage ») ; la couleur choisie est celle du pot de peinture, le mur étant supposé blanc sauf indication ; nuancier de 24 teintes avec couleur sur mesure ; une fiche par surface repeinte dans `modifications/`, panorama modifié refait à la demande dans `cache/` ; « Repeindre » dans la liste des sélections, bascule avant et après dans la visite. Mode d'emploi dans `docs/couleur.md`.
 
 ### Étape 9 : modification par génération d'image, en local
 

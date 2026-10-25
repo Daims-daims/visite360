@@ -36,6 +36,11 @@ Presque tout est en anglais, sauf le TP de l'ENSTA.
 
 - [Article de recherche sur SAM 2](https://arxiv.org/abs/2408.00714) et [dépôt officiel](https://github.com/facebookresearch/sam2).
 
+### Étape 8 : changer une couleur
+
+- [Wikipédia, « sRGB »](https://fr.wikipedia.org/wiki/SRGB) : pourquoi les valeurs d'une photo ne sont pas proportionnelles à la lumière, et comment on revient à la lumière linéaire pour repeindre sans effacer les ombres.
+- [He, Sun et Tang, « Guided Image Filtering » (2010)](https://people.csail.mit.edu/kaiming/eccv10/index.html) : le filtre qui recale le contour sur les bords de la photo. Les figures suffisent pour l'idée.
+
 ### Étape 10 : dimensions des pièces
 
 - [HorizonNet](https://arxiv.org/abs/1901.03861) : comment un modèle retrouve la forme d'une pièce à partir d'un panorama.

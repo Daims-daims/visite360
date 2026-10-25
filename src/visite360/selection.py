@@ -9,7 +9,7 @@ et blanc où blanc veut dire « sélectionné ») est reporté dans le panorama.
 Une sélection validée est une opération enregistrée dans `<point>/modifications/` (D9) : un
 fichier `selection-<n>.json` (vue, clics, modèle, empreinte du panorama) et son masque
 `selection-<n>.png` à la taille du panorama. Le panorama d'origine n'est jamais modifié.
-Le format est décrit dans `docs/modifications.md`.
+Le format est décrit dans `docs/selection.md`.
 """
 
 from __future__ import annotations
@@ -288,7 +288,7 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _write_atomic(target: Path, data: bytes) -> None:
+def write_atomic(target: Path, data: bytes) -> None:
     partial = target.with_name(target.name + ".partiel")
     partial.write_bytes(data)
     os.replace(partial, target)
@@ -341,8 +341,8 @@ def save(
         "score": round(score, 3),
     }
     # Le masque d'abord : une fiche présente veut dire une sélection complète.
-    _write_atomic(folder / record["masque"], encoded.tobytes())
-    _write_atomic(
+    write_atomic(folder / record["masque"], encoded.tobytes())
+    write_atomic(
         folder / f"{selection_id}.json",
         (json.dumps(record, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
     )
@@ -413,7 +413,7 @@ def preview(point: Path, panorama: Path, selection_id: str) -> Path:
     if not ok:
         raise SelectionError("L'écriture de l'aperçu a échoué.")
     target.parent.mkdir(exist_ok=True)
-    _write_atomic(target, encoded.tobytes())
+    write_atomic(target, encoded.tobytes())
     return target
 
 

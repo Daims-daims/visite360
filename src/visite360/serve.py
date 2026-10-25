@@ -14,6 +14,10 @@ fabriquée dans `cache/` de chaque point.
 Étape 7 : la visionneuse peut aussi sélectionner une surface au clic. Les routes `/api/selection/`
 reçoivent la vue regardée et les clics, et répondent avec le contour trouvé par SAM 2.1 (voir
 `selection.py`). Une sélection validée est enregistrée dans `<point>/modifications/`.
+
+Étape 8 : une sélection peut être repeinte. Les routes `/api/couleur/` essaient, appliquent et
+annulent une recoloration (voir `couleur.py`) ; `/p/<numéro>/apres.jpg` sert le panorama modifié,
+fabriqué dans `cache/`, que la visionneuse montre en « après ».
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
 
-from visite360 import segment, selection, stitch, visite
+from visite360 import couleur, segment, selection, stitch, visite
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import PhotoError
 
@@ -42,6 +46,8 @@ JSON = "application/json; charset=utf-8"
 MAX_BODY = 64 * 1024
 SELECTIONS_PATH = re.compile(r"^/p/(\d+)/selections\.json$")
 PREVIEW_PATH = re.compile(r"^/p/(\d+)/selections/(selection-\d+)\.jpg$")
+COLORS_PATH = re.compile(r"^/p/(\d+)/couleurs\.json$")
+AFTER_PATH = re.compile(r"^/p/(\d+)/(apres|apres-mobile)\.jpg$")
 
 
 class ServeError(Exception):
@@ -259,6 +265,7 @@ def viewer_assets() -> dict[str, Asset]:
         "/pannellum/pannellum.css": Asset(
             viewer / "pannellum" / "pannellum.css", "text/css; charset=utf-8"
         ),
+        "/nuancier.json": Asset(viewer / "nuancier.json", JSON),
     }
 
 
@@ -306,8 +313,41 @@ def handle_selection(
         selection_id = body.get("id")
         if not isinstance(selection_id, str):
             raise selection.SelectionError("Identifiant de sélection manquant.")
+        # Ses recolorations d'abord : sans sélection, elles n'auraient plus de masque.
+        couleur.delete_for_selection(point.folders.point, selection_id)
         selection.delete(point.folders.point, selection_id)
         result = {"supprimee": selection_id}
+    else:
+        raise RequestError(404, "Introuvable")
+    return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
+
+
+def handle_color(
+    selector: selection.Selector, route: str, body: dict[str, Any]
+) -> tuple[bytes, str]:
+    """Traite une route POST `/api/couleur/...`. Renvoie (contenu, type)."""
+    folders = selector.point(body.get("point")).folders
+    if route == "apercu":
+        image = couleur.preview(
+            folders.panorama,
+            folders.point,
+            body.get("selection"),
+            body.get("couleur"),
+            MOBILE_WIDTH,
+            body.get("actuelle"),
+        )
+        return image, "image/jpeg"
+    if route == "appliquer":
+        result: Any = couleur.save(
+            folders.point,
+            body.get("selection"),
+            body.get("couleur"),
+            body.get("teinte"),
+            body.get("actuelle"),
+        )
+    elif route == "annuler":
+        couleur.delete(folders.point, body.get("id"))
+        result = {"annulee": body.get("id")}
     else:
         raise RequestError(404, "Introuvable")
     return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
@@ -329,6 +369,7 @@ def make_server(
     visit = Visit(tour)
     fixed = viewer_assets()
     selector = selector or default_selector(tour)
+    painter = couleur.Painter(MOBILE_WIDTH)
     if tour_needs_generation(tour, force):
         for point in tour.points:
             if needs_generation(point.folders, force):
@@ -351,6 +392,9 @@ def make_server(
             if SELECTIONS_PATH.match(path) or PREVIEW_PATH.match(path):
                 self._answer(lambda: self._selection_file(path))
                 return
+            if COLORS_PATH.match(path) or AFTER_PATH.match(path):
+                self._answer(lambda: self._color_file(path))
+                return
             info, asset = visit.lookup(path)
             if info is not None:
                 self._send(info, JSON)
@@ -363,10 +407,13 @@ def make_server(
 
         def do_POST(self) -> None:
             path = self.path.split("?", 1)[0]
-            if not path.startswith("/api/selection/"):
+            route = path.rsplit("/", 1)[1]
+            if path.startswith("/api/selection/"):
+                self._answer(lambda: handle_selection(selector, route, self._body()))
+            elif path.startswith("/api/couleur/"):
+                self._answer(lambda: handle_color(selector, route, self._body()))
+            else:
                 self.send_error(404, "Introuvable")
-                return
-            self._answer(lambda: handle_selection(selector, path.rsplit("/", 1)[1], self._body()))
 
         def _answer(self, produce: Callable[[], tuple[bytes, str]]) -> None:
             """Envoie ce que `produce` renvoie, ou une erreur JSON lisible par la visionneuse."""
@@ -376,13 +423,13 @@ def make_server(
                 data, kind = produce()
             except RequestError as error:
                 self._send_error(error.status, str(error))
-            except selection.SelectionError as error:
+            except (selection.SelectionError, couleur.ColorError) as error:
                 self._send_error(400, str(error))
             except (segment.SegmentError, OpenCVError) as error:
                 print(f"Erreur : {error}", file=sys.stderr)
                 self._send_error(503, str(error))
             except Exception as error:  # le serveur doit répondre, même à une erreur imprévue
-                print(f"Erreur inattendue pendant la sélection : {error!r}", file=sys.stderr)
+                print(f"Erreur inattendue : {error!r}", file=sys.stderr)
                 self._send_error(500, f"Erreur inattendue : {error}")
             else:
                 self._send(data, kind)
@@ -412,6 +459,17 @@ def make_server(
                 return json.dumps(records, ensure_ascii=False).encode("utf-8"), JSON
             image = selection.preview(folders.point, folders.panorama, match.group(2))
             return image.read_bytes(), "image/jpeg"
+
+        def _color_file(self, path: str) -> tuple[bytes, str]:
+            listing = COLORS_PATH.match(path)
+            match = listing or AFTER_PATH.match(path)
+            assert match is not None
+            folders = selector.point(int(match.group(1))).folders
+            if listing:
+                state = painter.state(folders.point, folders.panorama)
+                return json.dumps(state, ensure_ascii=False).encode("utf-8"), JSON
+            mobile = match.group(2) == "apres-mobile"
+            return painter.after(folders.point, folders.panorama, mobile).read_bytes(), "image/jpeg"
 
         def _send_error(self, status: int, message: str) -> None:
             data = json.dumps({"erreur": message}, ensure_ascii=False).encode("utf-8")
