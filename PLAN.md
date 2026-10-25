@@ -32,7 +32,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 10 | Dimensions des pièces | v0.3 | livrée |
 | 11 | Chiffrage d'une modification | v0.3 | à faire |
 | J3 | **Jalon v0.3 : validation du chiffrage par le propriétaire** | — | à faire |
-| 12 | Hébergement et lien de partage | v1 | à faire |
+| 12 | Hébergement et lien de partage | v1 | en cours |
 | 13 | Envoi depuis l'app et traitement sur serveur | v1 | à faire |
 | 9.5 | Essai : abattre une cloison | v1 | à faire |
 | 14 | Retours d'engagement pour l'agent | v1 | à faire |
