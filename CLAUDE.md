@@ -49,6 +49,8 @@ Ces trois vérifications doivent passer avant tout commit.
 - **Modifications non destructives (D9) :** les photos et panoramas d'origine ne sont jamais réécrits. Une modification est une opération enregistrée (masque et paramètres) appliquée pour produire une image dérivée. On peut l'annuler, la combiner et la recalculer.
 - Chaque étape de traitement est un module indépendant dans `src/visite360/`. Il lit un dossier de visite et y écrit son résultat. Pas d'état global, pas de chemin en dur.
 - Relancer un module ne casse rien et ne refait pas ce qui est déjà fait, sauf option explicite pour forcer.
+- **Écosystème Scaleway (D35, D38) :** tout ce qui tourne en ligne est chez Scaleway : stockage, serveur, carte graphique, nom de domaine, envoi d'e-mails, secrets, base de données. Un service d'un autre fournisseur demande une décision écrite du propriétaire.
+- Adresses, noms de stockage et clés sont des réglages, jamais écrits dans le code ni dans l'app : changer de domaine ou ajouter un environnement ne demande pas de code (D38).
 - Clés d'accès (Scaleway et autres) : jamais dans le dépôt. Celles de Scaleway sont dans `~/.config/visite360/scaleway.json` (D37).
 - Les programmes externes sont appelés par `subprocess` avec une liste d'arguments, jamais avec `shell=True`.
 - L'absence ou l'échec d'un outil externe produit un message clair en français et un code de sortie non nul, pas une trace Python.
@@ -70,5 +72,5 @@ Ces trois vérifications doivent passer avant tout commit.
 
 ## Hors périmètre
 
-- Jusqu'à la v1 (D22) : serveur distant de traitement, comptes utilisateurs, tout service payant autre que l'hébergement de l'étape 12. Le produit tourne en local, sur le Mac et le téléphone. Seule exception : depuis l'étape 12, une visite peut être publiée en fichiers statiques chez Scaleway et partagée par lien (D35).
+- Avant leur étape (D22, D35, D38) : publication en fichiers statiques chez Scaleway depuis l'étape 12 ; serveur de traitement chez Scaleway et comptes agents à partir de l'étape 13 ; carte graphique louée à partir de l'étape 14 ; mesure de la consultation des clients à partir de l'étape 16. Aucun autre service payant, aucune inscription libre. Le Mac garde tous ses outils en local.
 - Toute la durée du plan actuel : plan du logement, Gaussian splatting.
