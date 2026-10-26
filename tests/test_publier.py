@@ -117,6 +117,8 @@ def test_published_info_is_relative_and_read_only(tmp_path: Path) -> None:
     page = files["index.html"].data.decode("utf-8")
     assert '<meta name="robots" content="noindex, nofollow">' in page
     assert 'src="pannellum/pannellum.js"' in page and 'fetch("info.json")' in page
+    # Toute la barre d'outils disparaît en ligne, y compris les boutons ajoutés plus tard.
+    assert 'for (const id of ["cap", "outils"])' in page
 
 
 def test_publish_sends_everything_under_a_random_identifier(tmp_path: Path) -> None:

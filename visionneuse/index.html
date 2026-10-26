@@ -278,7 +278,10 @@
           }
 
           // Étape 12 : la visite publiée est en lecture seule, sans les outils qui appellent le Mac.
-          if (info.publiee) { document.getElementById("cap").style.display = "none"; return; }
+          if (info.publiee) {
+            for (const id of ["cap", "outils"]) document.getElementById(id).style.display = "none";
+            return;
+          }
 
           // Aide pour déclarer un lien : l'angle du centre de l'écran et du dernier clic,
           // à recopier dans visite.json (« angle »).
