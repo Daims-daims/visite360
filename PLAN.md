@@ -35,7 +35,6 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 12 | Hébergement et lien de partage | v1 | livrée |
 | 13 | Envoi depuis l'app et assemblage sur serveur | v1 | à faire |
 | 14 | Génération d'image sur une carte graphique louée | v1 | à faire |
-| 9.5 | Essai : abattre une cloison | v1 | à faire |
 | 15 | Modifications et chiffrage en ligne | v1 | à faire |
 | 16 | Retours d'engagement pour l'agent | v1 | à faire |
 | J4 | **Jalon v1 : présentation aux agents et premiers accès** | — | à faire |
@@ -132,7 +131,7 @@ On génère au maximum sans coût : calcul déterministe quand il suffit, modèl
 - **Contenu :** la visite du jalon v0.1 avec un mur repeint et au moins une modification générée, jugée par le propriétaire.
 - **Livrable :** temps et coût de génération mesurés.
 - **Décision :** le propriétaire décide de la suite et l'écrit ici.
-- **Décision du propriétaire (2026-10-25) :** le mur repeint et le meuble remplacé lui conviennent. Poursuivre avec la v0.3. Les temps et coûts de génération sont dans `docs/generation.md`. L'essai de cloison abattue est repoussé après l'étape 13 (D33).
+- **Décision du propriétaire (2026-10-25) :** le mur repeint et le meuble remplacé lui conviennent. Poursuivre avec la v0.3. Les temps et coûts de génération sont dans `docs/generation.md`. L'essai de cloison abattue est repoussé après l'étape 13 (D33), puis abandonné (D38).
 
 ## v0.3 : chiffrage
 
@@ -173,23 +172,23 @@ Les coûts d'hébergement commencent à l'étape 12, ceux du serveur à l'étape
 
 ### Étape 13 : envoi depuis l'app et assemblage sur serveur
 
-- **Contenu :** à la fin d'une visite, l'app l'envoie au serveur du projet chez Scaleway au lieu du Mac. L'envoi se fait en arrière-plan, par morceaux, et reprend où il s'était arrêté après une coupure de réseau. Le serveur vérifie que l'envoi est complet, assemble les panoramas avec le code des étapes 2 et 4, publie la visite comme à l'étape 12 et donne le lien. L'agent retrouve ses visites dans l'app et dans un espace web : état du traitement (en attente, en cours, prête, échec), lien à copier, dépublication, suppression. Les comptes agents sont créés par le propriétaire, sans inscription libre ; un agent ne voit que ses visites. Les photos d'origine restent dans un stockage privé, jamais lisible par un lien. Le Mac garde tous ses outils (`receive`, `serve`, `publier`) : le mode local reste la référence pour le développement et le secours. Ni modifications, ni chiffrage, ni mode `/agent` en ligne : ils viennent à l'étape 15.
-- **Tests automatiques :** réception d'un envoi par morceaux, reprise après coupure, refus d'un envoi incomplet ou d'un agent non connecté ; un agent ne voit ni ne supprime la visite d'un autre ; traitement relancé sans refaire ce qui est fait ; publication contre le faux stockage de l'étape 12 ; assemblage simulé. Côté app : reprise d'un envoi interrompu, sur des données générées.
-- **Validation :** sur l'iPhone, en 4G, une visite de l'appartement du propriétaire prise avec l'app est envoyée, assemblée sur le serveur et ouverte par son lien sur un autre téléphone, sans passer par le Mac. Une coupure de réseau pendant l'envoi (mode avion) ne fait pas tout recommencer. Un deuxième compte de test ne voit pas la visite du premier. Temps d'envoi, temps d'assemblage et coût du mois notés.
+- **Contenu :** à la fin d'une visite, l'app l'envoie au serveur du projet chez Scaleway au lieu du Mac. L'envoi se fait en arrière-plan, par morceaux, et reprend où il s'était arrêté après une coupure de réseau. Le serveur vérifie que l'envoi est complet, assemble les panoramas avec le code des étapes 2 et 4, publie la visite comme à l'étape 12 et donne le lien. L'agent retrouve ses visites dans l'app et dans un espace web : état du traitement (en attente, en cours, prête, échec), lien à copier, dépublication, suppression. Les comptes agents sont créés par le propriétaire, sans inscription libre ; un agent ne voit que ses visites. Les photos d'origine restent dans un stockage privé, jamais lisible par un lien. Le Mac garde tous ses outils (`receive`, `serve`, `publier`) : le mode local reste la référence pour le développement et le secours. Deux environnements séparés : **intégration**, pour les essais du propriétaire avec des comptes et des visites de test, et **production**, pour les agents et leurs clients à partir du jalon v1. Chacun a son serveur, son stockage, ses clés et son adresse, et aucune donnée ne passe de l'un à l'autre. Une version est d'abord déployée en intégration, puis en production par une commande explicite. L'app choisit son environnement à la compilation : intégration depuis Xcode, production pour la version distribuée aux agents. Ni modifications, ni chiffrage, ni mode `/agent` en ligne : ils viennent à l'étape 15.
+- **Tests automatiques :** réception d'un envoi par morceaux, reprise après coupure, refus d'un envoi incomplet ou d'un agent non connecté ; un agent ne voit ni ne supprime la visite d'un autre ; traitement relancé sans refaire ce qui est fait ; publication contre le faux stockage de l'étape 12 ; assemblage simulé ; réglages d'un environnement sans aucune adresse ni clé de l'autre. Côté app : reprise d'un envoi interrompu, sur des données générées.
+- **Validation :** sur l'iPhone, en 4G, une visite de l'appartement du propriétaire prise avec l'app est envoyée, assemblée sur le serveur et ouverte par son lien sur un autre téléphone, sans passer par le Mac. Une coupure de réseau pendant l'envoi (mode avion) ne fait pas tout recommencer. Un deuxième compte de test ne voit pas la visite du premier. Tout cela en intégration ; la même version déployée en production répond à son adresse, vide. Temps d'envoi, temps d'assemblage et coût du mois de chaque environnement notés.
 - **À trancher avant l'étape :**
-  - nom de domaine du projet : un serveur qui reçoit des connexions a besoin de sa propre adresse HTTPS (D37 laissait la question ouverte jusqu'au jalon v1) ;
-  - service Scaleway qui fait tourner le serveur et l'assemblage (machine louée au mois, conteneurs facturés à l'usage, tâches lancées à la demande) et coût mensuel estimé sur les tarifs publiés ;
+  - nom de domaine du projet : un serveur qui reçoit des connexions a besoin de sa propre adresse HTTPS (D37 laissait la question ouverte jusqu'au jalon v1). Un seul domaine, une adresse par environnement (par exemple `integration.<domaine>` et `<domaine>`). L'adresse reste un réglage (D37) : changer de domaine avant le jalon v1 ne coûte rien, aucun lien n'ayant été envoyé à un client ;
+  - service Scaleway qui fait tourner le serveur et l'assemblage (machine louée au mois, conteneurs facturés à l'usage, tâches lancées à la demande) et coût mensuel estimé sur les tarifs publiés, pour chaque environnement ; intégration éteinte hors des essais ou non ;
   - connexion des agents : mot de passe, lien de connexion envoyé par e-mail (service d'envoi à choisir) ou clé d'accès remise par le propriétaire ;
   - durée de conservation des photos d'origine sur le serveur une fois les panoramas faits ;
   - numpy et OpenCV compilés pour Linux : composants LGPL et GPL embarqués à examiner avant tout déploiement (`docs/licences.md`).
-- **À trancher pendant l'étape :** taille des morceaux ; dépôt des photos directement dans le stockage ou en passant par le serveur ; rangement des secrets sur le serveur ; emplacement des fichiers de déploiement dans le dépôt (D15).
+- **À trancher pendant l'étape :** taille des morceaux ; dépôt des photos directement dans le stockage ou en passant par le serveur ; rangement des secrets sur le serveur ; emplacement des fichiers de déploiement dans le dépôt (D15) ; environnement visé par `visite360 publier` depuis le Mac.
 
 ### Étape 14 : génération d'image sur une carte graphique louée
 
 - **Contenu :** le remplacement d'un objet de l'étape 9 tourne sur une carte graphique NVIDIA louée chez Scaleway, avec le même modèle (FLUX.2 klein 4B), et non plus sur le Mac par mflux (D32). La carte s'allume à la première demande et s'éteint après un temps sans demande. La visionneuse du Mac s'en sert telle quelle : le cadre, la demande, le report dans le panorama et la fiche de modification ne changent pas, seul l'endroit du calcul change. Les vues envoyées ne passent que par le serveur du projet, jamais par un service de génération, et ne sont pas gardées sur la carte après le calcul. Le calcul sur le Mac reste possible, en secours ou sans réseau.
 - **Tests automatiques :** une demande envoyée à la carte et la fiche obtenue sont les mêmes qu'avec le calcul sur le Mac ; allumage à la première demande et extinction après le délai, simulés ; message clair en français quand la carte ne répond pas, avec repli sur le Mac ; vue effacée après le calcul. Le modèle est simulé.
 - **Validation :** sur l'appartement du propriétaire, le même meuble remplacé sur le Mac et sur la carte louée donne un résultat de même qualité. Temps d'une génération à froid (carte éteinte) et à chaud, coût d'une séance d'essais et coût estimé du mois notés, comparés aux 2 à 3 minutes du Mac et au prix de l'API (`docs/generation.md`).
-- **À trancher avant l'étape :** type de carte graphique et mode de location (machine allumée à l'heure, service facturé à l'usage) ; logiciel qui fait tourner FLUX.2 klein sur carte NVIDIA (diffusers, licence à vérifier, D32) ; plafond de dépense mensuel et ce qui se passe quand il est atteint.
+- **À trancher avant l'étape :** type de carte graphique et mode de location (machine allumée à l'heure, service facturé à l'usage) ; une carte par environnement ou une carte partagée ; logiciel qui fait tourner FLUX.2 klein sur carte NVIDIA (diffusers, licence à vérifier, D32) ; plafond de dépense mensuel et ce qui se passe quand il est atteint.
 - **À trancher pendant l'étape :** réduction du temps d'allumage (modèle préchargé, image système prête) ; délai avant extinction ; résolution de la vue envoyée.
 
 ### Étape 15 : modifications et chiffrage en ligne
@@ -208,14 +207,6 @@ Les coûts d'hébergement commencent à l'étape 12, ceux du serveur à l'étape
 - **À trancher avant l'étape (RGPD, à faire vérifier) :** base légale de la mesure et texte d'information au client : consentement demandé à l'ouverture, ou mesure d'audience dispensée de consentement selon les conditions de la CNIL ; durée de conservation des mesures ; contrat de sous-traitance entre le projet et les agents, qui confient au projet des données de leurs clients et des photos de logements ; détail montré à l'agent (totaux par lien ou chaque consultation).
 - **À trancher pendant l'étape :** stockage des mesures et sa licence ; fréquence d'envoi depuis la page.
 
-### Étape 9.5 : essai, abattre une cloison
-
-- **Décision du propriétaire (2026-10-25) :** essai à mener une fois l'étape 9 validée. Il sort l'idée du « hors plan » le temps d'un essai, sans engager la suite.
-- **Repoussé le 2026-10-25 (D33) :** l'essai se fait après l'étape 13, avec la génération sur la carte graphique louée (D32), plus rapide que sur le Mac, pour enchaîner les essais. La carte graphique arrivant à l'étape 14, l'essai se fait juste après elle (D38).
-- **Contenu :** sur une ou deux cloisons de l'appartement du propriétaire, montrer la pièce voisine à la place du mur, par la génération de l'étape 9 avec en référence une vue de la pièce voisine prise dans son propre panorama.
-- **Validation :** le propriétaire juge si le rendu est assez crédible pour en faire une vraie étape. La reconstruction par la géométrie des pièces (étape 10) et le chiffrage d'une démolition restent hors de l'essai.
-- **Limite connue :** l'outil ne sait pas si un mur est porteur. Toute image de cloison abattue est une projection indicative.
-
 ## Jalon v1 : présentation aux agents et premiers accès
 
 - **Contenu :** d'abord une démo de la v1 à 2 ou 3 agents immobiliers : prise d'une visite avec l'app, lien de partage, modifications, chiffrage et retours d'engagement. Puis, selon leurs retours, premiers agents qui utilisent le produit eux-mêmes, avec de vrais clients.
@@ -226,4 +217,4 @@ Les coûts d'hébergement commencent à l'étape 12, ceux du serveur à l'étape
 
 - Suivi de position entre les points par la réalité augmentée du téléphone, pour placer les liens tout seuls (D14).
 - Modèle 3D commun à toutes les pièces et propagation d'une modification d'un panorama à l'autre.
-- Abattre une cloison, au-delà de l'essai de l'étape 9.5.
+- Abattre une cloison. L'essai prévu (ancienne étape 9.5) est abandonné pour commercialiser au plus vite (D38).
