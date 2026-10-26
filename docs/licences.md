@@ -48,6 +48,13 @@ Les licences changent : revérifier chaque ligne avant une mise en production.
 | shellingham 1.5.4 | Dépendance de typer | ISC | Paquet de l'environnement de génération | 2026-10-25 | métadonnées du paquet |
 | certifi 2026.10.23 | Certificats pour le téléchargement des poids | MPL 2.0 | Paquet de l'environnement de génération, sans modification (D29) | 2026-10-25 | métadonnées du paquet |
 | Pillow 12.3.0, tqdm 4.70.1, typing_extensions 4.16.0 | Dépendances de mflux | MIT-CMU ; MPL 2.0 et MIT ; PSF 2.0 | Paquets de l'environnement de génération. Pillow 12.3 et non 13.0 : la 13.0 ne s'importe pas avec mflux sous Python 3.13 | 2026-10-25 | LICENSE de chaque paquet |
+| pg8000 1.31.6 | Connexion du serveur à la base PostgreSQL de Scaleway (étape 13) | BSD 3 clauses | Paquet Python, installé seulement sur le serveur (`pip install -e ".[serveur]"`), sans modification | 2026-10-27 | LICENSE des sources pg8000 1.31.6 sur PyPI (projet sur codeberg.org/tlocke/pg8000) |
+| scramp 1.5.0 | Authentification SCRAM, pour pg8000 | MIT-0 (D39) | Paquet Python du serveur | 2026-10-27 | LICENSE des sources scramp 1.5.0 sur PyPI |
+| asn1crypto 1.5.1, six 1.17.0 | Dépendances de scramp et python-dateutil | MIT | Paquets Python du serveur | 2026-10-27 | LICENSE des dépôts github.com/wbond/asn1crypto et github.com/benjaminp/six |
+| python-dateutil 3.0.0 | Dépendance de pg8000 | Apache 2.0 ou BSD 3 clauses, au choix | Paquet Python du serveur | 2026-10-27 | LICENSE du dépôt github.com/dateutil/dateutil |
+| tzdata 2026.5 | Dépendance de python-dateutil | Apache 2.0 | Paquet Python du serveur | 2026-10-27 | LICENSE du dépôt github.com/python/tzdata |
+| Podman | Fabrication des images du serveur et de l'assemblage, pour `linux/amd64` (étape 13) | Apache 2.0 | Programme externe sur le Mac, non livré | 2026-10-27 | LICENSE du dépôt github.com/containers/podman |
+| Image système Debian du serveur (glibc, etc.) | Système de l'image qui fait tourner le serveur et l'assemblage | Licences de Debian, dont glibc sous LGPL 2.1 | Sur le serveur seulement, sans modification, jamais distribuée (D39) | 2026-10-27 | debian.org/legal/licenses |
 
 ## Prévu par le plan
 
@@ -61,7 +68,7 @@ Les licences changent : revérifier chaque ligne avant une mise en production.
 Remarques :
 
 - **OpenCV compilé** : `cv2` ne dépend que de bibliothèques d'Apple (AppKit, OpenCL, Accelerate, libc++, libSystem), vérifié avec `otool -L` le 2026-10-24. Le fichier `LICENSE-3RD-PARTY.txt` copié dans le paquet compilé est générique : il cite FFmpeg et d'autres composants absents de cette compilation. Le paquet contient aussi des fichiers de détection de visages (licence Intel, de type BSD), non utilisés.
-- **numpy** sur Mac ne dépend que d'Accelerate (Apple). Sur Linux, utilisé seulement par les tests GitHub, son paquet embarque OpenBLAS (BSD), libgfortran (GPL 3 avec exception pour les bibliothèques d'exécution de GCC) et libquadmath (LGPL 2.1), vérifié le 2026-10-24 sur numpy 2.5.4. Rien n'est livré depuis Linux, mais ce point reste à trancher avant tout déploiement sur un serveur Linux.
+- **numpy** sur Mac ne dépend que d'Accelerate (Apple). Sur Linux, utilisé par les tests GitHub et par le serveur (étape 13), son paquet embarque OpenBLAS (BSD), libgfortran (GPL 3 avec exception pour les bibliothèques d'exécution de GCC) et libquadmath (LGPL 2.1), vérifié le 2026-10-24 sur numpy 2.5.4. Sur le serveur de l'étape 13, ces composants sont acceptés sans modification, jamais distribués (D39).
 - **Tests GitHub sur Linux** : OpenCV y est compilé par le même script. La compilation de Linux n'a pas été inspectée comme celle du Mac.
 - **Hugin** : source secondaire. Revérifier sur le site officiel de Hugin avant de l'ajouter.
 - **SAM 2.1 et ses données d'entraînement** : SAM 2 a été entraîné en partie sur SA-1B, collection de photos de Meta réservée à la recherche (« Research purposes only » sur ai.meta.com/datasets/segment-anything, vérifié le 2026-10-25). Meta, propriétaire de ces données, publie elle-même les poids sous Apache 2.0 : ils sont considérés comme autorisés. C'est une interprétation, à faire confirmer par un juriste avec le reste de ce registre. La démo web de SAM 2 et ses polices ne sont pas utilisées.
