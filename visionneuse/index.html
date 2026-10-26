@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
   <title>Visite 360°</title>
-  <link rel="stylesheet" href="/pannellum/pannellum.css">
+  <link rel="stylesheet" href="pannellum/pannellum.css">
   <style>
     html, body { margin: 0; height: 100%; background: #111; color: #eee; font-family: system-ui, sans-serif; }
     #panorama { width: 100%; height: 100%; }
@@ -215,7 +216,7 @@
     <div id="bar"><div id="fill"></div></div>
     <div id="detail"></div>
   </div>
-  <script src="/pannellum/pannellum.js"></script>
+  <script src="pannellum/pannellum.js"></script>
   <script>
     // Beaucoup de téléphones refusent les images plus larges que la limite de leur carte
     // graphique : on choisit la version du panorama que cet appareil sait afficher.
@@ -273,14 +274,14 @@
     }
 
     function startViewer() {
-      fetch("/info.json")
+      fetch("info.json")
         .then((response) => response.json())
         .then(async (info) => {
           box.style.display = "none";
           document.title = info.name + " — visite 360°";
           const useFull = info.points.every((point) => maxTextureSize() >= point.full.width);
           // Étape 8 : recolorations de chaque point, pour ouvrir la visite en « après ».
-          const colors = await Promise.all(info.points.map((point, index) =>
+          const colors = info.publiee ? info.points.map(() => null) : await Promise.all(info.points.map((point, index) =>
             fetch("/p/" + index + "/couleurs.json").then((r) => r.ok ? r.json() : null).catch(() => null)));
           const look = { useFull, colors, after: true };
           look.url = (index) => {
@@ -308,6 +309,12 @@
             menu.style.display = "block";
             menu.onchange = () => viewer.loadScene(menu.value);
             viewer.on("scenechange", (id) => { if (!id.startsWith("apercu:")) menu.value = id; });
+          }
+
+          // Étape 12 : la visite publiée est en lecture seule, sans les outils qui appellent le Mac.
+          if (info.publiee) {
+            for (const id of ["cap", "outils"]) document.getElementById(id).style.display = "none";
+            return;
           }
 
           // Aide pour déclarer un lien : l'angle du centre de l'écran et du dernier clic,
@@ -1374,7 +1381,7 @@
 
     // Tant que le panorama est en cours d'assemblage, on interroge le serveur chaque seconde.
     function poll() {
-      fetch("/status.json")
+      fetch("status.json")
         .then((response) => response.json())
         .then((state) => {
           if (state.status === "ready") {

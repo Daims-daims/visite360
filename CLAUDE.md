@@ -49,6 +49,7 @@ Ces trois vérifications doivent passer avant tout commit.
 - **Modifications non destructives (D9) :** les photos et panoramas d'origine ne sont jamais réécrits. Une modification est une opération enregistrée (masque et paramètres) appliquée pour produire une image dérivée. On peut l'annuler, la combiner et la recalculer.
 - Chaque étape de traitement est un module indépendant dans `src/visite360/`. Il lit un dossier de visite et y écrit son résultat. Pas d'état global, pas de chemin en dur.
 - Relancer un module ne casse rien et ne refait pas ce qui est déjà fait, sauf option explicite pour forcer.
+- Clés d'accès (Scaleway et autres) : jamais dans le dépôt. Celles de Scaleway sont dans `~/.config/visite360/scaleway.json` (D37).
 - Les programmes externes sont appelés par `subprocess` avec une liste d'arguments, jamais avec `shell=True`.
 - L'absence ou l'échec d'un outil externe produit un message clair en français et un code de sortie non nul, pas une trace Python.
 - Pas de dépendance Python d'exécution sans raison écrite dans la pull request.

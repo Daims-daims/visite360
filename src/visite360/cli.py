@@ -9,7 +9,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from visite360 import __version__, chiffrage, doctor, receive, serve, stitch
+from visite360 import __version__, chiffrage, doctor, publier, receive, serve, stitch
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -115,6 +115,38 @@ def build_parser() -> argparse.ArgumentParser:
     pricing_parser.add_argument(
         "dossier", type=Path, help="dossier d'une visite (visites/<visite>/) ou d'un point"
     )
+    publish_parser = subparsers.add_parser(
+        "publier",
+        help="met la visite en ligne chez Scaleway et affiche le lien de partage",
+        description=(
+            "Envoie la visite (visionneuse en lecture seule, points, liens et panoramas) dans le "
+            "stockage de fichiers de Scaleway, puis affiche le lien à partager. Relancer garde "
+            "le même lien et n'envoie que ce qui a changé. Les photos d'origine et les "
+            "modifications ne sont jamais envoyées. Voir docs/publication.md."
+        ),
+    )
+    publish_parser.add_argument(
+        "dossier",
+        type=Path,
+        nargs="?",
+        help="dossier d'une visite (visites/<visite>/) ou d'un point seul",
+    )
+    publish_parser.add_argument(
+        "--configurer",
+        action="store_true",
+        help=f"enregistre les clés d'accès de Scaleway dans {publier.CONFIG_PATH}",
+    )
+    unpublish_parser = subparsers.add_parser(
+        "depublier",
+        help="retire de Scaleway tout ce qui est en ligne pour cette visite",
+        description=(
+            "Supprime chez Scaleway tous les fichiers de la visite : le lien n'affiche plus "
+            "rien. Une nouvelle publication aura un autre lien."
+        ),
+    )
+    unpublish_parser.add_argument(
+        "dossier", type=Path, help="dossier de la visite publiée (visites/<visite>/)"
+    )
     return parser
 
 
@@ -132,5 +164,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return chiffrage.run(args.dossier)
     if args.command == "receive":
         return receive.run(args.dossier, args.port)
+    if args.command == "publier":
+        if args.configurer:
+            return publier.run_configure()
+        if args.dossier is None:
+            parser.error("publier : indiquer le dossier de la visite, ou --configurer")
+        return publier.run_publish(args.dossier)
+    if args.command == "depublier":
+        return publier.run_unpublish(args.dossier)
     parser.print_help()
     return 0
