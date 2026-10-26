@@ -477,7 +477,7 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - un fichier envoyé reste en cache dans le navigateur d'un visiteur jusqu'à sa prochaine visite, où il est revérifié (`Cache-Control: no-cache`) ;
   - le comportement réel de Scaleway (droits par fichier, refus de la liste, type des pages) n'a été vérifié que sur un faux stockage : à confirmer avec le compte du propriétaire.
 
-## D38 : jalon v0.3 franchi, v1 détaillée en quatre étapes, deux environnements
+## D38 : jalon v0.3 franchi, v1 détaillée en quatre étapes, tout chez Scaleway
 
 - **Date :** 2026-10-26
 - **Décision :**
@@ -487,13 +487,16 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - les **comptes agents** arrivent dès l'étape 13, et non à l'étape des retours d'engagement : un serveur qui reçoit des photos de logements doit savoir qui les envoie. Les comptes sont créés par le propriétaire, sans inscription libre, et chaque agent ne voit que ses visites ;
   - le Mac garde tous ses outils : le mode local reste la référence pour le développement et le secours. Le serveur fait tourner les mêmes modules Python ;
   - les retours d'engagement se mesurent **par lien** : l'agent crée un lien par client pour une même visite. Le client est informé de la mesure à l'ouverture et peut la refuser sans perdre la visite ;
-  - **deux environnements** à partir de l'étape 13, séparés chez Scaleway : intégration (essais du propriétaire, comptes et visites de test) et production (agents et clients, à partir du jalon v1). Chacun a son serveur, son stockage, ses clés et son adresse. Une version passe en production après l'intégration, par une commande explicite. Un seul nom de domaine, une adresse par environnement ;
+  - **Scaleway est l'écosystème du projet** (décision du propriétaire) : tout ce qui tourne en ligne y est, stockage, serveur, carte graphique, nom de domaine et services annexes (envoi d'e-mails, secrets, base de données). Un service d'un autre fournisseur demande une décision écrite du propriétaire ;
+  - **un seul environnement en ligne**, la production, des étapes 13 à 16 ; le Mac sert d'environnement de développement. Adresses, noms de stockage et clés sont des réglages, jamais écrits dans le code ni dans l'app. Un environnement d'**intégration** séparé est créé avant les premiers accès des agents, condition du jalon v1 (décision du propriétaire) ;
   - **l'essai de cloison abattue (étape 9.5) est abandonné** (décision du propriétaire : faire au plus simple pour commercialiser au plus vite). L'idée retourne dans « Hors plan ».
 - **Raisons :**
   - l'ancienne étape 13 réunissait l'envoi depuis l'app, l'assemblage sur serveur, les comptes, cinq outils de modification et la location d'une carte graphique : trop pour une seule pull request à relire et à tester sur le résultat (D4, D18) ;
   - une étape dédiée à la carte graphique isole son risque propre (allumage à froid, coût à l'heure, logiciel différent de mflux) et se valide simplement : même meuble, même résultat, plus vite. Elle ne dépend pas des comptes ni des outils en ligne ;
   - l'assemblage tourne sur processeur : l'étape 13 ne paie pas encore de carte graphique ;
-  - deux environnements : les essais du propriétaire, les comptes de test et les versions en cours ne touchent jamais les visites des agents et de leurs clients, qui sont des données personnelles ;
+  - un seul fournisseur : une seule facture, une seule console, un seul contrat de sous-traitance pour le RGPD, des données qui restent en France, et des services qui se parlent sans configuration croisée ;
+  - un seul environnement jusqu'au jalon v1 : il n'y a pas encore d'agents ni de clients en production à protéger, seulement les essais du propriétaire. Une intégration dès l'étape 13 paierait serveur et stockage deux fois et doublerait chaque déploiement pour un bénéfice faible. Avec tous les réglages hors du code, l'ajouter plus tard est estimé à une demi-journée ou une journée, sans code à réécrire (estimation, non mesurée) ;
+  - l'intégration devient nécessaire quand de vrais agents utilisent la production : on teste alors sans toucher à leurs visites, qui sont des données personnelles ;
   - le nom de domaine reste un réglage (D37) : en changer avant le jalon v1 ne coûte rien. Après, les liens déjà envoyés aux clients cesseraient de marcher, sauf à garder l'ancien domaine avec une redirection ;
   - un lien par client est le seul moyen de dire à l'agent quel client s'intéresse à quoi sans identifier le visiteur par un cookie ou un compte.
 - **Modifie :** D22 (serveur et comptes commencent à l'étape 13, la carte graphique à l'étape 14).
@@ -501,6 +504,6 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Conséquences :**
   - avant l'étape 13 : choix d'un nom de domaine (D37), du service Scaleway pour le serveur, du mode de connexion des agents et de la durée de conservation des photos d'origine ; examen des paquets numpy et OpenCV pour Linux, qui embarquent des composants LGPL et GPL (`docs/licences.md`) ;
   - avant l'étape 14 : type de carte, mode de location, logiciel sur carte NVIDIA et sa licence, plafond de dépense ;
+  - avant le jalon v1 : création de l'environnement d'intégration et d'une commande qui fait passer une version de l'intégration à la production ;
   - avant l'étape 16 : base légale de la mesure, texte d'information au client, durée de conservation, contrat de sous-traitance avec les agents. Ces points juridiques sont à faire vérifier, le projet n'en est pas juge ;
-  - le coût du serveur et du stockage est payé deux fois, une par environnement ; l'intégration peut rester éteinte hors des essais ;
   - les coûts fixes commencent à l'étape 13 (serveur), les coûts à l'usage de la carte graphique à l'étape 14. Chacune note le coût du mois dans sa validation.
