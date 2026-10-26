@@ -29,6 +29,11 @@ entre dans le panorama modifié.
 contour et l'enregistrent dans `<point>/piece.json` (voir `piece.py`) ; `/p/<numéro>/piece.json`
 et `/p/<numéro>/piece.jpg` la relisent. Jusqu'à la v1, l'adresse sépare les deux usages sans
 rien protéger : tout appareil du Wi-Fi peut l'ouvrir.
+
+Étape 11 : `/api/chiffrage` donne l'ordre de grandeur du prix des modifications de toute la visite
+(voir `chiffrage.py`) ; `/api/chiffrage/meuble` corrige le type d'un objet remplacé.
+`/api/tarifs` lit la grille de prix, `/api/tarifs/enregistrer` et `/api/tarifs/reinitialiser`
+la changent ; la visionneuse ne propose ces deux dernières qu'à l'adresse `/agent`.
 """
 
 from __future__ import annotations
@@ -45,7 +50,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
 
-from visite360 import couleur, generation, piece, segment, selection, stitch, visite
+from visite360 import chiffrage, couleur, generation, piece, segment, selection, stitch, visite
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import PhotoError
 
@@ -417,6 +422,7 @@ def handle_generation(
         result = generations.start(index, point, request, op.record["id"]).to_json()
     elif route == "supprimer":
         generation.delete(point.folders.point, body.get("id"))
+        chiffrage.forget(point.folders.point, body.get("id"))
         result = {"supprimee": body.get("id")}
     else:
         raise RequestError(404, "Introuvable")
@@ -439,6 +445,41 @@ def handle_piece(
     elif route == "supprimer":
         piece.delete(folders.point)
         result = {"supprimee": True}
+    else:
+        raise RequestError(404, "Introuvable")
+    return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
+
+
+def tour_folder(tour: visite.Tour) -> Path:
+    """Dossier où ranger la grille de prix : celui de la visite."""
+    return tour.folder or tour.points[0].folders.point.parent
+
+
+def estimate(tour: visite.Tour) -> dict[str, Any]:
+    """Chiffrage de toute la visite (étape 11)."""
+    points = [
+        chiffrage.PointInput(point.name, point.folders.point, point.folders.panorama)
+        for point in tour.points
+    ]
+    return chiffrage.estimate(points, tour_folder(tour))
+
+
+def handle_pricing(
+    tour: visite.Tour, selector: selection.Selector, path: str, body: dict[str, Any]
+) -> tuple[bytes, str]:
+    """Traite une route POST `/api/chiffrage/...` ou `/api/tarifs/...`. Renvoie (contenu, type)."""
+    folder = tour_folder(tour)
+    if path == "/api/chiffrage/meuble":
+        point = selector.point(body.get("point")).folders.point
+        grid, _ = chiffrage.load_grid(folder)
+        chiffrage.set_category(point, grid, body.get("id"), body.get("categorie"))
+        result: Any = estimate(tour)
+    elif path == "/api/tarifs/enregistrer":
+        result = {"tarifs": chiffrage.save_grid(folder, body.get("tarifs")), "par_defaut": False}
+    elif path == "/api/tarifs/reinitialiser":
+        chiffrage.reset_grid(folder)
+        grid, _ = chiffrage.load_grid(folder)
+        result = {"tarifs": grid, "par_defaut": True}
     else:
         raise RequestError(404, "Introuvable")
     return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
@@ -497,6 +538,12 @@ def make_server(
             if PIECE_PATH.match(path):
                 self._answer(lambda: self._piece_file(path))
                 return
+            if path == "/api/chiffrage":
+                self._answer(lambda: self._json(estimate(tour)))
+                return
+            if path == "/api/tarifs":
+                self._answer(lambda: self._grid())
+                return
             info, asset = visit.lookup(path)
             if info is not None:
                 self._send(info, JSON)
@@ -518,6 +565,8 @@ def make_server(
                 self._answer(lambda: handle_generation(generations, selector, route, self._body()))
             elif path.startswith("/api/piece/"):
                 self._answer(lambda: handle_piece(selector, route, self._body()))
+            elif path.startswith(("/api/chiffrage/", "/api/tarifs/")):
+                self._answer(lambda: handle_pricing(tour, selector, path, self._body()))
             else:
                 self.send_error(404, "Introuvable")
 
@@ -534,6 +583,7 @@ def make_server(
                 couleur.ColorError,
                 generation.GenerationError,
                 piece.PieceError,
+                chiffrage.ChiffrageError,
             ) as error:
                 self._send_error(400, str(error))
             except (segment.SegmentError, OpenCVError) as error:
@@ -594,6 +644,13 @@ def make_server(
                 "hauteur_objectif_app_m": piece.lens_height(folders.point),
             }
             return json.dumps(state, ensure_ascii=False).encode("utf-8"), JSON
+
+        def _json(self, result: Any) -> tuple[bytes, str]:
+            return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
+
+        def _grid(self) -> tuple[bytes, str]:
+            grid, default = chiffrage.load_grid(tour_folder(tour))
+            return self._json({"tarifs": grid, "par_defaut": default})
 
         def _send_error(self, status: int, message: str) -> None:
             data = json.dumps({"erreur": message}, ensure_ascii=False).encode("utf-8")
@@ -666,7 +723,7 @@ def run(
             file=out,
         )
     print(
-        f"Outils de l'agent (mesure des pièces) : http://localhost:{actual_port}/agent",
+        f"Outils de l'agent (mesure des pièces, prix) : http://localhost:{actual_port}/agent",
         file=out,
     )
     print("Ctrl+C pour arrêter.", file=out)

@@ -62,6 +62,9 @@ class Tour:
     points: tuple[Point, ...]
     links: tuple[Link, ...]
     ignored: tuple[str, ...] = ()
+    # Dossier de la visite (celui du point pour une visite d'un seul point) : la grille de prix
+    # de l'étape 11 y est rangée.
+    folder: Path | None = None
 
     def links_from(self, point_id: str) -> list[Link]:
         return [link for link in self.links if link.source == point_id]
@@ -98,7 +101,7 @@ def single_point(folders: stitch.Folders) -> Tour:
     """Visite d'un seul point, sans fichier : le comportement de l'étape 3."""
     name = folders.point.resolve().name
     point = Point(name, name, folders)
-    return Tour(name, name, (point,), ())
+    return Tour(name, name, (point,), (), folder=folders.point)
 
 
 def write_skeleton(folder: Path) -> Path:
@@ -255,7 +258,7 @@ def load(folder: Path) -> Tour:
     if not isinstance(name, str):
         raise VisiteError("« nom » doit être du texte.")
     ignored = tuple(sorted(set(point_folders(folder)) - ids, key=_natural_key))
-    return Tour(name, start, tuple(points), tuple(links), ignored)
+    return Tour(name, start, tuple(points), tuple(links), ignored, folder)
 
 
 def open_tour(target: Path) -> tuple[Tour, bool]:

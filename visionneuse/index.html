@@ -105,6 +105,30 @@
     #mesure-resultat { max-height: 24vh; overflow-y: auto; color: #ddd; font-variant-numeric: tabular-nums; }
     #mesure-resultat .alerte { color: #ffb84d; }
     #mesure .reglage { color: #ccc; font-size: 13px; }
+    /* Étape 11 : chiffrage des modifications. */
+    #chiffrage { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%);
+      margin: 12px 0; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .85); display: none;
+      flex-direction: column; gap: 8px; width: min(560px, calc(100vw - 24px)); box-sizing: border-box; font-size: 14px;
+      max-height: 70vh; }
+    #chiffrage .entete { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #chiffrage .entete span { flex: 1; min-width: 160px; font-weight: 600; }
+    #chiffrage button { padding: 8px 12px; border-radius: 8px; border: 0; background: #333; color: #fff; }
+    #chiffrage button.principal { background: #4da3ff; }
+    #chiffrage-contenu, #tarifs { overflow-y: auto; color: #ddd; font-variant-numeric: tabular-nums; }
+    #chiffrage-contenu { max-height: 40vh; }
+    #tarifs { max-height: 30vh; display: none; }
+    #chiffrage .poste { display: flex; gap: 8px; justify-content: space-between; align-items: baseline;
+      padding: 4px 0; border-bottom: 1px solid #333; }
+    #chiffrage .poste .montant { white-space: nowrap; }
+    #chiffrage .detail { color: #aaa; font-size: 12px; }
+    #chiffrage .total { font-weight: 600; padding-top: 4px; }
+    #chiffrage .note { color: #999; font-size: 12px; }
+    #chiffrage .alerte { color: #ffb84d; font-size: 12px; }
+    #chiffrage select { font: inherit; font-size: 12px; padding: 2px 4px; border-radius: 6px; border: 0;
+      background: #333; color: #fff; margin-top: 2px; }
+    #tarifs table { width: 100%; border-collapse: collapse; }
+    #tarifs td { padding: 2px 4px; }
+    #tarifs input { width: 5em; font: inherit; padding: 2px 4px; border-radius: 6px; border: 0; background: #333; color: #fff; }
     .pastille { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border-radius: 3px;
       border: 1px solid #fff; vertical-align: -2px; }
   </style>
@@ -163,9 +187,19 @@
     </div>
     <div id="mesure-resultat"></div>
   </div>
+  <div id="chiffrage">
+    <div class="entete">
+      <span>Chiffrage</span>
+      <button id="tarifs-modifier" hidden>Modifier les prix</button>
+      <button id="chiffrage-fermer">Fermer</button>
+    </div>
+    <div id="chiffrage-contenu"></div>
+    <div id="tarifs"></div>
+  </div>
   <div id="suivi"><span id="suivi-texte"></span><div class="barre"><div id="suivi-barre"></div></div></div>
   <div id="outils">
     <button id="mesurer" hidden>Mesurer la pièce</button>
+    <button id="chiffrer">Chiffrage</button>
     <button id="transformer" hidden>Remplacer un objet</button>
     <button id="mes-remplacements" hidden>Remplacements</button>
     <button id="choisir" hidden>Sélectionner une surface</button>
@@ -1143,6 +1177,192 @@
       document.addEventListener("keydown", (event) => { if (measure && event.key === "Escape") endMeasure(); });
       $("mesurer").onclick = startMeasure;
       $("mesurer").hidden = !AGENT;
+
+      // Étape 11 : ordre de grandeur du prix des modifications. Le serveur calcule les m² touchés à
+      // partir de la pièce mesurée et les multiplie par la grille de prix, en fourchette basse et
+      // haute. L'agent (adresse /agent) peut corriger le type d'un objet et modifier la grille.
+      let pricing = null, grid = null;
+      const euros = (value) => {
+        const rounded = value >= 100 ? Math.round(value / 10) * 10 : Math.round(value);
+        return rounded.toLocaleString("fr-FR") + " €";
+      };
+      const range = (low, high) => low === high ? euros(low) : euros(low) + " à " + euros(high);
+      const div = (text, className) => {
+        const element = document.createElement("div");
+        element.textContent = text;
+        if (className) element.className = className;
+        return element;
+      };
+      async function getJson(path) {
+        const response = await fetch(path);
+        const answer = await response.json();
+        if (!response.ok) throw new Error(answer.erreur || "Erreur " + response.status);
+        return answer;
+      }
+
+      function pricingLine(index, line) {
+        const row = div("", "poste");
+        const label = div(line.nom);
+        const amount = div(line.bas === null ? "pas de prix" : range(line.bas, line.haut), "montant");
+        if (line.bas === null) {
+          label.appendChild(div(line.probleme, "alerte"));
+        } else if (line.poste === "meuble") {
+          label.appendChild(div(line.libelle + " (estimation à l'objet)", "detail"));
+          if (AGENT && grid) {
+            const choice = document.createElement("select");
+            choice.title = "Type d'objet, s'il a été mal reconnu";
+            for (const item of grid.meubles) choice.add(new Option(item.nom, item.id));
+            choice.value = line.categorie;
+            choice.onchange = async () => {
+              try {
+                const body = { point: index, id: line.modification,
+                  categorie: choice.value === line.categorie_reconnue ? null : choice.value };
+                pricing = await postJson("/api/chiffrage/meuble", body).then((r) => r.json());
+                renderPricing();
+              } catch (error) {
+                say(error.message);
+              }
+            };
+            label.appendChild(choice);
+          }
+        } else {
+          const where = line.detail ? " (" + line.detail + ")" : "";
+          label.appendChild(div(line.libelle + " : "
+            + line.quantite.toLocaleString("fr-FR", { minimumFractionDigits: 1 }) + " m²" + where
+            + " × " + range(line.prix_bas, line.prix_haut) + " le m²", "detail"));
+        }
+        row.append(label, amount);
+        return row;
+      }
+
+      function renderPricing() {
+        const box = $("chiffrage-contenu");
+        box.replaceChildren();
+        const index = pointIndex();
+        const block = pricing && index >= 0 ? pricing.points[index] : null;
+        if (!block) return;
+        if (!block.lignes.length) box.appendChild(div("Aucune modification dans cette pièce.", "note"));
+        for (const line of block.lignes) box.appendChild(pricingLine(index, line));
+        if (block.piece_perimee) {
+          box.appendChild(div("Panorama refait depuis la mesure de la pièce : surfaces à vérifier.", "alerte"));
+        }
+        if (block.lignes.length) {
+          box.appendChild(div(block.nom + " : " + range(block.bas, block.haut), "total"));
+        }
+        if (pricing.points.length > 1) {
+          box.appendChild(div("Toute la visite : " + range(pricing.bas, pricing.haut), "total"));
+        }
+        if (!pricing.complet) box.appendChild(div("Sans les modifications qui n'ont pas de prix.", "note"));
+        box.appendChild(div("Ordre de grandeur, pas un devis : prix TTC "
+          + (pricing.tarifs_par_defaut ? "indicatifs, relevés dans des guides de travaux." : "de la grille de l'agent.")
+          + " Peinture et sols fournis et posés, meubles achat seul.", "note"));
+      }
+
+      async function showPricing() {
+        $("chiffrage-contenu").replaceChildren(div("Calcul en cours…", "note"));
+        try {
+          if (AGENT) grid = (await getJson("/api/tarifs")).tarifs;
+          pricing = await getJson("/api/chiffrage");
+          renderPricing();
+        } catch (error) {
+          $("chiffrage-contenu").replaceChildren(div(error.message, "alerte"));
+        }
+      }
+
+      // Grille de prix, modifiable par l'agent : prix bas et haut de chaque poste.
+      function renderGrid(isDefault) {
+        const box = $("tarifs");
+        box.replaceChildren();
+        const table = document.createElement("table");
+        const rows = [];
+        // Chaque champ garde où il va dans la grille : ["surfaces", "mur"] ou ["meubles", 3].
+        const addRow = (entry, unit, place) => {
+          const row = table.insertRow();
+          row.insertCell().textContent = entry.nom + " (" + unit + ")";
+          for (const key of ["bas", "haut"]) {
+            const input = document.createElement("input");
+            input.type = "number";
+            input.min = "0";
+            input.step = "1";
+            input.value = entry[key];
+            input.setAttribute("aria-label", entry.nom + ", prix " + key);
+            row.insertCell().appendChild(input);
+            rows.push([place, key, input]);
+          }
+        };
+        const head = table.createTHead().insertRow();
+        for (const text of ["Poste", "Bas (€)", "Haut (€)"]) head.insertCell().textContent = text;
+        for (const key of ["mur", "plafond", "sol"]) addRow(grid.surfaces[key], "le m²", ["surfaces", key]);
+        for (const [number, item] of grid.meubles.entries()) addRow(item, "l'objet", ["meubles", number]);
+        box.appendChild(table);
+        box.appendChild(div(isDefault ? "Grille par défaut : prix indicatifs relevés dans des guides de travaux."
+          : "Grille propre à cette visite (tarifs.json).", "note"));
+        const save = document.createElement("button");
+        save.className = "principal";
+        save.textContent = "Enregistrer les prix";
+        save.onclick = async () => {
+          const edited = JSON.parse(JSON.stringify(grid));
+          for (const [[part, which], key, input] of rows) {
+            edited[part][which][key] = input.value === "" ? null : Number(input.value);
+          }
+          try {
+            const answer = await postJson("/api/tarifs/enregistrer", { tarifs: edited }).then((r) => r.json());
+            grid = answer.tarifs;
+            renderGrid(false);
+            await showPricing();
+            say("Prix enregistrés pour cette visite.");
+          } catch (error) {
+            say(error.message);
+          }
+        };
+        const reset = document.createElement("button");
+        reset.textContent = "Revenir aux prix par défaut";
+        reset.hidden = isDefault;
+        reset.onclick = async () => {
+          if (!window.confirm("Revenir aux prix indicatifs par défaut ?")) return;
+          try {
+            const answer = await postJson("/api/tarifs/reinitialiser", {}).then((r) => r.json());
+            grid = answer.tarifs;
+            renderGrid(true);
+            await showPricing();
+          } catch (error) {
+            say(error.message);
+          }
+        };
+        const buttons = div("");
+        buttons.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap";
+        buttons.append(reset, save);
+        box.appendChild(buttons);
+      }
+
+      $("tarifs-modifier").onclick = async () => {
+        const box = $("tarifs");
+        if (box.style.display === "block") { box.style.display = "none"; return; }
+        try {
+          const answer = await getJson("/api/tarifs");
+          grid = answer.tarifs;
+          renderGrid(answer.par_defaut);
+          box.style.display = "block";
+        } catch (error) {
+          say(error.message);
+        }
+      };
+      $("chiffrer").onclick = () => {
+        if (state || paint || drawing || measure) return;
+        $("liste").style.display = "none";
+        $("outils").style.display = "none";
+        $("tarifs").style.display = "none";
+        $("chiffrage").style.display = "flex";
+        showPricing();
+      };
+      $("chiffrage-fermer").onclick = () => {
+        $("chiffrage").style.display = "none";
+        $("outils").style.display = "flex";
+      };
+      $("tarifs-modifier").hidden = !AGENT;
+      viewer.on("scenechange", (id) => {
+        if (pricing && !id.startsWith("apercu:") && $("chiffrage").style.display === "flex") renderPricing();
+      });
 
       fetch("/api/generation").then((r) => r.json()).then((answer) => {
         $("transformer").hidden = false;
