@@ -476,3 +476,26 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - l'adresse de Scaleway montre le nom du stockage dans le lien ;
   - un fichier envoyé reste en cache dans le navigateur d'un visiteur jusqu'à sa prochaine visite, où il est revérifié (`Cache-Control: no-cache`) ;
   - le comportement réel de Scaleway (droits par fichier, refus de la liste, type des pages) n'a été vérifié que sur un faux stockage : à confirmer avec le compte du propriétaire.
+
+## D38 : jalon v0.3 franchi, v1 détaillée en quatre étapes
+
+- **Date :** 2026-10-26
+- **Décision :**
+  - le propriétaire valide le chiffrage : le jalon v0.3 est franchi et on poursuit avec la v1 ;
+  - l'ancienne étape 13 (« envoi depuis l'app et traitement sur serveur ») est coupée en trois. **Étape 13 :** l'app envoie la visite au serveur du projet chez Scaleway, qui l'assemble, la publie comme à l'étape 12 et donne le lien. **Étape 14 (demandée par le propriétaire) :** la génération d'image de l'étape 9 tourne sur une carte graphique louée (D32), d'abord appelée depuis la visionneuse du Mac. **Étape 15 :** sélection, couleur, génération, dimensions et chiffrage passent sur le serveur, et la visite publiée montre les modifications ;
+  - les retours d'engagement deviennent l'**étape 16** ;
+  - les **comptes agents** arrivent dès l'étape 13, et non à l'étape des retours d'engagement : un serveur qui reçoit des photos de logements doit savoir qui les envoie. Les comptes sont créés par le propriétaire, sans inscription libre, et chaque agent ne voit que ses visites ;
+  - le Mac garde tous ses outils : le mode local reste la référence pour le développement et le secours. Le serveur fait tourner les mêmes modules Python ;
+  - les retours d'engagement se mesurent **par lien** : l'agent crée un lien par client pour une même visite. Le client est informé de la mesure à l'ouverture et peut la refuser sans perdre la visite ;
+  - l'essai de cloison abattue (étape 9.5) se fait juste après l'étape 14, qui apporte la carte graphique.
+- **Raisons :**
+  - l'ancienne étape 13 réunissait l'envoi depuis l'app, l'assemblage sur serveur, les comptes, cinq outils de modification et la location d'une carte graphique : trop pour une seule pull request à relire et à tester sur le résultat (D4, D18) ;
+  - une étape dédiée à la carte graphique isole son risque propre (allumage à froid, coût à l'heure, logiciel différent de mflux) et se valide simplement : même meuble, même résultat, plus vite. Elle ne dépend pas des comptes ni des outils en ligne ;
+  - l'assemblage tourne sur processeur : l'étape 13 ne paie pas encore de carte graphique ;
+  - un lien par client est le seul moyen de dire à l'agent quel client s'intéresse à quoi sans identifier le visiteur par un cookie ou un compte.
+- **Modifie :** D22 (serveur et comptes commencent à l'étape 13, la carte graphique à l'étape 14) ; D33 (l'essai 9.5 suit l'étape 14 au lieu de l'étape 13).
+- **Conséquences :**
+  - avant l'étape 13 : choix d'un nom de domaine (D37), du service Scaleway pour le serveur, du mode de connexion des agents et de la durée de conservation des photos d'origine ; examen des paquets numpy et OpenCV pour Linux, qui embarquent des composants LGPL et GPL (`docs/licences.md`) ;
+  - avant l'étape 14 : type de carte, mode de location, logiciel sur carte NVIDIA et sa licence, plafond de dépense ;
+  - avant l'étape 16 : base légale de la mesure, texte d'information au client, durée de conservation, contrat de sous-traitance avec les agents. Ces points juridiques sont à faire vérifier, le projet n'en est pas juge ;
+  - les coûts fixes commencent à l'étape 13 (serveur), les coûts à l'usage de la carte graphique à l'étape 14. Chacune note le coût du mois dans sa validation.

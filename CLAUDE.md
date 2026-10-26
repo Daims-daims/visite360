@@ -70,5 +70,5 @@ Ces trois vérifications doivent passer avant tout commit.
 
 ## Hors périmètre
 
-- Jusqu'à la v1 (D22) : serveur distant de traitement, comptes utilisateurs, tout service payant autre que l'hébergement de l'étape 12. Le produit tourne en local, sur le Mac et le téléphone. Seule exception : depuis l'étape 12, une visite peut être publiée en fichiers statiques chez Scaleway et partagée par lien (D35).
+- Avant leur étape (D22, D35, D38) : publication en fichiers statiques chez Scaleway depuis l'étape 12 ; serveur de traitement chez Scaleway et comptes agents à partir de l'étape 13 ; carte graphique louée à partir de l'étape 14 ; mesure de la consultation des clients à partir de l'étape 16. Aucun autre service payant, aucune inscription libre. Le Mac garde tous ses outils en local.
 - Toute la durée du plan actuel : plan du logement, Gaussian splatting.
