@@ -431,3 +431,24 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - la visionneuse charge aujourd'hui ses fichiers par des adresses fixes servies par le Mac (`/info.json`, `/p/<numéro>/…`, `/api/…`). L'étape 12 doit lui apprendre un mode en lecture seule à adresses relatives, sans les boutons qui appellent le serveur ;
   - le coût mensuel commence : stockage et trafic sortant, à estimer à l'étape 12 sur les tarifs publiés par Scaleway ;
   - `PLAN.md` et `CLAUDE.md` sont mis à jour dans la même pull request.
+
+## D36 : chiffrage en fourchette, surfaces projetées sur la pièce mesurée, forfait par type d'objet
+
+- **Date :** 2026-10-26
+- **Décision :**
+  - le chiffrage donne un **ordre de grandeur en fourchette** (prix bas, prix haut), pas un devis. Montants arrondis à la dizaine d'euros (décision du propriétaire : « le but n'est pas d'avoir un prix précis mais un ordre d'idée ») ;
+  - **source des prix (décision du propriétaire) :** une grille par défaut, indicative, aux prix TTC relevés le 2026-10-26 dans des guides de travaux publics, sources citées dans la grille et dans `docs/chiffrage.md`. L'agent peut la remplacer, visite par visite, dans `visites/<visite>/tarifs.json`, depuis l'adresse `/agent` ou à la main ;
+  - **surface d'une recoloration :** chaque pixel du masque est projeté sur la pièce mesurée à l'étape 10 (mur, sol ou plafond), et son aire réelle (distance² × angle solide ÷ cosinus de l'incidence) est additionnée. Peinture des murs, du plafond et nouveau revêtement de sol ont chacun leur prix au m². Calcul sur le masque réduit à 2048 pixels de large, mis de côté dans `cache/` ;
+  - **portes et fenêtres (décision du propriétaire) :** seule la surface sélectionnée est chiffrée. Une ouverture laissée hors de la sélection n'est pas comptée, sans rien pointer de plus ;
+  - **objet remplacé (décision du propriétaire : une estimation) :** forfait par type d'objet (canapé, fauteuil, table, lit…), reconnu par une recherche de mots dans la demande de génération, d'abord après « par ». L'agent peut corriger le type à l'adresse `/agent`. Sans mot reconnu : « Autre objet » ;
+  - le client voit le chiffrage dans la visite. La correction des types et des prix n'est proposée qu'à l'adresse `/agent`, qui ne protège rien jusqu'à la v1 (D34) ;
+  - commande `visite360 chiffrage <visite>` pour le lire dans le terminal. Aucune nouvelle dépendance.
+- **Raisons :**
+  - un prix au m² varie du simple au double selon la région, l'état du support et l'artisan. Une fourchette le montre honnêtement, et son écart reste plus grand que les erreurs de mesure (quelques pour cent) ;
+  - la projection pixel par pixel donne la surface réellement sélectionnée, sur plusieurs murs à la fois, sans demander à l'agent de pointer les ouvertures ;
+  - une IA qui lirait la demande ou l'image pour reconnaître l'objet coûterait du temps de calcul pour un gain faible : l'agent corrige en un clic les rares erreurs.
+- **Limites :**
+  - aucun prix public moyen par type de meuble n'a été trouvé. Le bas suit les plafonds de la CAF pour de l'entrée de gamme ; le haut est une estimation du projet ;
+  - la grille appartient à la visite : un agent qui veut ses prix partout doit les reporter dans chaque visite (question ouverte de la pull request) ;
+  - un mur visible depuis deux points et repeint dans les deux est compté deux fois (D30 : la propagation d'un point à l'autre est hors plan) ;
+  - préparation d'un mur abîmé, démolition, livraison et montage des meubles ne sont pas chiffrés.

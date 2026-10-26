@@ -30,7 +30,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 9 | Modification par génération d'image, en local | v0.2 | livrée |
 | J2 | **Jalon v0.2 : validation des modifications par le propriétaire** | — | livrée |
 | 10 | Dimensions des pièces | v0.3 | livrée |
-| 11 | Chiffrage d'une modification | v0.3 | à faire |
+| 11 | Chiffrage d'une modification | v0.3 | livrée |
 | J3 | **Jalon v0.3 : validation du chiffrage par le propriétaire** | — | à faire |
 | 12 | Hébergement et lien de partage | v1 | à faire |
 | 13 | Envoi depuis l'app et traitement sur serveur | v1 | à faire |
@@ -148,6 +148,7 @@ Mesurer une pièce dans son panorama, puis chiffrer une modification à partir d
 - **Contenu :** surface touchée en m², multipliée par un prix unitaire tiré d'une grille modifiable (peinture, revêtement, pose). La surface vient des dimensions de l'étape 10 et de la sélection de l'étape 7.
 - **Validation :** ordre de grandeur cohérent avec un devis réel.
 - **À trancher avant l'étape :** source des prix ; chiffrage des modifications générées, comme un meuble remplacé ; déduction des portes et fenêtres de la surface d'un mur.
+- **Tranché le 2026-10-26 (D36) :** un ordre de grandeur en fourchette, pas un devis ; grille indicative par défaut aux prix relevés dans des guides de travaux, sources citées, remplaçable par l'agent visite par visite ; seule la surface sélectionnée est chiffrée, portes et fenêtres laissées hors de la sélection exclues d'elles-mêmes ; objet remplacé chiffré au forfait selon son type, reconnu dans la demande de génération et corrigeable par l'agent. Mode d'emploi, sources et précision dans `docs/chiffrage.md`.
 
 ## Jalon v0.3 : validation du chiffrage par le propriétaire
 

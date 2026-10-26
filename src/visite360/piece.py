@@ -347,6 +347,14 @@ def load(point: Path, panorama: Path) -> dict[str, Any] | None:
     return {**record, "resultat": room.to_json(), "perimee": stale}
 
 
+def load_room(point: Path, panorama: Path) -> tuple[Room | None, bool]:
+    """Pièce enregistrée du point et « périmée » (voir `load`), ou (None, False) sans mesure."""
+    record = load(point, panorama)
+    if record is None:
+        return None, False
+    return _recompute(record), bool(record["perimee"])
+
+
 def _recompute(record: dict[str, Any]) -> Room:
     """Pièce d'une fiche, avec les hauteurs connues au moment de l'enregistrement."""
     return compute(
