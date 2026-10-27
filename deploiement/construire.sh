@@ -13,7 +13,7 @@
 set -euo pipefail
 
 if [[ $# -ne 1 || "$1" != */* ]]; then
-    echo "Erreur : donner l'espace d'images, par exemple rg.fr-par.scw.cloud/mon-espace." >&2
+    echo "Erreur : donner l'espace d'images, par exemple rg.fr-par.scw.cloud/<espace>." >&2
     exit 2
 fi
 REGISTRY="${1%/}"
