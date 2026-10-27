@@ -1,0 +1,40 @@
+# Image du serveur et de la tâche d'assemblage (étape 13, D39), pour processeur Intel/AMD
+# (linux/amd64), seule architecture acceptée par les Serverless Containers et Jobs de Scaleway.
+#
+# Une seule image pour les deux : le conteneur du serveur lance `visite360 serveur` (commande par
+# défaut), la tâche d'assemblage `visite360 traiter`. Fabriquée par deploiement/construire.sh.
+#
+# Seuls le code, la visionneuse et l'espace web entrent dans l'image (lignes COPY) : jamais de
+# visite, de photo ni de clé.
+
+# --- Construction : OpenCV compilé sans FFmpeg, par le même script que sur le Mac (D19) ---------
+FROM docker.io/library/python:3.13-slim-bookworm AS construction
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY pyproject.toml README.md ./
+COPY src src
+COPY visionneuse visionneuse
+COPY espace espace
+COPY scripts/installer-opencv.sh scripts/installer-opencv.sh
+
+RUN python -m venv /opt/visite360
+ENV PATH="/opt/visite360/bin:$PATH" PYTHON=/opt/visite360/bin/python
+RUN pip install --no-cache-dir ".[serveur]" \
+    && bash scripts/installer-opencv.sh \
+    && rm -rf build
+
+# --- Image finale : Python, l'environnement construit, rien d'autre ------------------------------
+FROM docker.io/library/python:3.13-slim-bookworm
+
+RUN useradd --create-home --uid 1000 visite360
+COPY --from=construction /opt/visite360 /opt/visite360
+ENV PATH="/opt/visite360/bin:$PATH" PYTHONUNBUFFERED=1
+USER visite360
+WORKDIR /home/visite360
+
+EXPOSE 8080
+CMD ["visite360", "serveur"]

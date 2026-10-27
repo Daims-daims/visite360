@@ -529,3 +529,4 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - les images du serveur et de l'assemblage sont fabriquées pour `linux/amd64` avec Podman, sur le Mac ;
   - le Mac garde tous ses outils (`receive`, `serve`, `publier`), et peut faire tourner le serveur en local avec SQLite et un dossier à la place du stockage ;
   - `CLAUDE.md` et `docs/licences.md` sont mis à jour dans la même pull request.
+- **Tranché pendant l'étape :** une photo par morceau d'envoi, déposée directement dans le stockage privé par une adresse temporaire signée qui fixe son empreinte MD5 ; secrets dans le gestionnaire de secrets de Scaleway ; fichiers de déploiement dans `deploiement/`, une seule image pour le serveur et l'assemblage ; espace web des agents dans `espace/`. Détail dans `docs/choix/etape-13.md`.

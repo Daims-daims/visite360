@@ -175,6 +175,12 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"tout sur ce Mac : base et stockages dans {reglages.LOCAL_FOLDER}/",
     )
     server_parser.add_argument(
+        "--dossier",
+        type=Path,
+        default=reglages.LOCAL_FOLDER,
+        help=f"avec --local : dossier des données (par défaut {reglages.LOCAL_FOLDER}/)",
+    )
+    server_parser.add_argument(
         "--port",
         type=int,
         help=f"port du serveur (par défaut {reglages.DEFAULT_PORT}, ou la variable PORT)",
@@ -206,6 +212,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=f"agit sur la base du serveur lancé sur ce Mac ({reglages.LOCAL_FOLDER}/)",
     )
+    account_parser.add_argument(
+        "--dossier",
+        type=Path,
+        default=reglages.LOCAL_FOLDER,
+        help="avec --local : dossier des données du serveur local",
+    )
     return parser
 
 
@@ -232,13 +244,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "depublier":
         return publier.run_unpublish(args.dossier)
     if args.command == "serveur":
-        return serveur.run(args.local, port=args.port)
+        return serveur.run(args.local, args.dossier, args.port)
     if args.command == "traiter":
         return traitement.run()
     if args.command == "compte":
         environ = None
         if args.local:
-            settings = reglages.local_settings(reglages.LOCAL_FOLDER, "", 0)
+            settings = reglages.local_settings(args.dossier, "", 0)
             environ = {"VISITE360_BASE": settings.database}
         return comptes.run(args.action, args.email, environ)
     parser.print_help()

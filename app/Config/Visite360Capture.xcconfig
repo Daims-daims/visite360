@@ -4,4 +4,8 @@
 // fichier. Il est ignoré par git : le copier depuis Local.xcconfig.exemple. S'il manque, l'app
 // se construit quand même, et Xcode demande de choisir une équipe pour l'installer sur un iPhone.
 
+// Adresse du serveur du projet (étape 13). Vide ici : l'app se construit sans serveur et
+// le dit à l'écran. La renseigner dans Local.xcconfig (voir Local.xcconfig.exemple).
+VISITE360_SERVEUR =
+
 #include? "Local.xcconfig"

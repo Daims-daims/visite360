@@ -75,12 +75,15 @@ Ce que l'étape 13 prévoit pour l'étape 14, sans la coder :
 - **Sur le Mac et dans les tests :** la même base, en SQLite, fournie avec Python, avec les mêmes requêtes. Aucune dépendance de plus sur le Mac.
 - **Option écartée :** ranger comptes et visites en fichiers JSON dans le stockage. C'est plus simple, mais il faut alors une seule copie du serveur pour éviter deux écritures en même temps. La solution ne tient que pour quelques dizaines d'agents, et l'étape 16 aura besoin d'une base de toute façon.
 
-## Questions laissées pour pendant l'étape
+## Questions tranchées pendant l'étape (2026-10-27)
 
-- taille des morceaux d'un envoi : une photo de quelques Mo par morceau ;
-- photos déposées directement dans le stockage, par des adresses temporaires signées, ou en passant par le serveur ;
-- rangement des secrets sur le serveur : gestionnaire de secrets de Scaleway ou non ;
-- emplacement des fichiers de déploiement dans le dépôt (D15).
+- **Taille des morceaux :** une photo, de quelques Mo, par morceau. Après une coupure, on ne perd que la photo en cours. Le découpage d'un même fichier en plusieurs parts (« multipart » du protocole S3) n'apporterait rien à cette taille.
+- **Dépôt des photos :** directement dans le stockage privé, par des adresses temporaires signées par le serveur (6 heures, un fichier, une empreinte MD5). Les photos ne passent pas par le conteneur du serveur : pas de limite de taille de requête, pas de temps de calcul facturé pendant l'envoi. Le stockage refuse un fichier abîmé, et sa liste donne l'empreinte de chaque fichier : le serveur vérifie qu'un envoi est complet sans relire les photos.
+- **Secrets :** gestionnaire de secrets de Scaleway (Secret Manager), donné au conteneur et à la tâche par référence. Les Serverless Jobs ne prennent leurs secrets que de là ; le serveur fait de même, pour un seul endroit à tenir.
+- **Fichiers de déploiement :** dossier `deploiement/` à la racine (`Containerfile`, `construire.sh`), à côté de `src/`, `visionneuse/`, `espace/` et `app/` (D15). L'espace web des agents est dans `espace/`, livré avec le paquet comme la visionneuse.
+- **Une seule image** pour le serveur et la tâche d'assemblage, avec deux commandes (`visite360 serveur`, `visite360 traiter`).
+- **Retrait d'un agent :** sessions fermées, connexion bloquée, visites gardées et toujours en ligne, en attendant la décision du propriétaire (question ouverte).
+- **Lien de connexion cliquable :** abandonné, y compris sur le web. L'e-mail ne contient que le code, à taper dans l'app ou dans l'espace web : une même façon de faire partout, et pas de code dans une adresse, qui finirait dans les historiques.
 
 ## Sources
 
