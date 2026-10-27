@@ -9,7 +9,19 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from visite360 import __version__, chiffrage, doctor, publier, receive, serve, stitch
+from visite360 import (
+    __version__,
+    chiffrage,
+    comptes,
+    doctor,
+    publier,
+    receive,
+    reglages,
+    serve,
+    serveur,
+    stitch,
+    traitement,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -147,6 +159,53 @@ def build_parser() -> argparse.ArgumentParser:
     unpublish_parser.add_argument(
         "dossier", type=Path, help="dossier de la visite publiée (visites/<visite>/)"
     )
+    server_parser = subparsers.add_parser(
+        "serveur",
+        help="lance le serveur qui reçoit les visites de l'app et les assemble (étape 13)",
+        description=(
+            "Lance le serveur du projet : connexion des agents par code envoyé par e-mail, "
+            "réception des visites envoyées par l'app, assemblage, publication et espace web. "
+            "En ligne, ses réglages viennent des variables d'environnement (docs/serveur.md). "
+            "Avec --local, tout tourne sur ce Mac, sans Scaleway."
+        ),
+    )
+    server_parser.add_argument(
+        "--local",
+        action="store_true",
+        help=f"tout sur ce Mac : base et stockages dans {reglages.LOCAL_FOLDER}/",
+    )
+    server_parser.add_argument(
+        "--port",
+        type=int,
+        help=f"port du serveur (par défaut {reglages.DEFAULT_PORT}, ou la variable PORT)",
+    )
+    subparsers.add_parser(
+        "traiter",
+        help="assemble et publie les visites en attente sur le serveur (tâche Scaleway)",
+        description=(
+            "Fait les traitements en attente du serveur : assemblage des panoramas, publication, "
+            "puis effacement des photos d'origine des visites prêtes depuis plus de 30 jours. "
+            "Lancé chez Scaleway par le serveur et une fois par jour ; réglages dans les "
+            "variables d'environnement (docs/serveur.md)."
+        ),
+    )
+    account_parser = subparsers.add_parser(
+        "compte",
+        help="gère la liste des agents autorisés à se connecter au serveur",
+        description=(
+            "Ajoute, liste ou retire les adresses e-mail des agents autorisés à se connecter. "
+            "Retirer un agent ferme ses sessions sans toucher à ses visites. La base est donnée "
+            "par la variable VISITE360_BASE ou la clé « base » de "
+            f"{publier.CONFIG_PATH}."
+        ),
+    )
+    account_parser.add_argument("action", choices=("ajouter", "liste", "retirer"))
+    account_parser.add_argument("email", nargs="?", help="adresse e-mail de l'agent")
+    account_parser.add_argument(
+        "--local",
+        action="store_true",
+        help=f"agit sur la base du serveur lancé sur ce Mac ({reglages.LOCAL_FOLDER}/)",
+    )
     return parser
 
 
@@ -172,5 +231,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         return publier.run_publish(args.dossier)
     if args.command == "depublier":
         return publier.run_unpublish(args.dossier)
+    if args.command == "serveur":
+        return serveur.run(args.local, port=args.port)
+    if args.command == "traiter":
+        return traitement.run()
+    if args.command == "compte":
+        environ = None
+        if args.local:
+            settings = reglages.local_settings(reglages.LOCAL_FOLDER, "", 0)
+            environ = {"VISITE360_BASE": settings.database}
+        return comptes.run(args.action, args.email, environ)
     parser.print_help()
     return 0

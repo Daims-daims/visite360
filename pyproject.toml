@@ -23,6 +23,10 @@ dev = [
     "pytest>=8",
     "ruff>=0.6",
 ]
+# Serveur en ligne seulement (étape 13, D39) : connexion à la base PostgreSQL de Scaleway.
+serveur = [
+    "pg8000==1.31.6",
+]
 
 [project.scripts]
 visite360 = "visite360.cli:main"
@@ -33,9 +37,10 @@ path = "src/visite360/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/visite360"]
 
-# La visionneuse web (D15) est livrée avec le paquet.
+# La visionneuse web (D15) et l'espace web des agents (étape 13) sont livrés avec le paquet.
 [tool.hatch.build.targets.wheel.force-include]
 "visionneuse" = "visite360/visionneuse"
+"espace" = "visite360/espace"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
