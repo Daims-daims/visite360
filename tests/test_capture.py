@@ -149,6 +149,44 @@ def test_plain_photo_is_rejected_without_the_phone(tmp_path: Path, views: list[V
     assert not report["photos"][ceiling]["placed_by_sensors"]
 
 
+def lamp_ceiling(views: list[View]) -> tuple[int, list[View]]:
+    """Plafond uni éclairé par un plafonnier : un seul point repère, trop peu pour OpenCV."""
+    ceiling = next(n for n, view in enumerate(views) if view.pitch == 90.0)
+    height, width = views[ceiling].image.shape[:2]
+    y, x = np.mgrid[0:height, 0:width]
+    glow = 200 + 150 * np.exp(-((x - width / 2) ** 2 + (y - height / 2) ** 2) / (2 * 100**2))
+    image = np.dstack([np.clip(glow, 0, 255)] * 3).astype(np.uint8)
+    _, encoded = cv2.imencode(".jpg", image)
+    keypoints = cv2.SIFT_create().detect(cv2.imdecode(encoded, cv2.IMREAD_COLOR), None)
+    assert len(keypoints) == 1
+    lamp = [View(image, v.yaw, v.pitch) if n == ceiling else v for n, v in enumerate(views)]
+    return ceiling, lamp
+
+
+def test_single_point_photo_is_placed_by_the_phone(tmp_path: Path, views: list[View]) -> None:
+    ceiling, lamp = lamp_ceiling(views)
+    point = write_point(tmp_path, lamp)
+    write_capture(point, sensor_rotations(lamp, noise_deg=1.0))
+
+    code, report, _ = run_stitch(point)
+
+    assert code == 0
+    photo = report["photos"][ceiling]
+    assert photo["used"] and photo["placed_by_sensors"]
+
+
+def test_single_point_photo_is_rejected_without_the_phone(
+    tmp_path: Path, views: list[View]
+) -> None:
+    ceiling, lamp = lamp_ceiling(views)
+    point = write_point(tmp_path, lamp)
+
+    code, report, _ = run_stitch(point)
+
+    assert code == 0
+    assert report["photos"][ceiling]["reason"] == stitch.REJECTED_UNMATCHED
+
+
 def test_wrong_orientations_fall_back_to_photos(
     tmp_path: Path, truth: np.ndarray, views: list[View]
 ) -> None:
