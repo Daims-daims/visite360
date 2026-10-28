@@ -15,11 +15,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
-COPY pyproject.toml README.md ./
-COPY src src
-COPY visionneuse visionneuse
-COPY espace espace
-COPY scripts/installer-opencv.sh scripts/installer-opencv.sh
 
 # Compilation d'OpenCV : un compilateur C++ prend plusieurs Go de mémoire. Sous émulation (Mac à
 # puce Apple), la machine virtuelle de Podman n'en a souvent que 2 par défaut : trop de
@@ -27,11 +22,23 @@ COPY scripts/installer-opencv.sh scripts/installer-opencv.sh
 # cc1plus »). Trois à la fois tiennent dans 8 Go ; baisser à 1 ou 2 si cela recommence.
 ENV CMAKE_BUILD_PARALLEL_LEVEL=3
 
+# OpenCV d'abord, avec pour seule entrée le script qui le compile : Podman garde cette étape
+# (la plus longue, de l'ordre d'une heure sous émulation) tant que le script ne change pas, et
+# ne la refait pas quand seul le code du projet change.
+COPY scripts/installer-opencv.sh scripts/installer-opencv.sh
 RUN python -m venv /opt/visite360
 ENV PATH="/opt/visite360/bin:$PATH" PYTHON=/opt/visite360/bin/python
-RUN pip install --no-cache-dir ".[serveur]" \
+# numpy avant OpenCV : le script finit par « import cv2 », qui en a besoin.
+RUN pip install --no-cache-dir "numpy>=1.26" \
     && bash scripts/installer-opencv.sh \
     && rm -rf build
+
+# Puis le projet et ses dépendances : rapide, refait à chaque changement du code.
+COPY pyproject.toml README.md ./
+COPY src src
+COPY visionneuse visionneuse
+COPY espace espace
+RUN pip install --no-cache-dir ".[serveur]"
 
 # --- Image finale : Python, l'environnement construit, rien d'autre ------------------------------
 FROM docker.io/library/python:3.13-slim-bookworm
