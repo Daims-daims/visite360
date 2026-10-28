@@ -21,6 +21,12 @@ COPY visionneuse visionneuse
 COPY espace espace
 COPY scripts/installer-opencv.sh scripts/installer-opencv.sh
 
+# Compilation d'OpenCV : un compilateur C++ prend plusieurs Go de mémoire. Sous émulation (Mac à
+# puce Apple), la machine virtuelle de Podman n'en a souvent que 2 par défaut : trop de
+# compilateurs en parallèle la saturent et Linux les tue (« Killed signal terminated program
+# cc1plus »). Trois à la fois tiennent dans 8 Go ; baisser à 1 ou 2 si cela recommence.
+ENV CMAKE_BUILD_PARALLEL_LEVEL=3
+
 RUN python -m venv /opt/visite360
 ENV PATH="/opt/visite360/bin:$PATH" PYTHON=/opt/visite360/bin/python
 RUN pip install --no-cache-dir ".[serveur]" \

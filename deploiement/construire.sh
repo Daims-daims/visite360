@@ -54,6 +54,14 @@ if [[ -z "$SECRET" ]]; then
     exit 1
 fi
 
+MEMORY_MB="$(podman machine inspect --format '{{.Resources.Memory}}' 2>/dev/null || echo 0)"
+if [[ "$MEMORY_MB" =~ ^[0-9]+$ && "$MEMORY_MB" -gt 0 && "$MEMORY_MB" -lt 6144 ]]; then
+    echo "Erreur : la machine virtuelle de Podman n'a que $MEMORY_MB Mo de mémoire ; la compilation" >&2
+    echo "d'OpenCV y serait tuée. Lui en donner 8 Go, puis recommencer :" >&2
+    echo "  podman machine stop && podman machine set --memory 8192 && podman machine start" >&2
+    exit 1
+fi
+
 echo "Fabrication de $IMAGE (la première fois : longue, OpenCV est compilé par émulation)..."
 podman build --platform linux/amd64 -f "$ROOT/deploiement/Containerfile" -t "$IMAGE" "$ROOT"
 

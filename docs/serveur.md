@@ -76,6 +76,8 @@ Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'éta
    ```
 
    La première fabrication est longue, de l'ordre d'une heure (estimation, non mesurée) : OpenCV y est compilé pour processeur Intel/AMD par émulation. Les suivantes réutilisent ce qui est déjà fait.
+
+   Avant la première fois, donner 8 Go de mémoire à la machine virtuelle de Podman (2 Go par défaut, trop peu) : `podman machine stop && podman machine set --memory 8192 && podman machine start`. Sinon la compilation s'arrête avec « Killed signal terminated program cc1plus », ce qui veut dire mémoire pleine ; le script le vérifie et le dit avant de commencer.
 9. **Tâche d'assemblage** : Serverless → Jobs → créer `visite360-assemblage` avec l'image envoyée, la commande `visite360 traiter`, 4 vCPU, 12 Go de mémoire, durée maximale 6 h. Ajouter une programmation quotidienne (par exemple `0 4 * * *`), puis les variables du tableau ci-dessous, sauf `VISITE360_JOB` et les réglages SMTP. Noter l'identifiant de la tâche.
 10. **Serveur** : Serverless → Containers → créer `visite360-serveur` avec la même image, port 8080, minimum 0 et maximum 2 copies, 1 vCPU et 1 Go de mémoire, rattaché au réseau privé `visite360`. Ajouter toutes les variables du tableau. Dans « Custom domains », ajouter `api.hesti-scan.fr` et créer l'enregistrement DNS demandé. Scaleway fournit le certificat HTTPS.
 11. **Premier agent**, sur le Mac : ajouter la clé `"base": "<adresse de la base>"` dans `~/.config/visite360/scaleway.json`, puis `visite360 compte ajouter <votre adresse>`.
@@ -144,4 +146,5 @@ Temps mesurés le 2026-10-27, en mode local sur le MacBook Air M4, avec une visi
 | « autre prise de vue » | un point du même nom a déjà été reçu avec d'autres photos : renommer le point dans l'app |
 | Reste « En attente » | la tâche n'a pas pu être lancée (droits de la clé, `VISITE360_JOB`) : elle partira à la programmation quotidienne ; voir les journaux de la tâche dans la console |
 | « Échec » avec un message d'assemblage | même cause que sur le Mac (étape 2) : prise de vue, recouvrement insuffisant |
+| La fabrication de l'image s'arrête sur « Killed signal terminated program cc1plus » | mémoire pleine dans la machine virtuelle de Podman : lui donner 8 Go (voir l'étape 8), ou baisser `CMAKE_BUILD_PARALLEL_LEVEL` dans `deploiement/Containerfile` |
 | Première ouverture de l'espace web lente | le serveur dormait : il se réveille en quelques secondes |
