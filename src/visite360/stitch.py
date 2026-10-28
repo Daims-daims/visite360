@@ -53,6 +53,9 @@ REPORT_FORMAT = 2
 WORK_MEGAPIX = 0.6
 MATCH_CONF = 0.3
 CONF_THRESH = 1.0
+# L'appariement cherche à chaque point ses deux plus proches voisins dans l'autre photo : une
+# photo qui a moins de points (plafond uni, plafonnier en face) fait échouer OpenCV.
+MIN_KEYPOINTS = 2
 # Angle de vue horizontal plausible de l'objectif principal d'un téléphone, tenu en portrait
 # ou en paysage.
 MIN_FOV_DEG = 30.0
@@ -270,21 +273,22 @@ def _align(
     start_yaw: float | None = None,
 ) -> tuple[list[Camera], list[int], list[int]]:
     """Renvoie les caméras, les photos écartées et celles placées par les seuls capteurs."""
-    numbers = sorted(images)
+    featureless = [n for n in sorted(images) if len(features[n].keypoints) < MIN_KEYPOINTS]
+    numbers = [n for n in sorted(images) if n not in featureless]
     found = [features[n] for n in numbers]
     mask = neighbour_mask([sensors[n] for n in numbers]) if sensors else None
-    pairwise = _match(cv2, found, mask)
-    kept_positions = [
-        int(i) for i in np.ravel(cv2.detail.leaveBiggestComponent(found, pairwise, CONF_THRESH))
-    ]
+    pairwise = _match(cv2, found, mask) if len(numbers) >= 2 else []
+    component = cv2.detail.leaveBiggestComponent(found, pairwise, CONF_THRESH) if pairwise else []
+    kept_positions = [int(i) for i in np.ravel(component)]
     if len(kept_positions) < 2:
         raise StitchError(
             "Les photos n'ont pas assez de points communs pour être assemblées. "
             "Vérifier le recouvrement entre photos voisines (docs/prise-de-vue.md)."
         )
-    rejected = [n for position, n in enumerate(numbers) if position not in kept_positions]
+    dropped = [n for position, n in enumerate(numbers) if position not in kept_positions]
+    rejected = featureless + dropped
     kept = [numbers[position] for position in kept_positions]
-    if rejected:
+    if dropped:
         found = [found[position] for position in kept_positions]
         if mask is not None:
             mask = mask[np.ix_(kept_positions, kept_positions)]
