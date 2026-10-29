@@ -18,7 +18,6 @@ if [[ $# -lt 1 || $# -gt 2 || "$1" != */* ]]; then
     exit 2
 fi
 REGISTRY="${1%/}"
-HOST="${REGISTRY%%/*}"
 RUN_ID="${2:-}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -85,7 +84,15 @@ fi
 podman tag "${LOADED#Loaded image: }" "$IMAGE"
 
 echo "Envoi dans l'espace d'images..."
-printf '%s' "$SECRET" | podman login "$HOST" --username nologin --password-stdin >/dev/null
+# Scaleway demande l'espace d'images en entier (hôte et nom), le nom d'utilisateur « nologin »
+# et la clé secrète comme mot de passe. La clé doit avoir le droit ContainerRegistryFullAccess.
+if ! printf '%s' "$SECRET" | podman login "$REGISTRY" --username nologin --password-stdin >/dev/null; then
+    echo "Erreur : Scaleway refuse la connexion à $REGISTRY." >&2
+    echo "Vérifier que la clé a le droit « ContainerRegistryFullAccess » (IAM, politique de" >&2
+    echo "l'application), que le nom de l'espace d'images est exact, et que la clé secrète" >&2
+    echo "lue est celle de cette application (SCW_SECRET_KEY, sinon scaleway.json)." >&2
+    exit 1
+fi
 podman push "$IMAGE"
 
 echo "Image envoyée : $IMAGE (commit $TAG)"
