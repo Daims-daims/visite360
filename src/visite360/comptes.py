@@ -25,6 +25,7 @@ import os
 import smtplib
 import ssl
 import sys
+import urllib.parse
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from email.message import EmailMessage
@@ -124,6 +125,14 @@ def database_url(environ: Mapping[str, str], config: Path = publier.CONFIG_PATH)
     return value if isinstance(value, str) and value else None
 
 
+def describe_database(url: str) -> str:
+    """Où pointe l'adresse de la base, sans jamais montrer l'utilisateur ni le mot de passe."""
+    if url.startswith("sqlite"):
+        return f"SQLite local, sur ce Mac ({url.removeprefix('sqlite:///')})"
+    host = urllib.parse.urlsplit(url).hostname or "adresse illisible"
+    return f"PostgreSQL en ligne ({host})"
+
+
 def _date(stamp: int | None) -> str:
     if stamp is None:
         return ""
@@ -151,6 +160,7 @@ def run(
     if action in ("ajouter", "retirer") and not (email and "@" in email):
         print(f"Erreur : donner l'adresse e-mail de l'agent à {action}.", file=err)
         return 1
+    print(f"Base : {describe_database(url)}", file=out)
     try:
         registre = Registre(open_database(url))
         registre.create_schema()

@@ -193,3 +193,17 @@ def test_postgres_without_pg8000_gives_a_clear_message(monkeypatch: pytest.Monke
     monkeypatch.setattr(builtins, "__import__", refuse)
     with pytest.raises(registre.RegistreError, match=r"\.\[serveur\]"):
         registre.open_database("postgresql://u:p@hote:5432/base")
+
+
+def test_account_command_says_which_database_it_uses(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "absent.json"
+    environ = {"VISITE360_BASE": f"sqlite:///{tmp_path / 'registre.sqlite'}"}
+    assert comptes.run("liste", None, environ, config) == 0
+    assert "Base : SQLite local, sur ce Mac" in capsys.readouterr().out
+
+    secret = "mot-de-passe-secret"
+    url = f"postgresql://utilisateur:{secret}@exemple.pg.sdb.fr-par.scw.cloud:5432/visite360"
+    assert comptes.describe_database(url) == "PostgreSQL en ligne (exemple.pg.sdb.fr-par.scw.cloud)"
+    assert secret not in comptes.describe_database(url)
