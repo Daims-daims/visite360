@@ -69,15 +69,22 @@ Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'éta
 5. **Envoi des e-mails** : Transactional Email → ajouter le domaine `hesti-scan.fr`. Scaleway donne les enregistrements DNS qui prouvent que les e-mails viennent du domaine (SPF, DKIM) : les ajouter dans Domains and DNS, puis attendre la vérification. L'adresse d'envoi sera par exemple `connexion@hesti-scan.fr`.
 6. **Secrets** : Secret Manager → créer un secret pour la clé secrète (`SCW_SECRET_KEY`), un pour l'adresse de la base (`VISITE360_BASE`) et un pour le mot de passe SMTP. Ils seront donnés au conteneur et à la tâche par référence, sans jamais être écrits ailleurs.
 7. **Réseau privé** : VPC → Private Networks → créer `visite360` en Paris. Il servira à la carte graphique de l'étape 14.
-8. **Espace d'images** : Container Registry → créer un espace privé, par exemple `<espace>`. Puis, sur le Mac, depuis la racine du dépôt, avec Podman installé :
+8. **Espace d'images** : Container Registry → créer un espace privé, par exemple `<espace>`. L'image du serveur se fabrique pour Intel/AMD, ce que ton Mac (puce Apple) ne sait faire que par émulation : plusieurs heures. Deux voies :
 
-   ```bash
-   bash deploiement/construire.sh rg.fr-par.scw.cloud/<espace>
-   ```
+   - **Par GitHub, recommandée (rapide, sans clé chez GitHub).** Lancer la fabrication, puis attendre qu'elle finisse :
 
-   La première fabrication est longue, de l'ordre d'une heure (estimation, non mesurée) : OpenCV y est compilé pour processeur Intel/AMD par émulation. Les suivantes réutilisent ce qui est déjà fait.
+     ```bash
+     gh workflow run image.yml --ref <branche>
+     ```
 
-   Avant la première fois, donner 8 Go de mémoire à la machine virtuelle de Podman (2 Go par défaut, trop peu) : `podman machine stop && podman machine set --memory 8192 && podman machine start`. Sinon la compilation s'arrête avec « Killed signal terminated program cc1plus », ce qui veut dire mémoire pleine ; le script le vérifie et le dit avant de commencer.
+     Elle tourne chez GitHub sur une machine Intel/AMD, sans émulation (la première fois, 15 à 30 minutes environ, estimation non mesurée ; ensuite OpenCV vient du cache). Elle se lance aussi toute seule sur une pull request qui modifie `deploiement/`. L'image n'est envoyée nulle part : elle reste 2 jours comme fichier téléchargeable. Puis, sur le Mac, avec `gh` connecté et Podman installé :
+
+     ```bash
+     bash deploiement/envoyer.sh rg.fr-par.scw.cloud/<espace>
+     ```
+
+     Le script télécharge la dernière image réussie de la branche courante, la charge et l'envoie chez Scaleway. **La clé de Scaleway reste sur le Mac** : GitHub n'en reçoit aucune (D37).
+   - **Sur le Mac seulement**, avec Podman (secours) : `bash deploiement/construire.sh rg.fr-par.scw.cloud/<espace>`. OpenCV est compilé par émulation : de une heure à plusieurs heures selon l'émulateur (estimation). Donner d'abord 8 Go à la machine virtuelle de Podman (2 Go par défaut, trop peu) : `podman machine stop && podman machine set --memory 8192 && podman machine start`. Sinon la compilation s'arrête avec « Killed signal terminated program cc1plus », ce qui veut dire mémoire pleine ; le script le vérifie avant de commencer.
 9. **Tâche d'assemblage** : Serverless → Jobs → créer `visite360-assemblage` avec l'image envoyée, la commande `visite360 traiter`, 4 vCPU, 12 Go de mémoire, durée maximale 6 h. Ajouter une programmation quotidienne (par exemple `0 4 * * *`), puis les variables du tableau ci-dessous, sauf `VISITE360_JOB` et les réglages SMTP. Noter l'identifiant de la tâche.
 10. **Serveur** : Serverless → Containers → créer `visite360-serveur` avec la même image, port 8080, minimum 0 et maximum 2 copies, 1 vCPU et 1 Go de mémoire, rattaché au réseau privé `visite360`. Ajouter toutes les variables du tableau. Dans « Custom domains », ajouter `api.hesti-scan.fr` et créer l'enregistrement DNS demandé. Scaleway fournit le certificat HTTPS.
 11. **Premier agent**, sur le Mac : ajouter la clé `"base": "<adresse de la base>"` dans `~/.config/visite360/scaleway.json`, puis `visite360 compte ajouter <votre adresse>`.
@@ -106,7 +113,7 @@ Les noms des droits IAM, le format exact de l'adresse de la base et les réglage
 
 ### Mettre à jour
 
-Après une fusion dans `main` : `bash deploiement/construire.sh rg.fr-par.scw.cloud/<espace>`, puis donner la nouvelle étiquette d'image au conteneur et à la tâche dans la console.
+Après une fusion dans `main` : relancer la fabrication de l'image (étape 8, voie GitHub : `gh workflow run image.yml --ref main`, puis `bash deploiement/envoyer.sh …`), puis donner la nouvelle étiquette d'image au conteneur et à la tâche dans la console.
 
 ## Coût
 
