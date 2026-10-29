@@ -67,7 +67,9 @@ Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'éta
 3. **Base de données** : Databases → Serverless SQL Database → créer `visite360`. Noter son adresse (`<identifiant>.pg.sdb.fr-par.scw.cloud`).
 4. **Clé d'accès du serveur** : IAM → Applications → créer `visite360-serveur`, avec une politique limitée au projet qui donne `ObjectStorageFullAccess`, `ContainerRegistryFullAccess`, `ServerlessSQLDatabaseReadWrite`, `ServerlessJobsFullAccess` et `TransactionalEmailEmailApiAccess`, puis générer une clé API. La clé secrète ne s'affiche qu'une fois. Une seconde application, `visite360-tache`, peut se limiter au stockage et à la base.
 5. **Envoi des e-mails** : Transactional Email → ajouter le domaine `hesti-scan.fr`. Scaleway donne les enregistrements DNS qui prouvent que les e-mails viennent du domaine (SPF, DKIM) : les ajouter dans Domains and DNS, puis attendre la vérification. L'adresse d'envoi sera par exemple `connexion@hesti-scan.fr`.
-6. **Secrets** : Secret Manager → créer un secret pour la clé secrète (`SCW_SECRET_KEY`), un pour l'adresse de la base (`VISITE360_BASE`) et un pour le mot de passe SMTP. Ils seront donnés au conteneur et à la tâche par référence, sans jamais être écrits ailleurs.
+6. **Secrets** : trois valeurs ne doivent jamais apparaître en clair : la clé secrète (`SCW_SECRET_KEY`), l'adresse de la base (`VISITE360_BASE`, qui contient un mot de passe) et le mot de passe SMTP (`VISITE360_SMTP_MOT_DE_PASSE`). Elles se donnent différemment au conteneur et à la tâche :
+   - **conteneur du serveur** : dans son formulaire, section **variables d'environnement secrètes** (« Secret environment variables »). On y tape la valeur ; Scaleway la chiffre et ne l'affiche plus ensuite. Pas besoin de Secret Manager ;
+   - **tâche d'assemblage** : Scaleway n'accepte ses secrets que par **Secret Manager**. Créer un secret par valeur (nom libre, par exemple `scw-secret-key` et `visite360-base`), **puis une version** qui contient la valeur : un secret sans version ne peut pas être choisi. Dans le formulaire de la tâche, ajouter une référence de secret et lui donner le nom de la variable. La tâche n'a besoin que de `SCW_SECRET_KEY` et de `VISITE360_BASE`.
 7. **Réseau privé** : VPC → Private Networks → créer `visite360` en Paris. Il servira à la carte graphique de l'étape 14.
 8. **Espace d'images** : Container Registry → créer un espace privé, par exemple `<espace>`. L'image du serveur se fabrique pour Intel/AMD, ce que ton Mac (puce Apple) ne sait faire que par émulation : plusieurs heures. Deux voies :
 
@@ -107,7 +109,7 @@ Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'éta
 | `VISITE360_SMTP_MOT_DE_PASSE` (secret) | clé secrète autorisée à envoyer des e-mails | oui | non |
 | `VISITE360_EXPEDITEUR` | adresse d'envoi des codes, par exemple `Visite360 <connexion@hesti-scan.fr>` | oui | non |
 
-Un réglage manquant donne au démarrage un message qui le nomme. Aucune de ces valeurs n'est écrite dans le code ni dans l'app (D38). Ajouter un environnement d'intégration revient à refaire ces étapes avec d'autres noms.
+Un réglage manquant donne au démarrage un message qui le nomme (le conteneur s'arrête alors avec « Container crashed with exit code 1 » et ce message dans ses journaux). Aucune de ces valeurs n'est écrite dans le code ni dans l'app (D38). Ajouter un environnement d'intégration revient à refaire ces étapes avec d'autres noms.
 
 Les noms des droits IAM, le format exact de l'adresse de la base et les réglages SMTP viennent de la documentation de Scaleway et n'ont pas été essayés avec le compte du propriétaire : à confirmer à la première mise en ligne.
 
