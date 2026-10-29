@@ -1,0 +1,53 @@
+name: image
+
+# Fabrique l'image du serveur pour Intel/AMD (linux/amd64) sur une machine de GitHub, en natif,
+# sans émulation : bien plus rapide que sur un Mac à puce Apple. L'image est déposée comme
+# fichier téléchargeable (2 jours) ; elle n'est envoyée nulle part. C'est le Mac du propriétaire
+# qui la télécharge et l'envoie chez Scaleway avec deploiement/envoyer.sh : aucune clé de
+# Scaleway n'est donnée à GitHub (D37). Mode d'emploi dans docs/serveur.md.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "deploiement/**"
+      - "scripts/installer-opencv.sh"
+      - ".github/workflows/image.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Garder les étapes déjà compilées (OpenCV) entre deux exécutions
+        uses: actions/cache@v4
+        with:
+          path: /tmp/buildx-cache
+          key: image-${{ hashFiles('deploiement/Containerfile', 'scripts/installer-opencv.sh') }}
+          restore-keys: image-
+      - name: Fabriquer l'image
+        env:
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          tag="${COMMIT:0:12}"
+          docker buildx create --use --driver docker-container
+          docker buildx build --platform linux/amd64 \
+            -f deploiement/Containerfile -t "visite360:$tag" \
+            --cache-from type=local,src=/tmp/buildx-cache \
+            --cache-to type=local,dest=/tmp/buildx-cache-new,mode=max \
+            --output type=docker,dest=/tmp/image.tar .
+          rm -rf /tmp/buildx-cache
+          mv /tmp/buildx-cache-new /tmp/buildx-cache
+          echo "$tag" > /tmp/etiquette.txt
+      - name: Déposer l'image
+        uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: |
+            /tmp/image.tar
+            /tmp/etiquette.txt
+          retention-days: 2

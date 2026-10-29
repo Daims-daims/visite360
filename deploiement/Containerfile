@@ -1,0 +1,53 @@
+# Image du serveur et de la tâche d'assemblage (étape 13, D39), pour processeur Intel/AMD
+# (linux/amd64), seule architecture acceptée par les Serverless Containers et Jobs de Scaleway.
+#
+# Une seule image pour les deux : le conteneur du serveur lance `visite360 serveur` (commande par
+# défaut), la tâche d'assemblage `visite360 traiter`. Fabriquée par deploiement/construire.sh.
+#
+# Seuls le code, la visionneuse et l'espace web entrent dans l'image (lignes COPY) : jamais de
+# visite, de photo ni de clé.
+
+# --- Construction : OpenCV compilé sans FFmpeg, par le même script que sur le Mac (D19) ---------
+FROM docker.io/library/python:3.13-slim-bookworm AS construction
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+# Compilation d'OpenCV : un compilateur C++ prend plusieurs Go de mémoire. Sous émulation (Mac à
+# puce Apple), la machine virtuelle de Podman n'en a souvent que 2 par défaut : trop de
+# compilateurs en parallèle la saturent et Linux les tue (« Killed signal terminated program
+# cc1plus »). Trois à la fois tiennent dans 8 Go ; baisser à 1 ou 2 si cela recommence.
+ENV CMAKE_BUILD_PARALLEL_LEVEL=3
+
+# OpenCV d'abord, avec pour seule entrée le script qui le compile : Podman garde cette étape
+# (la plus longue, de l'ordre d'une heure sous émulation) tant que le script ne change pas, et
+# ne la refait pas quand seul le code du projet change.
+COPY scripts/installer-opencv.sh scripts/installer-opencv.sh
+RUN python -m venv /opt/visite360
+ENV PATH="/opt/visite360/bin:$PATH" PYTHON=/opt/visite360/bin/python
+# numpy avant OpenCV : le script finit par « import cv2 », qui en a besoin.
+RUN pip install --no-cache-dir "numpy>=1.26" \
+    && bash scripts/installer-opencv.sh \
+    && rm -rf build
+
+# Puis le projet et ses dépendances : rapide, refait à chaque changement du code.
+COPY pyproject.toml README.md ./
+COPY src src
+COPY visionneuse visionneuse
+COPY espace espace
+RUN pip install --no-cache-dir ".[serveur]"
+
+# --- Image finale : Python, l'environnement construit, rien d'autre ------------------------------
+FROM docker.io/library/python:3.13-slim-bookworm
+
+RUN useradd --create-home --uid 1000 visite360
+COPY --from=construction /opt/visite360 /opt/visite360
+ENV PATH="/opt/visite360/bin:$PATH" PYTHONUNBUFFERED=1
+USER visite360
+WORKDIR /home/visite360
+
+EXPOSE 8080
+CMD ["visite360", "serveur"]

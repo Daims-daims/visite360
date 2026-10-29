@@ -1,5 +1,5 @@
 // Écrans de l'app hors prise de vue : liste des visites, points et flèches d'une visite,
-// détail d'un point, envoi vers le Mac.
+// détail d'un point, envoi vers le Mac. L'envoi au serveur est dans OnlineViews.swift.
 
 import SwiftUI
 
@@ -83,6 +83,15 @@ struct VisitsView: View {
                 }
             }
             .navigationTitle("Visite360")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink {
+                        OnlineVisitsView()
+                    } label: {
+                        Label("Mes visites en ligne", systemImage: "globe")
+                    }
+                }
+            }
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .visit(let visit): VisitView(visit: visit, path: $path)
@@ -117,7 +126,7 @@ struct VisitsView: View {
                 Button("Supprimer", role: .destructive) { deleteVisit() }
                 Button("Annuler", role: .cancel) {}
             } message: {
-                Text("Ce qui a déjà été envoyé au Mac y reste.")
+                Text("Ce qui a déjà été envoyé au Mac ou au serveur y reste.")
             }
             .problemAlert($problem)
             .onAppear(perform: reload)
@@ -167,6 +176,7 @@ struct VisitView: View {
     @State private var askName = false
     @State private var name = ""
     @State private var sending = false
+    @State private var sendingOnline = false
     @State private var archive: URL?
     @State private var problem: String?
 
@@ -235,6 +245,19 @@ struct VisitView: View {
             }
             Section {
                 Button {
+                    sendingOnline = true
+                } label: {
+                    Label("Envoyer au serveur", systemImage: "icloud.and.arrow.up")
+                }
+                .disabled(points.isEmpty)
+            } footer: {
+                Text(
+                    "Le serveur assemble la visite, la met en ligne et donne le lien de partage, "
+                        + "sans passer par le Mac. Fonctionne en Wi-Fi comme en 4G."
+                )
+            }
+            Section {
+                Button {
                     sending = true
                 } label: {
                     Label("Envoyer au Mac (Wi-Fi)", systemImage: "wifi")
@@ -264,6 +287,9 @@ struct VisitView: View {
         }
         .sheet(isPresented: $sending) {
             SendView(visit: visit)
+        }
+        .sheet(isPresented: $sendingOnline) {
+            ServerSendView(visit: visit)
         }
         .sheet(item: Binding(get: { archive.map(SharedFile.init) }, set: { archive = $0?.url })) {
             ActivityView(items: [$0.url])

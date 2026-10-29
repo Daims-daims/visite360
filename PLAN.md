@@ -34,7 +34,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 11 | Chiffrage d'une modification | v0.3 | livrée |
 | J3 | **Jalon v0.3 : validation du chiffrage par le propriétaire** | — | livrée |
 | 12 | Hébergement et lien de partage | v1 | livrée |
-| 13 | Envoi depuis l'app et assemblage sur serveur | v1 | à faire |
+| 13 | Envoi depuis l'app et assemblage sur serveur | v1 | livrée |
 | 14 | Génération d'image sur une carte graphique louée | v1 | à faire |
 | 15 | Modifications et chiffrage en ligne | v1 | à faire |
 | 16 | Retours d'engagement pour l'agent | v1 | à faire |
@@ -183,6 +183,7 @@ Les coûts d'hébergement commencent à l'étape 12, ceux du serveur à l'étape
   - durée de conservation des photos d'origine sur le serveur une fois les panoramas faits ;
   - numpy et OpenCV compilés pour Linux : composants LGPL et GPL embarqués à examiner avant tout déploiement (`docs/licences.md`).
 - **À trancher pendant l'étape :** taille des morceaux ; dépôt des photos directement dans le stockage ou en passant par le serveur ; rangement des secrets sur le serveur (par le gestionnaire de secrets de Scaleway ou non) ; emplacement des fichiers de déploiement dans le dépôt (D15).
+- **Tranché le 2026-10-27 (D39) :** domaine `hesti-scan.fr` chez Scaleway ; serveur en Serverless Containers, assemblage en Serverless Jobs, photos dans un stockage privé, réseau privé prêt pour la carte graphique de l'étape 14 ; connexion par un code envoyé par e-mail, liste fermée d'agents gérée par le propriétaire ; photos d'origine effacées 30 jours après que la visite est prête ; base de données PostgreSQL de Scaleway ; bibliothèques LGPL et GPL avec exception d'exécution acceptées sur le serveur seulement. Choix détaillés, à rediscuter en temps voulu, dans `docs/choix/etape-13.md`.
 
 ### Étape 14 : génération d'image sur une carte graphique louée
 
