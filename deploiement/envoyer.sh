@@ -75,8 +75,14 @@ fi
 IMAGE="$REGISTRY/visite360:$TAG"
 
 echo "Chargement dans Podman..."
-podman load --input "$WORK/image.tar" >/dev/null
-podman tag "localhost/visite360:$TAG" "$IMAGE"
+# Podman dit lui-même sous quel nom il a rangé l'image (docker.io/library/visite360:…, selon le
+# programme qui l'a fabriquée) : on le lit au lieu de le deviner.
+LOADED="$(podman load --quiet --input "$WORK/image.tar" | tail -n 1)"
+if [[ -z "$LOADED" ]]; then
+    echo "Erreur : Podman n'a pas chargé l'image." >&2
+    exit 1
+fi
+podman tag "${LOADED#Loaded image: }" "$IMAGE"
 
 echo "Envoi dans l'espace d'images..."
 printf '%s' "$SECRET" | podman login "$HOST" --username nologin --password-stdin >/dev/null
