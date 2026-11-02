@@ -1,0 +1,17 @@
+# Ce qui n'est jamais envoyé à Podman (ou Docker) pour fabriquer l'image du serveur (deploiement/).
+# Les visites et photos sont des données personnelles ; les clés ne quittent pas le Mac.
+visites/
+.venv/
+venv/
+build/
+dist/
+app/
+tests/
+.git/
+.claude/
+**/__pycache__/
+*.jpg
+*.jpeg
+*.heic
+scaleway.json
+publication.json

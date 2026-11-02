@@ -16,6 +16,8 @@ Il faut Xcode sur le Mac et un identifiant Apple, sans abonnement développeur.
 6. **Lancer :** dans Xcode, choisir l'iPhone en haut de la fenêtre (à la place d'un simulateur), puis le bouton ▶ (ou Cmd+R).
 7. **Premier lancement :** si l'iPhone refuse d'ouvrir l'app, aller dans Réglages > Général > VPN et gestion de l'appareil, toucher l'entrée « Apple Development » de son identifiant, puis « Faire confiance ».
 
+**Adresse du serveur (étape 13) :** pour envoyer les visites au serveur du projet, ajouter dans le même `Local.xcconfig` la ligne `VISITE360_SERVEUR = https:/$()/api.hesti-scan.fr`. Dans ce fichier, `//` commence un commentaire : il faut écrire `https:/$()/` à la place de `https://`. Pour essayer avec le serveur lancé sur le Mac (`visite360 serveur --local`), mettre l'adresse qu'il affiche, par exemple `http:/$()/192.168.1.20:8080`. Relancer ensuite depuis Xcode. Sans cette ligne, l'app marche comme avant et le dit dans l'écran d'envoi au serveur.
+
 **Limite de l'installation gratuite :** l'app cesse de s'ouvrir au bout de 7 jours. Il suffit de rebrancher l'iPhone et de relancer depuis Xcode (étape 6). Les points déjà pris restent sur le téléphone.
 
 ## Prendre une visite
@@ -84,6 +86,14 @@ L'angle n'a pas besoin d'être exact au degré près : la flèche apparaît dans
 
 Les points pris avec la première version de l'app (étape 5) apparaissent sur l'écran d'accueil sous « Points pris hors visite ». Toucher un point pour le ranger dans une visite. Ces points n'ont pas de flèches visées : leur centre est la première photo. Leurs flèches se déclarent à la main dans `visite.json` sur le Mac, comme à l'étape 4.
 
+## Envoyer la visite au serveur
+
+Dans la visite, **Envoyer au serveur**. La première fois, l'app demande l'adresse e-mail de l'agent, puis le code à 6 chiffres reçu par e-mail. L'adresse doit avoir été autorisée par le propriétaire (`visite360 compte ajouter`). La session est gardée 90 jours dans le trousseau de l'iPhone.
+
+L'envoi part en arrière-plan, en Wi-Fi comme en 4G. On peut quitter l'écran ou l'app : iOS continue les dépôts et les reprend seul après une coupure de réseau. Si l'app a été fermée de force, rouvrir l'écran et toucher **Reprendre l'envoi** : seuls les fichiers que le serveur n'a pas reçus repartent.
+
+Une fois l'envoi fini, le serveur assemble la visite. Le globe en haut de la liste des visites ouvre **Mes visites en ligne** : état de chaque visite (en attente, assemblage en cours, prête, échec), lien à partager ou copier, dépublication et suppression. Le même espace existe sur le web, à l'adresse du serveur. Fonctionnement, réglages et problèmes : [serveur.md](serveur.md).
+
 ## Envoyer la visite au Mac
 
 Par le Wi-Fi, sans manipuler de fichiers : lancer `visite360 receive` sur le Mac, puis **Envoyer au Mac (Wi-Fi)** dans la visite. Le mode d'emploi complet et les solutions aux problèmes sont dans [transfert.md](transfert.md).
@@ -112,4 +122,6 @@ cd app
 swift test
 ```
 
-La caméra et les capteurs ne se testent que sur un vrai iPhone : le simulateur n'en a pas. Les écrans de visite et l'envoi au Mac, eux, marchent dans le simulateur.
+`swift test` couvre aussi la liste des fichiers envoyés au serveur (avec l'empreinte MD5) et la reprise d'un envoi interrompu, sur des fichiers générés pendant le test.
+
+La caméra et les capteurs ne se testent que sur un vrai iPhone : le simulateur n'en a pas. Les écrans de visite, l'envoi au Mac et l'envoi au serveur, eux, marchent dans le simulateur. Pour l'envoi en arrière-plan, l'app doit être signée (même par « Sign to Run Locally ») : iOS refuse les envois en arrière-plan d'une app non signée.

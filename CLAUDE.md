@@ -37,9 +37,11 @@ Ces trois vérifications doivent passer avant tout commit.
 - Autorisées : MIT, BSD, Apache 2.0, ISC, zlib, libpng (PNG Reference Library License), IJG (Independent JPEG Group), MIT-CMU, PSF 2.0, Boost (BSL-1.0).
 - MPL 2.0 : acceptée pour une bibliothèque utilisée sans modifier ses fichiers (décision du propriétaire du 2026-10-25, D29).
 - CNRI Python 1.6 : acceptée pour une bibliothèque utilisée sans modifier ses fichiers (décision du propriétaire du 2026-10-25, D31).
+- MIT-0 (MIT sans obligation de citer l'auteur) : acceptée (décision du propriétaire du 2026-10-27, D39).
 - Interdites : toute licence non commerciale ou « recherche uniquement », notamment CC BY-NC.
 - Un modèle d'IA se vérifie en trois parties : code, poids, données d'entraînement. Un code sous MIT avec des poids entraînés sur des données réservées à la recherche est interdit. C'est le cas des modèles d'estimation de la forme des pièces entraînés sur ZInD.
 - GPL, LGPL, AGPL : acceptées seulement pour un programme externe appelé en ligne de commande, jamais importé ni lié dans le code. À signaler dans la pull request.
+- Sur le serveur seulement (D39) : bibliothèques LGPL, et GPL avec exception d'exécution, acceptées sans modification et jamais distribuées (glibc, composants embarqués par numpy pour Linux). Jamais dans l'app, qui est distribuée. AGPL toujours interdite au-delà d'un programme externe.
 - En cas de doute, ne pas ajouter la dépendance et poser la question.
 
 ## Architecture

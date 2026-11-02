@@ -5,3 +5,9 @@
 // Accounts, l'équipe « (Personal Team) » de son identifiant Apple).
 
 DEVELOPMENT_TEAM = ABCDE12345
+
+// Adresse du serveur du projet (étape 13, docs/serveur.md). Dans ce fichier, « // » commence un
+// commentaire : écrire « https:/$()/ » à la place de « https:// ». Pour le serveur lancé sur le
+// Mac (visite360 serveur --local), donner l'adresse qu'il affiche, par exemple
+// http:/$()/192.168.1.20:8080.
+VISITE360_SERVEUR = https:/$()/api.mon-domaine.fr

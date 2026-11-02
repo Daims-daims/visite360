@@ -124,7 +124,7 @@ def load_settings(path: Path, environ: Mapping[str, str]) -> Settings:
             f"manquant(s) dans {path}. Les enregistrer : {CONFIGURE}"
         )
     region = raw.get("region", DEFAULT_REGION)
-    address = raw.get("adresse")
+    address = environ.get("VISITE360_ADRESSE_VISITES") or raw.get("adresse")
     if not isinstance(region, str) or (address is not None and not isinstance(address, str)):
         raise PublishError(f"{path} : « region » et « adresse » doivent être du texte.")
     return Settings(
@@ -341,15 +341,20 @@ class S3Storage:
             if not truncated or not token:
                 return found
 
-    def put(self, key: str, data: bytes, content_type: str) -> None:
+    def put(self, key: str, data: bytes, content_type: str, public: bool = True) -> None:
         headers = {
             "Content-Type": content_type,
             "Content-MD5": base64.b64encode(hashlib.md5(data).digest()).decode("ascii"),
             # Relu à chaque ouverture : une visite republiée se voit tout de suite.
             "Cache-Control": "no-cache",
-            "x-amz-acl": "public-read",
         }
+        if public:
+            headers["x-amz-acl"] = "public-read"
         self._request("PUT", key, data=data, headers=headers)
+
+    def get(self, key: str) -> bytes:
+        """Contenu d'un fichier (stockage privé de l'étape 13)."""
+        return self._request("GET", key)
 
     def delete(self, key: str) -> None:
         self._request("DELETE", key)
@@ -500,7 +505,14 @@ def unpublish(folder: Path, storage: Storage, settings: Settings) -> int | None:
             f"Cette visite est en ligne dans le stockage « {state['bucket']} », mais les "
             f"réglages désignent « {settings.bucket} ». Remettre l'ancien réglage pour la retirer."
         )
-    prefix = state["identifiant"] + "/"
+    count = remove_published(storage, state["identifiant"])
+    (folder / STATE_NAME).unlink()
+    return count
+
+
+def remove_published(storage: Storage, identifier: str) -> int:
+    """Supprime tous les fichiers en ligne sous un identifiant. Renvoie leur nombre."""
+    prefix = identifier + "/"
     keys = sorted(storage.list(prefix))
     for key in keys:
         storage.delete(key)
@@ -509,7 +521,6 @@ def unpublish(folder: Path, storage: Storage, settings: Settings) -> int | None:
         raise PublishError(
             f"{len(left)} fichier(s) sont encore en ligne après la suppression. Relancer."
         )
-    (folder / STATE_NAME).unlink()
     return len(keys)
 
 

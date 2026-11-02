@@ -507,3 +507,46 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - avant le jalon v1 : création de l'environnement d'intégration et d'une commande qui fait passer une version de l'intégration à la production ;
   - avant l'étape 16 : base légale de la mesure, texte d'information au client, durée de conservation, contrat de sous-traitance avec les agents. Ces points juridiques sont à faire vérifier, le projet n'en est pas juge ;
   - les coûts fixes commencent à l'étape 13 (serveur), les coûts à l'usage de la carte graphique à l'étape 14. Chacune note le coût du mois dans sa validation.
+
+## D39 : étape 13 sur les services Scaleway à l'usage, connexion par code, base PostgreSQL
+
+- **Date :** 2026-10-27
+- **Décision (validée par le propriétaire, à rediscuter en temps voulu) :** détail, options écartées, coûts et sources dans `docs/choix/etape-13.md`.
+  - nom de domaine `hesti-scan.fr`, chez Scaleway. Serveur à l'adresse `api.hesti-scan.fr`, e-mails envoyés depuis `hesti-scan.fr`. Les visites publiées gardent l'adresse de Scaleway (D37) ;
+  - le serveur tourne en **Serverless Containers**, l'assemblage en **Serverless Jobs**, les photos dans un **stockage privé** (Object Storage). Le serveur est rattaché au **réseau privé** de Scaleway, où viendra la carte graphique de l'étape 14 ;
+  - les traitements (file d'attente et états) sont génériques : l'assemblage est le premier, la génération de l'étape 14 le suivant ;
+  - **connexion des agents** par un code à 6 chiffres envoyé par e-mail (Transactional Email de Scaleway), valable 10 minutes, puis session longue. Liste fermée d'adresses gérée par le propriétaire depuis le Mac : une adresse absente de la liste ne reçoit rien, et l'écran ne le dit pas ;
+  - **photos d'origine** effacées 30 jours après que la visite est prête. `capture.json`, `visite.json` et les panoramas sont gardés tant que la visite existe ;
+  - **base de données Serverless SQL** (PostgreSQL) par pg8000 sur le serveur, SQLite fourni avec Python sur le Mac et dans les tests, avec les mêmes requêtes ;
+  - **licences sur le serveur :** les bibliothèques LGPL, et GPL avec exception d'exécution (glibc, et libgfortran et libquadmath dans numpy), sont acceptées sur le serveur seulement, sans modification et jamais distribuées. **MIT-0** est ajoutée aux licences autorisées.
+- **Raisons :**
+  - pas de machine à mettre à jour ni à surveiller, et un coût proche de zéro à l'activité du propriétaire (moins de 1 € par mois estimé) ;
+  - la carte graphique de l'étape 14 sera éteinte la plupart du temps : il faut un point d'entrée toujours joignable pour l'allumer, et le serveur à l'usage joue ce rôle sans coût fixe ;
+  - un code par e-mail évite de stocker des mots de passe. L'ouverture de l'app par un lien exigerait le compte développeur Apple payant ;
+  - la base de données permet plusieurs copies du serveur dès le départ, et l'étape 16 en aura besoin ;
+  - sur Linux, glibc est sous LGPL : la règle stricte est inapplicable à un serveur. Rien de ce qui y tourne n'est distribué.
+- **Conséquences :**
+  - les images du serveur et de l'assemblage sont fabriquées pour `linux/amd64` avec Podman, sur le Mac ;
+  - le Mac garde tous ses outils (`receive`, `serve`, `publier`), et peut faire tourner le serveur en local avec SQLite et un dossier à la place du stockage ;
+  - `CLAUDE.md` et `docs/licences.md` sont mis à jour dans la même pull request.
+- **Tranché pendant l'étape :** une photo par morceau d'envoi, déposée directement dans le stockage privé par une adresse temporaire signée qui fixe son empreinte MD5 ; secrets dans le gestionnaire de secrets de Scaleway ; fichiers de déploiement dans `deploiement/`, une seule image pour le serveur et l'assemblage ; espace web des agents dans `espace/`. Détail dans `docs/choix/etape-13.md`.
+- **Image fabriquée chez GitHub, sans clé (2026-10-29) :** la compilation d'OpenCV sous émulation sur le Mac prenait de une heure à plusieurs heures. Le workflow `.github/workflows/image.yml` fabrique l'image Intel/AMD sur une machine de GitHub et la dépose comme fichier téléchargeable ; `deploiement/envoyer.sh` la télécharge sur le Mac et l'envoie chez Scaleway. **Aucune clé de Scaleway n'est donnée à GitHub** (D37), donc aucun service hors Scaleway ne reçoit de secret ni de donnée de visite (D38). La fabrication sur le Mac reste possible en secours.
+
+## D40 : déploiement automatique à la fusion sur `main`, clé de déploiement à droits limités chez GitHub
+
+- **Date :** 2026-11-02
+- **Décision (validée par le propriétaire) :**
+  - une nouvelle **étape 13 bis**, entre l'étape 13 et l'étape 14, met à jour le serveur et la tâche d'assemblage à chaque fusion sur `main`, sans manipulation (détail dans `PLAN.md`) ;
+  - **GitHub Actions** fabrique l'image `amd64`, l'envoie au Container Registry de Scaleway et donne la même étiquette au serveur et à la tâche. C'est un service hors Scaleway : le propriétaire accepte qu'il détienne **une clé Scaleway dédiée au déploiement**, rangée en secret GitHub ;
+  - cette clé est celle d'une **application IAM à part**, aux droits minimaux : Container Registry, Serverless Containers, Serverless Jobs. Elle n'a **aucun droit** sur les stockages, la base de données ni l'envoi d'e-mails ;
+  - les clés d'exécution (photos, base, e-mails) restent **dans Scaleway seulement** (variables secrètes du conteneur, Secret Manager pour la tâche) : GitHub ne les voit jamais ;
+  - la logique de déploiement est aussi appelable depuis le Mac (`visite360 deployer`, avec `--dry-run`), pour garder un secours qui ne dépend pas de GitHub.
+- **Reste à trancher au début de l'étape 13 bis :** déploiement entièrement automatique à chaque fusion, ou avec approbation manuelle du propriétaire ; gestion des modifications de la base de données (rien à prévoir tant qu'on n'ajoute que des tables ou des colonnes optionnelles).
+- **Raisons :**
+  - fabriquer l'image à la main, l'envoyer puis changer l'étiquette dans plusieurs formulaires de la console prend du temps et fait diverger le serveur et la tâche : l'étape 14 ajoute un troisième programme, la carte graphique ;
+  - sur un Mac à puce Apple, la compilation d'OpenCV pour Intel/AMD prend une à plusieurs heures par émulation ; chez GitHub elle tourne en natif, avec cache ;
+  - une clé qui ne peut que mettre à jour des images et des déploiements, et rien lire des données, limite ce qu'un vol du secret GitHub permettrait.
+- **Modifie :** D37 (les clés d'accès ne sont jamais chez GitHub), pour la seule clé de déploiement ci-dessus ; la note du 2026-10-28 de `PLAN.md` qui écartait cette voie pour la v1.
+- **Limites :**
+  - le secret GitHub reste un secret chez un tiers : en cas de vol, quelqu'un pourrait déployer une image de son choix sur le serveur. D'où l'approbation manuelle à envisager, et la rotation de la clé en cas de doute ;
+  - les routes de l'API de Scaleway qui changent l'image d'un conteneur et d'une tâche n'ont pas encore été essayées avec le compte du propriétaire.

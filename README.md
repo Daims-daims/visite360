@@ -2,7 +2,7 @@
 
 Transforme des photos prises en tournant sur soi-même avec un téléphone en visite 360° d'un logement, puis permet de modifier ce qu'on voit (couleur d'un mur, modifications générées par IA) et de chiffrer ces modifications. Feuille de route par versions dans [PLAN.md](PLAN.md).
 
-**État :** étape 7 (sélection d'une surface au clic). L'avancement est dans [PLAN.md](PLAN.md).
+**État :** étape 13 (envoi depuis l'app et assemblage sur serveur, `docs/serveur.md`). L'avancement est dans [PLAN.md](PLAN.md).
 
 ## Installation pour développer
 

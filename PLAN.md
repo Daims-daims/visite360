@@ -34,7 +34,8 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 11 | Chiffrage d'une modification | v0.3 | livrée |
 | J3 | **Jalon v0.3 : validation du chiffrage par le propriétaire** | — | livrée |
 | 12 | Hébergement et lien de partage | v1 | livrée |
-| 13 | Envoi depuis l'app et assemblage sur serveur | v1 | à faire |
+| 13 | Envoi depuis l'app et assemblage sur serveur | v1 | livrée |
+| 13 bis | Déploiement automatique à la fusion sur `main` | v1 | à faire |
 | 14 | Génération d'image sur une carte graphique louée | v1 | à faire |
 | 15 | Modifications et chiffrage en ligne | v1 | à faire |
 | 16 | Retours d'engagement pour l'agent | v1 | à faire |
@@ -183,6 +184,28 @@ Les coûts d'hébergement commencent à l'étape 12, ceux du serveur à l'étape
   - durée de conservation des photos d'origine sur le serveur une fois les panoramas faits ;
   - numpy et OpenCV compilés pour Linux : composants LGPL et GPL embarqués à examiner avant tout déploiement (`docs/licences.md`).
 - **À trancher pendant l'étape :** taille des morceaux ; dépôt des photos directement dans le stockage ou en passant par le serveur ; rangement des secrets sur le serveur (par le gestionnaire de secrets de Scaleway ou non) ; emplacement des fichiers de déploiement dans le dépôt (D15).
+- **Tranché le 2026-10-27 (D39) :** domaine `hesti-scan.fr` chez Scaleway ; serveur en Serverless Containers, assemblage en Serverless Jobs, photos dans un stockage privé, réseau privé prêt pour la carte graphique de l'étape 14 ; connexion par un code envoyé par e-mail, liste fermée d'agents gérée par le propriétaire ; photos d'origine effacées 30 jours après que la visite est prête ; base de données PostgreSQL de Scaleway ; bibliothèques LGPL et GPL avec exception d'exécution acceptées sur le serveur seulement. Choix détaillés, à rediscuter en temps voulu, dans `docs/choix/etape-13.md`.
+
+### Étape 13 bis : déploiement automatique à la fusion sur `main`
+
+- **Pourquoi avant l'étape 14 :** l'étape 14 ajoute une carte graphique, un troisième programme à mettre à jour avec le serveur et la tâche. Fabriquer une image à la main, l'envoyer, puis changer l'étiquette dans trois formulaires de la console à chaque modification coûte du temps et fait diverger le serveur et la tâche (l'une sur l'ancienne image, l'autre sur la nouvelle).
+- **Contenu :** une fusion sur `main` met à jour le serveur et la tâche, sans manipulation :
+  1. les tests et le style passent, sinon rien ne part ;
+  2. l'image `amd64` est fabriquée chez GitHub, en natif, avec le cache d'OpenCV (workflow `image.yml` de l'étape 13, étendu) ;
+  3. l'image est envoyée au Container Registry de Scaleway, étiquetée par le commit ;
+  4. le conteneur du serveur et la tâche d'assemblage reçoivent **la même étiquette** par l'interface de programmation de Scaleway, puis le conteneur est redéployé ;
+  5. un contrôle vérifie que le serveur répond et annonce bien le commit déployé (`/api/info` gagne un champ `commit`) ; sinon le déploiement est signalé en échec ;
+  6. un lancement manuel (`workflow_dispatch`) avec une étiquette donnée permet de **revenir à une version précédente**.
+  La commande de déploiement est aussi appelable depuis le Mac (`visite360 deployer`, avec `--dry-run`), pour que le secours ne dépende pas de GitHub.
+- **Clé de déploiement :** une application IAM dédiée, aux droits minimaux (Container Registry, Serverless Containers, Serverless Jobs), rangée en secret GitHub. Elle n'a **aucun droit** sur les stockages, la base ni l'envoi d'e-mails. Les clés d'exécution (photos, base, SMTP) restent dans Scaleway : GitHub ne les voit jamais.
+- **Tests automatiques :** la logique de déploiement contre une fausse interface de Scaleway (même étiquette sur le serveur et la tâche ; échec de l'une = signalé et l'autre non modifiée, ou les deux ramenées à l'ancienne étiquette ; mode `--dry-run` sans appel) ; refus de déployer quand les tests échouent (workflow relu par un test) ; `/api/info` annonce le commit.
+- **Validation :** une modification triviale fusionnée sur `main` apparaît en ligne sans autre geste : étiquette identique sur le serveur et la tâche, `/api/info` avec le bon commit. Un déploiement volontairement cassé (test qui échoue) ne part pas. Retour à la version précédente testé. Durée de bout en bout, minutes GitHub consommées et coût du mois notés.
+- **À trancher avant l'étape (décision écrite, D40) :**
+  - accepter que GitHub Actions détienne une clé Scaleway à droits limités (écarté par la note du 2026-10-28 ; D37 et D38 posent que tout service hors Scaleway demande ta décision écrite) ;
+  - déploiement **entièrement automatique** à chaque fusion, ou avec une **approbation manuelle** (« environnement » de GitHub avec relecteur obligatoire) ;
+  - quoi faire des modifications de la base : en l'état, la création des tables est idempotente mais ne modifie pas une table existante. Tant qu'on ne fait qu'ajouter des tables ou des colonnes optionnelles, rien à prévoir ; sinon, une étape de migration.
+- **À trancher pendant l'étape :** étiquette `latest` ou par commit seulement ; déploiement de l'app iPhone (hors périmètre : elle s'installe par Xcode, D25).
+- **Après le jalon v1 :** quand l'environnement d'intégration existera (D38), la fusion déploiera l'intégration et la production se fera par une commande explicite.
 
 ### Étape 14 : génération d'image sur une carte graphique louée
 
@@ -220,3 +243,4 @@ Les coûts d'hébergement commencent à l'étape 12, ceux du serveur à l'étape
 - Suivi de position entre les points par la réalité augmentée du téléphone, pour placer les liens tout seuls (D14).
 - Modèle 3D commun à toutes les pièces et propagation d'une modification d'un panorama à l'autre.
 - Abattre une cloison. L'essai prévu (ancienne étape 9.5) est abandonné pour commercialiser au plus vite (D38).
+- ~~Construction de l'image par GitHub Actions~~ : reprise à l'étape 13 bis (note du 2026-10-28 annulée par le propriétaire le 2026-11-02).
