@@ -33,6 +33,7 @@ secours ; il n'a qu'une seule visite en assemblage à la fois.
 from __future__ import annotations
 
 import json
+import os
 import re
 import secrets
 import signal
@@ -478,7 +479,14 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
 
         def _get(self, path: str) -> dict[str, Any]:
             if path == "/api/info":
-                return {"app": "visite360", "version": __version__, "format": FORMAT_VERSION}
+                return {
+                    "app": "visite360",
+                    "version": __version__,
+                    "format": FORMAT_VERSION,
+                    # Commit du code de l'image (étape 13 bis) : le déploiement vérifie qu'il
+                    # est bien celui qu'il vient de publier.
+                    "commit": os.environ.get("VISITE360_COMMIT", "inconnu"),
+                }
             agent = self._agent()
             if path == "/api/moi":
                 return {"email": agent.email}

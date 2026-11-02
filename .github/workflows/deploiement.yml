@@ -1,0 +1,111 @@
+name: deploiement
+
+# Étape 13 bis (D40) : met le serveur et la tâche d'assemblage à jour à chaque fusion sur main.
+#
+#   1. le workflow « tests » (tests et style) doit avoir réussi sur main : sinon rien ne part ;
+#   2. l'image amd64 est fabriquée chez GitHub, en natif, et envoyée au Container Registry de
+#      Scaleway, étiquetée par le commit ;
+#   3. `visite360 deployer` donne la même étiquette au conteneur et à la tâche, redéploie le
+#      conteneur et vérifie que /api/info annonce le bon commit.
+#
+# Retour à une version précédente : lancer ce workflow à la main (Actions → deploiement → Run
+# workflow) en donnant l'étiquette (les 12 premiers caractères du commit). L'image n'est pas
+# refabriquée : elle doit déjà être dans l'espace d'images.
+#
+# La seule clé de Scaleway que GitHub détient est celle de l'application IAM de déploiement, aux
+# droits minimaux (Container Registry, Serverless Containers, Serverless Jobs), rangée dans le
+# secret SCW_SECRET_KEY. Les adresses et identifiants sont des variables du dépôt (D38).
+# Mode d'emploi : docs/serveur.md.
+
+on:
+  workflow_run:
+    workflows: [tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      etiquette:
+        description: "Étiquette d'une image déjà envoyée, pour y revenir (sans fabrication)"
+        required: false
+
+permissions:
+  contents: read
+
+# Un seul déploiement à la fois, et jamais interrompu en cours de route : deux déploiements qui
+# se croisent laisseraient le serveur et la tâche sur deux versions différentes.
+concurrency:
+  group: deploiement
+  cancel-in-progress: false
+
+jobs:
+  image:
+    # Après une fusion seulement si les tests ont réussi ; à la main, seulement sans étiquette.
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      || (github.event_name == 'workflow_dispatch' && inputs.etiquette == '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      etiquette: ${{ steps.fabrication.outputs.etiquette }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Le commit testé, pas la tête actuelle de main qui peut déjà avoir avancé.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Garder les étapes déjà compilées (OpenCV) entre deux exécutions
+        uses: actions/cache@v4
+        with:
+          path: /tmp/buildx-cache
+          key: image-${{ hashFiles('deploiement/Containerfile', 'scripts/installer-opencv.sh') }}
+          restore-keys: image-
+      - name: Se connecter à l'espace d'images de Scaleway
+        env:
+          IMAGES: ${{ vars.VISITE360_IMAGES }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+        run: |
+          printf '%s' "$SCW_SECRET_KEY" | docker login "${IMAGES%%/*}" --username nologin --password-stdin
+      - name: Fabriquer l'image et l'envoyer
+        id: fabrication
+        env:
+          COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+          IMAGES: ${{ vars.VISITE360_IMAGES }}
+        run: |
+          tag="${COMMIT:0:12}"
+          docker buildx create --use --driver docker-container
+          docker buildx build --platform linux/amd64 \
+            -f deploiement/Containerfile -t "${IMAGES%/}/visite360:$tag" \
+            --build-arg "COMMIT=$tag" \
+            --cache-from type=local,src=/tmp/buildx-cache \
+            --cache-to type=local,dest=/tmp/buildx-cache-new,mode=max \
+            --push .
+          rm -rf /tmp/buildx-cache
+          mv /tmp/buildx-cache-new /tmp/buildx-cache
+          echo "etiquette=$tag" >> "$GITHUB_OUTPUT"
+
+  deployer:
+    needs: image
+    # Même après une fabrication sautée (retour à une étiquette donnée), jamais après un échec.
+    if: >-
+      !cancelled() && (needs.image.result == 'success'
+      || (needs.image.result == 'skipped' && github.event_name == 'workflow_dispatch'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Installer le projet
+        run: python -m pip install .
+      - name: Déployer
+        env:
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          VISITE360_REGION: ${{ vars.VISITE360_REGION || 'fr-par' }}
+          VISITE360_CONTENEUR: ${{ vars.VISITE360_CONTENEUR }}
+          VISITE360_JOB: ${{ vars.VISITE360_JOB }}
+          VISITE360_IMAGES: ${{ vars.VISITE360_IMAGES }}
+          VISITE360_ADRESSE_API: ${{ vars.VISITE360_ADRESSE_API }}
+          ETIQUETTE: ${{ needs.image.outputs.etiquette || inputs.etiquette }}
+        run: visite360 deployer "$ETIQUETTE"

@@ -3,8 +3,10 @@ name: image
 # Fabrique l'image du serveur pour Intel/AMD (linux/amd64) sur une machine de GitHub, en natif,
 # sans émulation : bien plus rapide que sur un Mac à puce Apple. L'image est déposée comme
 # fichier téléchargeable (2 jours) ; elle n'est envoyée nulle part. C'est le Mac du propriétaire
-# qui la télécharge et l'envoie chez Scaleway avec deploiement/envoyer.sh : aucune clé de
-# Scaleway n'est donnée à GitHub (D37). Mode d'emploi dans docs/serveur.md.
+# qui la télécharge et l'envoie chez Scaleway avec deploiement/envoyer.sh. Ce workflow sert à
+# vérifier, sur une pull request, que l'image se fabrique, et de secours si GitHub ne doit pas
+# détenir de clé. Le déploiement automatique à la fusion est dans deploiement.yml (D40).
+# Mode d'emploi dans docs/serveur.md.
 
 on:
   workflow_dispatch:
@@ -46,6 +48,7 @@ jobs:
           docker buildx create --use --driver docker-container
           docker buildx build --platform linux/amd64 \
             -f deploiement/Containerfile -t "visite360:$tag" \
+            --build-arg "COMMIT=$tag" \
             --cache-from type=local,src=/tmp/buildx-cache \
             --cache-to type=local,dest=/tmp/buildx-cache-new,mode=max \
             --output type=docker,dest=/tmp/image.tar .

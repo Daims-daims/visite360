@@ -541,7 +541,11 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - cette clé est celle d'une **application IAM à part**, aux droits minimaux : Container Registry, Serverless Containers, Serverless Jobs. Elle n'a **aucun droit** sur les stockages, la base de données ni l'envoi d'e-mails ;
   - les clés d'exécution (photos, base, e-mails) restent **dans Scaleway seulement** (variables secrètes du conteneur, Secret Manager pour la tâche) : GitHub ne les voit jamais ;
   - la logique de déploiement est aussi appelable depuis le Mac (`visite360 deployer`, avec `--dry-run`), pour garder un secours qui ne dépend pas de GitHub.
-- **Reste à trancher au début de l'étape 13 bis :** déploiement entièrement automatique à chaque fusion, ou avec approbation manuelle du propriétaire ; gestion des modifications de la base de données (rien à prévoir tant qu'on n'ajoute que des tables ou des colonnes optionnelles).
+- **Tranché au début de l'étape 13 bis (2026-11-02, propriétaire) :**
+  - déploiement **entièrement automatique** à chaque fusion sur `main` dont les tests ont réussi, sans approbation manuelle. Le risque (un vol du secret GitHub permettrait de déployer une image de son choix) est accepté ; la rotation de la clé en est la parade, et une approbation par « environnement » GitHub pourra s'ajouter sans changer le reste ;
+  - **pas de migration de la base** : la création des tables est idempotente ; on n'ajoute que des tables ou des colonnes facultatives. Le jour où ce ne sera plus vrai, une étape de migration s'ajoutera ;
+  - l'étiquette d'image est le **commit seul** (12 premiers caractères), jamais `latest` : chaque version est retrouvable et on peut y revenir ;
+  - un déploiement qui échoue (un pas refusé, ou `/api/info` qui n'annonce pas le bon commit) **remet l'image précédente** sur le conteneur et la tâche.
 - **Raisons :**
   - fabriquer l'image à la main, l'envoyer puis changer l'étiquette dans plusieurs formulaires de la console prend du temps et fait diverger le serveur et la tâche : l'étape 14 ajoute un troisième programme, la carte graphique ;
   - sur un Mac à puce Apple, la compilation d'OpenCV pour Intel/AMD prend une à plusieurs heures par émulation ; chez GitHub elle tourne en natif, avec cache ;

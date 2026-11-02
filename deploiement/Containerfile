@@ -46,6 +46,10 @@ FROM docker.io/library/python:3.13-slim-bookworm
 RUN useradd --create-home --uid 1000 visite360
 COPY --from=construction /opt/visite360 /opt/visite360
 ENV PATH="/opt/visite360/bin:$PATH" PYTHONUNBUFFERED=1
+# Commit du code de l'image, annoncé par /api/info (étape 13 bis). Placé en dernier : changer de
+# commit ne refait aucune des étapes précédentes.
+ARG COMMIT=inconnu
+ENV VISITE360_COMMIT=$COMMIT
 USER visite360
 WORKDIR /home/visite360
 
