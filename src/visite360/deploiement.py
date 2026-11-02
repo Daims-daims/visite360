@@ -39,10 +39,17 @@ TAG = re.compile(r"[0-9A-Za-z][0-9A-Za-z_.-]{0,127}")
 IMAGE_NAME = "visite360"
 CHECK_TIMEOUT = 600
 CHECK_INTERVAL = 10
+READY_TIMEOUT = 300
+READY_INTERVAL = 5
 
 
 class DeployError(Exception):
     """Déploiement impossible ou échoué. Message en français."""
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        # Code HTTP de Scaleway quand l'erreur vient d'une réponse de son API.
+        self.status = status
 
 
 class Api(Protocol):
@@ -73,7 +80,14 @@ class ScalewayApi:
                 403: "droit manquant pour cette clé",
                 404: "identifiant inconnu",
             }.get(error.code, "refusé")
-            raise DeployError(f"Scaleway : {reason} (erreur {error.code}, {url}).") from None
+            try:
+                detail = error.read().decode("utf-8", "replace")[:300]
+            except OSError:
+                detail = ""
+            raise DeployError(
+                f"Scaleway : {reason} (erreur {error.code}, {url}) {detail}".rstrip() + ".",
+                error.code,
+            ) from None
         except (urllib.error.URLError, OSError) as error:
             raise DeployError(f"Scaleway est injoignable ({error}).") from None
         try:
@@ -169,19 +183,56 @@ def wait_for_commit(
         sleep(interval)
 
 
-def _set_images(api: Api, target: Target, container_image: str, job_image: str) -> list[str]:
-    """Remet ces images sur la tâche et le conteneur (qu'on redéploie). Renvoie les échecs."""
+def wait_ready(
+    api: Api,
+    target: Target,
+    timeout: float = READY_TIMEOUT,
+    interval: float = READY_INTERVAL,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> None:
+    """Attend que le conteneur ait fini de se (re)déployer.
+
+    Scaleway refuse (erreur 409) toute commande sur un conteneur en cours de déploiement : il faut
+    donc attendre son état « ready » entre deux commandes.
+    """
+    deadline = clock() + timeout
+    while True:
+        status = api.request("GET", target.container_url).get("status")
+        if status == "ready":
+            return
+        if status in ("error", "locked"):
+            raise DeployError(f"Le conteneur est en état « {status} » chez Scaleway.")
+        if clock() >= deadline:
+            raise DeployError(
+                f"Le conteneur n'est pas prêt après {timeout:.0f} s (état : {status})."
+            )
+        sleep(interval)
+
+
+def _set_container_image(api: Api, target: Target, image: str, wait: Callable[[], None]) -> None:
+    """Change l'image du conteneur et s'assure qu'il la déploie, en attendant entre chaque pas."""
+    wait()
+    api.request("PATCH", target.container_url, {"registry_image": image})
+    # Le changement d'image peut déjà déclencher le déploiement : on attend sa fin, puis on le
+    # demande au cas où il ne serait pas parti. Un 409 veut dire « déjà en cours ».
+    wait()
+    try:
+        api.request("POST", f"{target.container_url}/deploy")
+    except DeployError as error:
+        if error.status != 409:
+            raise
+    wait()
+
+
+def _restore(
+    api: Api, target: Target, container_image: str, job_image: str, wait: Callable[[], None]
+) -> list[str]:
+    """Remet ces images sur la tâche et le conteneur. Renvoie les échecs."""
     failures: list[str] = []
     for label, action in (
         ("la tâche", lambda: api.request("PATCH", target.job_url, {"image_uri": job_image})),
-        (
-            "le conteneur",
-            lambda: api.request("PATCH", target.container_url, {"registry_image": container_image}),
-        ),
-        (
-            "le déploiement du conteneur",
-            lambda: api.request("POST", f"{target.container_url}/deploy"),
-        ),
+        ("le conteneur", lambda: _set_container_image(api, target, container_image, wait)),
     ):
         try:
             action()
@@ -197,6 +248,7 @@ def deploy(
     check: Callable[[str], None],
     dry_run: bool = False,
     out: TextIO | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> None:
     """Met `tag` en ligne partout, ou ne change rien de durable (sinon `DeployError`)."""
     out = out or sys.stdout
@@ -209,6 +261,9 @@ def deploy(
         print(f"  - le conteneur {target.container}, puis le redéploierait", file=out)
         print(f"  - puis vérifierait {target.address}/api/info (commit {tag}).", file=out)
         return
+
+    def wait() -> None:
+        wait_ready(api, target, sleep=sleep)
 
     # État actuel, pour pouvoir le remettre. Lu avant toute modification.
     container = api.request("GET", target.container_url)
@@ -225,13 +280,12 @@ def deploy(
     api.request("PATCH", target.job_url, {"image_uri": image})
     try:
         print(f"Mise à jour et redéploiement du conteneur : {image}", file=out)
-        api.request("PATCH", target.container_url, {"registry_image": image})
-        api.request("POST", f"{target.container_url}/deploy")
+        _set_container_image(api, target, image, wait)
         print("Vérification du serveur...", file=out)
         check(tag)
     except DeployError as error:
         print(f"Échec : {error}\nRetour à l'image précédente...", file=out)
-        failures = _set_images(api, target, old_container, old_job)
+        failures = _restore(api, target, old_container, old_job, wait)
         if failures:
             raise DeployError(
                 f"{error} Le retour en arrière a lui aussi échoué ({'; '.join(failures)}) : "

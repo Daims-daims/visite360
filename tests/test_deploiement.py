@@ -33,6 +33,8 @@ class FakeApi:
         self.calls: list[tuple[str, str]] = []
         self.fail = fail or set()
         self.always = always
+        self.deploy_conflict = False
+        self.busy_polls = 0
 
     def request(self, method: str, url: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
         if url.endswith("/deploy"):
@@ -40,16 +42,19 @@ class FakeApi:
         else:
             kind = "job" if "job-definitions" in url else "container"
         self.calls.append((method, kind))
+        if kind == "deploy" and self.deploy_conflict:
+            raise DeployError("déjà en cours", 409)
         if (method, kind) in self.fail:
             if not self.always:
                 self.fail.discard((method, kind))
             raise DeployError("refusé")
         if method == "GET":
-            return (
-                {"registry_image": self.container}
-                if kind == "container"
-                else {"image_uri": self.job}
-            )
+            if kind == "container":
+                if self.busy_polls > 0:
+                    self.busy_polls -= 1
+                    return {"registry_image": self.container, "status": "pending"}
+                return {"registry_image": self.container, "status": "ready"}
+            return {"image_uri": self.job}
         if kind == "job":
             assert body is not None
             self.job = body["image_uri"]
@@ -67,7 +72,7 @@ def ok(_tag: str) -> None:
 
 def deploy(api: FakeApi, check=ok, dry_run: bool = False) -> str:
     out = io.StringIO()
-    deploiement.deploy(api, TARGET, "nouveau00000", check, dry_run, out)
+    deploiement.deploy(api, TARGET, "nouveau00000", check, dry_run, out, sleep=lambda _s: None)
     return out.getvalue()
 
 
@@ -117,6 +122,35 @@ def test_rollback_failure_is_reported_loudly() -> None:
     api = FakeApi(fail={("POST", "deploy")}, always=True)
     with pytest.raises(DeployError, match="retour en arrière a lui aussi échoué"):
         deploy(api)
+
+
+def test_conflict_on_deploy_means_already_deploying_and_is_not_a_failure() -> None:
+    api = FakeApi()
+    api.deploy_conflict = True
+    deploy(api)
+    assert api.container == api.job == NEW
+
+
+def test_waits_for_the_container_to_be_ready_between_commands() -> None:
+    api = FakeApi()
+    api.busy_polls = 3
+    deploy(api)
+    assert api.container == api.job == NEW
+
+
+def test_container_that_never_gets_ready_is_reported() -> None:
+    api = FakeApi()
+    api.busy_polls = 10_000
+    now = [0.0]
+    with pytest.raises(DeployError, match="pas prêt"):
+        deploiement.wait_ready(
+            api,
+            TARGET,
+            timeout=10,
+            interval=1,
+            sleep=lambda s: now.__setitem__(0, now[0] + s),
+            clock=lambda: now[0],
+        )
 
 
 def test_invalid_tag_is_refused_before_any_call() -> None:
