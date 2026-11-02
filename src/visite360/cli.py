@@ -13,6 +13,7 @@ from visite360 import (
     __version__,
     chiffrage,
     comptes,
+    deploiement,
     doctor,
     publier,
     receive,
@@ -195,6 +196,28 @@ def build_parser() -> argparse.ArgumentParser:
             "variables d'environnement (docs/serveur.md)."
         ),
     )
+    deploy_parser = subparsers.add_parser(
+        "deployer",
+        help="met une version en ligne : serveur et tâche d'assemblage (étape 13 bis)",
+        description=(
+            "Donne l'image portant cette étiquette (déjà envoyée dans l'espace d'images de "
+            "Scaleway) au conteneur du serveur et à la tâche d'assemblage, redéploie le conteneur "
+            "et vérifie que le serveur annonce le bon commit. Si un pas échoue, l'image "
+            "précédente est remise. Pour revenir en arrière, redéployer l'étiquette précédente. "
+            "Réglages dans les variables d'environnement (docs/serveur.md)."
+        ),
+    )
+    deploy_parser.add_argument(
+        "etiquette", help="étiquette de l'image : les 12 premiers caractères du commit"
+    )
+    deploy_parser.add_argument(
+        "--dry-run", action="store_true", help="affiche ce qui serait fait, sans aucun appel"
+    )
+    deploy_parser.add_argument(
+        "--sans-controle",
+        action="store_true",
+        help="ne vérifie pas /api/info (retour vers une image d'avant l'étape 13 bis)",
+    )
     account_parser = subparsers.add_parser(
         "compte",
         help="gère la liste des agents autorisés à se connecter au serveur",
@@ -247,6 +270,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return serveur.run(args.local, args.dossier, args.port)
     if args.command == "traiter":
         return traitement.run()
+    if args.command == "deployer":
+        return deploiement.run(args.etiquette, args.dry_run, args.sans_controle)
     if args.command == "compte":
         environ = None
         if args.local:

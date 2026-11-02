@@ -103,6 +103,7 @@ Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'éta
 | `VISITE360_ADRESSE_VISITES` | facultatif : adresse de base des liens publiés (D37) | oui | oui |
 | `VISITE360_ADRESSE_API` | adresse publique du serveur : `https://api.hesti-scan.fr` | oui | oui |
 | `VISITE360_JOB` | identifiant de la tâche d'assemblage | oui | non |
+| `VISITE360_COMMIT` | commit du code de l'image, annoncé par `/api/info` : mis par la fabrication de l'image (`--build-arg COMMIT`), jamais à la main | oui | non |
 | `VISITE360_SMTP_HOTE` | `smtp.tem.scaleway.com` | oui | non |
 | `VISITE360_SMTP_PORT` | `587` (par défaut) | oui | non |
 | `VISITE360_SMTP_UTILISATEUR` | identifiant du projet Scaleway | oui | non |
@@ -115,7 +116,34 @@ Les noms des droits IAM, le format exact de l'adresse de la base et les réglage
 
 ### Mettre à jour
 
-Après une fusion dans `main` : relancer la fabrication de l'image (étape 8, voie GitHub : `gh workflow run image.yml --ref main`, puis `bash deploiement/envoyer.sh …`), puis donner la nouvelle étiquette d'image au conteneur et à la tâche dans la console.
+**Automatiquement (étape 13 bis, D40).** Chaque fusion sur `main` met le serveur et la tâche à jour, sans geste :
+
+1. le workflow `tests` (tests et style) doit réussir sur `main` ; sinon rien ne part ;
+2. `deploiement.yml` fabrique l'image chez GitHub, en natif, l'envoie dans l'espace d'images de Scaleway, étiquetée par les 12 premiers caractères du commit ;
+3. `visite360 deployer` donne cette étiquette à la tâche d'abord, puis au conteneur, qu'il redéploie ;
+4. il vérifie que `/api/info` annonce ce commit (jusqu'à 10 minutes d'attente). Sinon, ou si un pas échoue, **l'image précédente est remise** sur la tâche et le conteneur, et le déploiement est signalé en échec (pastille rouge sur GitHub). Si même le retour échoue, le message le dit : conteneur et tâche doivent alors porter la même image, à vérifier dans la console.
+
+**Mise en place, une fois :**
+
+1. IAM → Applications → créer `visite360-deploiement`, avec une politique limitée au projet qui donne seulement `ContainerRegistryFullAccess`, `ContainersFullAccess` et `ServerlessJobsFullAccess`, puis générer une clé API. **Aucun droit** sur les stockages, la base ni les e-mails : GitHub ne peut ni lire de photo ni lire la base.
+2. Sur GitHub, dépôt → Settings → Secrets and variables → Actions :
+   - **secret** `SCW_SECRET_KEY` : la clé secrète de cette application ;
+   - **variables** `VISITE360_IMAGES` (l'espace d'images, hôte compris), `VISITE360_CONTENEUR` (identifiant du conteneur du serveur), `VISITE360_JOB` (identifiant de la tâche), `VISITE360_ADRESSE_API` (adresse publique du serveur) et, si ce n'est pas `fr-par`, `VISITE360_REGION`.
+3. Les noms des droits IAM et les routes de l'API de Scaleway utilisées (changer l'image d'un conteneur ou d'une tâche, redéployer) viennent de la documentation et n'ont **pas été essayés** avec le compte du propriétaire : à confirmer au premier déploiement, avec `--dry-run` d'abord.
+
+**Revenir à une version précédente.** GitHub → Actions → `deploiement` → Run workflow, en donnant l'étiquette voulue (visible dans l'espace d'images, ou les 12 premiers caractères d'un commit passé). L'image n'est pas refabriquée. Pour une image d'avant l'étape 13 bis, qui n'annonce pas de commit, le contrôle ne peut pas réussir : utiliser le secours ci-dessous avec `--sans-controle`.
+
+**Depuis le Mac, sans GitHub (secours).** Avec les mêmes variables dans l'environnement (la clé secrète est lue dans `SCW_SECRET_KEY`, sinon dans `~/.config/visite360/scaleway.json`) :
+
+```
+visite360 deployer <étiquette> --dry-run    # montre ce qui serait fait, sans aucun appel
+visite360 deployer <étiquette>              # met l'image en ligne et vérifie
+visite360 deployer <étiquette> --sans-controle
+```
+
+L'image se fabrique et s'envoie alors à la main (voies de l'étape 8 ci-dessus). Les modifications de la base ne sont pas prises en charge : la création des tables est idempotente mais ne change pas une table existante. Tant qu'on ne fait qu'ajouter des tables ou des colonnes facultatives, rien à prévoir ; sinon, une étape de migration sera nécessaire.
+
+Les pastilles des workflows sont visibles dans l'onglet Actions du dépôt. Les 2 000 minutes mensuelles gratuites de GitHub (dépôt privé) couvrent le déploiement tant que l'image vient du cache d'OpenCV ; la durée de bout en bout et les minutes consommées sont à noter au premier déploiement réel.
 
 ## Coût
 

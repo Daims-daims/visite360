@@ -35,7 +35,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | J3 | **Jalon v0.3 : validation du chiffrage par le propriétaire** | — | livrée |
 | 12 | Hébergement et lien de partage | v1 | livrée |
 | 13 | Envoi depuis l'app et assemblage sur serveur | v1 | livrée |
-| 13 bis | Déploiement automatique à la fusion sur `main` | v1 | à faire |
+| 13 bis | Déploiement automatique à la fusion sur `main` | v1 | livrée |
 | 14 | Génération d'image sur une carte graphique louée | v1 | à faire |
 | 15 | Modifications et chiffrage en ligne | v1 | à faire |
 | 16 | Retours d'engagement pour l'agent | v1 | à faire |

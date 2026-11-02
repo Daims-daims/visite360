@@ -213,6 +213,12 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Env]:
 # --- Connexion ------------------------------------------------------------------------------------
 
 
+def test_info_announces_the_deployed_commit(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VISITE360_COMMIT", "0123456789ab")
+    status, answer, _ = env.request("GET", "/api/info")
+    assert status == 200 and answer["commit"] == "0123456789ab"
+
+
 def test_login_with_a_code_sent_by_email(env: Env) -> None:
     token = env.login("agent@exemple.fr")
     status, answer, _ = env.request("GET", "/api/moi", token=token)
