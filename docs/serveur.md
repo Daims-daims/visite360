@@ -103,7 +103,7 @@ Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'éta
 | `VISITE360_ADRESSE_VISITES` | facultatif : adresse de base des liens publiés (D37) | oui | oui |
 | `VISITE360_ADRESSE_API` | adresse publique du serveur : `https://api.hesti-scan.fr` | oui | oui |
 | `VISITE360_JOB` | identifiant de la tâche d'assemblage | oui | non |
-| `VISITE360_SMTP_HOTE` | `smtp.tem.scw.cloud` | oui | non |
+| `VISITE360_SMTP_HOTE` | `smtp.tem.scaleway.com` | oui | non |
 | `VISITE360_SMTP_PORT` | `587` (par défaut) | oui | non |
 | `VISITE360_SMTP_UTILISATEUR` | identifiant du projet Scaleway | oui | non |
 | `VISITE360_SMTP_MOT_DE_PASSE` (secret) | clé secrète autorisée à envoyer des e-mails | oui | non |

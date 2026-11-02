@@ -531,3 +531,22 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - `CLAUDE.md` et `docs/licences.md` sont mis à jour dans la même pull request.
 - **Tranché pendant l'étape :** une photo par morceau d'envoi, déposée directement dans le stockage privé par une adresse temporaire signée qui fixe son empreinte MD5 ; secrets dans le gestionnaire de secrets de Scaleway ; fichiers de déploiement dans `deploiement/`, une seule image pour le serveur et l'assemblage ; espace web des agents dans `espace/`. Détail dans `docs/choix/etape-13.md`.
 - **Image fabriquée chez GitHub, sans clé (2026-10-29) :** la compilation d'OpenCV sous émulation sur le Mac prenait de une heure à plusieurs heures. Le workflow `.github/workflows/image.yml` fabrique l'image Intel/AMD sur une machine de GitHub et la dépose comme fichier téléchargeable ; `deploiement/envoyer.sh` la télécharge sur le Mac et l'envoie chez Scaleway. **Aucune clé de Scaleway n'est donnée à GitHub** (D37), donc aucun service hors Scaleway ne reçoit de secret ni de donnée de visite (D38). La fabrication sur le Mac reste possible en secours.
+
+## D40 : déploiement automatique à la fusion sur `main`, clé de déploiement à droits limités chez GitHub
+
+- **Date :** 2026-11-02
+- **Décision (validée par le propriétaire) :**
+  - une nouvelle **étape 13 bis**, entre l'étape 13 et l'étape 14, met à jour le serveur et la tâche d'assemblage à chaque fusion sur `main`, sans manipulation (détail dans `PLAN.md`) ;
+  - **GitHub Actions** fabrique l'image `amd64`, l'envoie au Container Registry de Scaleway et donne la même étiquette au serveur et à la tâche. C'est un service hors Scaleway : le propriétaire accepte qu'il détienne **une clé Scaleway dédiée au déploiement**, rangée en secret GitHub ;
+  - cette clé est celle d'une **application IAM à part**, aux droits minimaux : Container Registry, Serverless Containers, Serverless Jobs. Elle n'a **aucun droit** sur les stockages, la base de données ni l'envoi d'e-mails ;
+  - les clés d'exécution (photos, base, e-mails) restent **dans Scaleway seulement** (variables secrètes du conteneur, Secret Manager pour la tâche) : GitHub ne les voit jamais ;
+  - la logique de déploiement est aussi appelable depuis le Mac (`visite360 deployer`, avec `--dry-run`), pour garder un secours qui ne dépend pas de GitHub.
+- **Reste à trancher au début de l'étape 13 bis :** déploiement entièrement automatique à chaque fusion, ou avec approbation manuelle du propriétaire ; gestion des modifications de la base de données (rien à prévoir tant qu'on n'ajoute que des tables ou des colonnes optionnelles).
+- **Raisons :**
+  - fabriquer l'image à la main, l'envoyer puis changer l'étiquette dans plusieurs formulaires de la console prend du temps et fait diverger le serveur et la tâche : l'étape 14 ajoute un troisième programme, la carte graphique ;
+  - sur un Mac à puce Apple, la compilation d'OpenCV pour Intel/AMD prend une à plusieurs heures par émulation ; chez GitHub elle tourne en natif, avec cache ;
+  - une clé qui ne peut que mettre à jour des images et des déploiements, et rien lire des données, limite ce qu'un vol du secret GitHub permettrait.
+- **Modifie :** D37 (les clés d'accès ne sont jamais chez GitHub), pour la seule clé de déploiement ci-dessus ; la note du 2026-10-28 de `PLAN.md` qui écartait cette voie pour la v1.
+- **Limites :**
+  - le secret GitHub reste un secret chez un tiers : en cas de vol, quelqu'un pourrait déployer une image de son choix sur le serveur. D'où l'approbation manuelle à envisager, et la rotation de la clé en cas de doute ;
+  - les routes de l'API de Scaleway qui changent l'image d'un conteneur et d'une tâche n'ont pas encore été essayées avec le compte du propriétaire.

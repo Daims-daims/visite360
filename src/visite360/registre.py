@@ -344,9 +344,19 @@ class Registre:
         Renvoie None si l'adresse n'est pas autorisée, si un code vient d'être envoyé (un
         e-mail par minute au plus) ou si cinq codes sont déjà partis dans l'heure.
         """
+        return self.issue_code(email)[0]
+
+    def issue_code(self, email: str) -> tuple[str | None, str]:
+        """Comme `new_code`, avec en plus la raison, pour les journaux du serveur : « tire »,
+        « inconnue », « retiree », « trop_rapproche », « trop_nombreux » ou « simultane ».
+
+        La raison ne sort jamais vers l'écran de l'agent : on ne révèle pas qui est autorisé.
+        """
         agent = self.agent_by_email(email)
-        if agent is None or agent.retired is not None:
-            return None
+        if agent is None:
+            return None, "inconnue"
+        if agent.retired is not None:
+            return None, "retiree"
         now = self.now()
         code = f"{secrets.randbelow(10**6):06d}"
         values = {
@@ -365,12 +375,14 @@ class Registre:
                 "VALUES (:e, :h, :t, :x, 0, 1, :t)",
                 **values,
             )
-            return code
+            return code, "tire"
         created, sent, window = (int(value) for value in rows[0])
         if now - window >= HOUR:
             sent, window = 0, now
-        if now - created < CODE_INTERVAL or sent >= CODES_PER_HOUR:
-            return None
+        if now - created < CODE_INTERVAL:
+            return None, "trop_rapproche"
+        if sent >= CODES_PER_HOUR:
+            return None, "trop_nombreux"
         # Condition sur l'ancienne date : deux demandes simultanées n'envoient qu'un code.
         changed = self._count(
             "UPDATE codes SET empreinte = :h, cree_le = :t, expire_le = :x, essais = 0, "
@@ -380,7 +392,7 @@ class Registre:
             avant=created,
             **values,
         )
-        return code if changed else None
+        return (code, "tire") if changed else (None, "simultane")
 
     def check_code(self, email: str, code: str) -> Agent | None:
         """Vérifie un code. Un code juste ne sert qu'une fois ; cinq essais faux l'annulent."""

@@ -38,6 +38,8 @@ import secrets
 import signal
 import sys
 import tempfile
+import threading
+import time
 import urllib.parse
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -102,6 +104,12 @@ class ApiError(Exception):
     def __init__(self, message: str, status: int = 400) -> None:
         super().__init__(message)
         self.status = status
+
+
+def mask_email(email: str) -> str:
+    """Adresse abrégée pour les journaux, qui ne doivent pas garder les adresses en clair."""
+    name, _, domain = normalize_email(email).partition("@")
+    return f"{name[:1]}***@{domain}"
 
 
 def space_folder() -> Path:
@@ -219,6 +227,8 @@ class App:
     secure_cookie: bool = True
     # Serveur local : dossier des visites publiées, servi à l'adresse /v/.
     local_public: FolderDepot | None = None
+    # Attente maximale de l'envoi d'un code avant de répondre à l'agent, en secondes.
+    mail_wait: float = 4.0
 
     # Connexion
 
@@ -226,14 +236,38 @@ class App:
         email = raw.get("email") if isinstance(raw, dict) else None
         if not isinstance(email, str) or "@" not in email or len(email) > 254:
             raise ApiError("Adresse e-mail invalide.")
-        code = self.registre.new_code(email)
-        if code is not None:
-            try:
-                self.mailer.send(normalize_email(email), comptes.SUBJECT, comptes.code_text(code))
-            except comptes.MailError as error:
-                # Le message reste le même : le dire révélerait que l'adresse est autorisée.
-                print(f"Code non envoyé à {email} : {error}", file=self.out, flush=True)
+        who = mask_email(email)
+        code, reason = self.registre.issue_code(email)
+        if code is None:
+            # Le message reste le même pour l'agent : le dire révélerait qui est autorisé.
+            print(f"Code : pas de code tiré pour {who} ({reason}).", file=self.out, flush=True)
+            return {"message": NEUTRAL}
+        # L'envoi tourne à part et la réponse n'attend qu'un court instant : un serveur
+        # d'e-mails lent ne doit pas faire échouer l'app (délai de 60 s) ni laisser deviner, par
+        # la durée de la réponse, quelles adresses sont autorisées.
+        to = normalize_email(email)
+        done = threading.Event()
+        threading.Thread(target=self._deliver, args=(to, code, who, done), daemon=True).start()
+        done.wait(self.mail_wait)
         return {"message": NEUTRAL}
+
+    def _deliver(self, to: str, code: str, who: str, done: threading.Event) -> None:
+        started = time.monotonic()
+        try:
+            self.mailer.send(to, comptes.SUBJECT, comptes.code_text(code))
+        except comptes.MailError as error:
+            print(f"Code non envoyé à {who} : {error}", file=self.out, flush=True)
+        except Exception as error:  # le fil ne doit jamais mourir sans laisser de trace
+            print(
+                f"Code non envoyé à {who} : erreur inattendue ({error!r}).",
+                file=self.out,
+                flush=True,
+            )
+        else:
+            elapsed = time.monotonic() - started
+            print(f"Code envoyé à {who} en {elapsed:.1f} s.", file=self.out, flush=True)
+        finally:
+            done.set()
 
     def login(self, raw: Any) -> tuple[dict[str, Any], str]:
         email = raw.get("email") if isinstance(raw, dict) else None
@@ -590,6 +624,16 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
 # --- Assemblage de l'App selon l'environnement ------------------------------------------------
 
 
+def describe_mailer(mailer: comptes.Mailer) -> str:
+    """Réglage d'envoi des e-mails pour les journaux, sans le mot de passe."""
+    if isinstance(mailer, comptes.SMTPMailer):
+        return (
+            f"E-mails : {mailer.host}:{mailer.port}, utilisateur {mailer.user[:8]}…, "
+            f"expéditeur {mailer.sender}."
+        )
+    return "E-mails : affichés dans les journaux (mode local)."
+
+
 def online_app(settings: reglages.Settings, environ: Mapping[str, str], out: TextIO) -> App:
     """Serveur en ligne, chez Scaleway."""
     assert settings.depot is not None and settings.public is not None and settings.job
@@ -601,6 +645,13 @@ def online_app(settings: reglages.Settings, environ: Mapping[str, str], out: Tex
             "Réglages d'envoi des e-mails manquants (VISITE360_SMTP_HOTE, "
             "VISITE360_SMTP_UTILISATEUR, VISITE360_SMTP_MOT_DE_PASSE). Voir docs/serveur.md."
         )
+    print(
+        f"Base : {comptes.describe_database(settings.database)}. "
+        f"Stockage privé : {settings.depot.bucket}. Visites publiées : {settings.public.bucket}.",
+        file=out,
+        flush=True,
+    )
+    print(describe_mailer(mailer), file=out, flush=True)
     return App(
         registre,
         S3Depot(settings.depot),

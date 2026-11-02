@@ -123,7 +123,9 @@ struct ServerSendView: View {
                     + "de réseau. Si l'app est fermée, « Reprendre l'envoi » ne renvoie que ce qui manque."
             )
         }
-        if let problem = state?.problem ?? journal?.problem, state?.running != true {
+        // Visible même pendant l'envoi : des dépôts refusés ne font jamais avancer la barre, et
+        // sans ce message l'écran semblerait seulement lent.
+        if let problem = state?.problem ?? journal?.problem {
             Section("Problème") { Text(problem) }
         }
         if let result = state?.result {

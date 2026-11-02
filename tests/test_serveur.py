@@ -605,6 +605,9 @@ def test_no_address_bucket_or_key_is_written_in_the_code() -> None:
                 continue
             if "pannellum" in path.parts:
                 continue
+            # Réglages propres à un Mac, ignorés par git : hors du dépôt, donc hors du test.
+            if path.name == "Local.xcconfig":
+                continue
             text = path.read_text(encoding="utf-8", errors="ignore")
             checked += 1
             for pattern in forbidden:
@@ -631,3 +634,73 @@ def test_local_launcher_runs_again_when_woken_during_a_run() -> None:
         launcher.join(0.1)
         deadline -= 1
     assert len(runs) == 2
+
+
+def test_code_requests_leave_a_reason_in_the_logs_without_changing_the_answer(env: Env) -> None:
+    env.app.registre.add_agent("connu@exemple.fr")
+    answers = []
+    for email in ("inconnu@exemple.fr", "connu@exemple.fr", "connu@exemple.fr"):
+        answers.append(env.request("POST", "/api/connexion/code", {"email": email})[1])
+    assert answers[0] == answers[1] == answers[2] == {"message": serveur.NEUTRAL}
+
+    logs = env.out.getvalue()
+    assert "pas de code tiré pour i***@exemple.fr (inconnue)" in logs
+    assert "Code envoyé à c***@exemple.fr" in logs
+    assert "pas de code tiré pour c***@exemple.fr (trop_rapproche)" in logs
+    assert "inconnu@exemple.fr" not in logs and "connu@exemple.fr" not in logs
+
+    env.app.registre.retire_agent("connu@exemple.fr")
+    env.request("POST", "/api/connexion/code", {"email": "connu@exemple.fr"})
+    assert "pas de code tiré pour c***@exemple.fr (retiree)" in env.out.getvalue()
+
+
+def test_failed_email_is_logged_with_a_masked_address(env: Env) -> None:
+    class Broken:
+        def send(self, to: str, subject: str, text: str) -> None:
+            raise serveur.comptes.MailError("Envoi de l'e-mail impossible (535 refusé).")
+
+    env.app.mailer = Broken()
+    env.app.registre.add_agent("connu@exemple.fr")
+    status, answer, _ = env.request("POST", "/api/connexion/code", {"email": "connu@exemple.fr"})
+    assert status == 200 and answer == {"message": serveur.NEUTRAL}
+    logs = env.out.getvalue()
+    assert "Code non envoyé à c***@exemple.fr : Envoi de l'e-mail impossible (535 refusé)." in logs
+    assert "connu@exemple.fr" not in logs
+
+
+def test_startup_summary_hides_the_password() -> None:
+    mailer = serveur.comptes.SMTPMailer(
+        "smtp.exemple.test", 587, "31b6661f-25de-48ee", "mot-de-passe-secret", "Moi <a@b.test>"
+    )
+    text = serveur.describe_mailer(mailer)
+    assert "smtp.exemple.test:587" in text and "31b6661f…" in text
+    assert "mot-de-passe-secret" not in text and "25de-48ee" not in text
+
+
+def test_slow_mail_server_does_not_delay_the_answer(env: Env) -> None:
+    import time as clock_time
+
+    class Slow:
+        def __init__(self) -> None:
+            self.sent: list[str] = []
+
+        def send(self, to: str, subject: str, text: str) -> None:
+            clock_time.sleep(1.5)
+            self.sent.append(to)
+
+    slow = Slow()
+    env.app.mailer = slow
+    env.app.mail_wait = 0.2
+    env.app.registre.add_agent("connu@exemple.fr")
+
+    started = clock_time.monotonic()
+    status, answer, _ = env.request("POST", "/api/connexion/code", {"email": "connu@exemple.fr"})
+    assert status == 200 and answer == {"message": serveur.NEUTRAL}
+    assert clock_time.monotonic() - started < 1.0  # sans attendre les 1,5 s de l'envoi
+
+    for _ in range(50):  # l'envoi se termine à part, et le dit dans les journaux
+        if "Code envoyé à c***@exemple.fr" in env.out.getvalue():
+            break
+        clock_time.sleep(0.1)
+    assert slow.sent == ["connu@exemple.fr"]
+    assert "Code envoyé à c***@exemple.fr" in env.out.getvalue()
