@@ -79,7 +79,7 @@ Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'éta
      gh workflow run image.yml --ref <branche>
      ```
 
-     Elle tourne chez GitHub sur une machine Intel/AMD, sans émulation (la première fois, 15 à 30 minutes environ, estimation non mesurée ; ensuite OpenCV vient du cache). Elle se lance aussi toute seule sur une pull request qui modifie `deploiement/`. L'image n'est envoyée nulle part : elle reste 2 jours comme fichier téléchargeable. Puis, sur le Mac, avec `gh` connecté et Podman installé :
+     Elle tourne chez GitHub sur une machine Intel/AMD, sans émulation (la première fois, 15 à 30 minutes environ, estimation non mesurée ; ensuite OpenCV vient du cache). Elle se lance aussi toute seule sur une pull request qui modifie le code de l'image (`src/`, `espace/`, `visionneuse/`, `deploiement/`, `pyproject.toml`). L'image n'est envoyée nulle part : elle reste 2 jours comme fichier téléchargeable. Puis, sur le Mac, avec `gh` connecté et Podman installé :
 
      ```bash
      bash deploiement/envoyer.sh rg.fr-par.scw.cloud/<espace>

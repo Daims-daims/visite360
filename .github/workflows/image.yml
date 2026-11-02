@@ -9,9 +9,14 @@ name: image
 on:
   workflow_dispatch:
   pull_request:
+    # Tout ce qui entre dans l'image : sinon une modification du serveur ne la refabrique pas.
     paths:
       - "deploiement/**"
       - "scripts/installer-opencv.sh"
+      - "src/**"
+      - "espace/**"
+      - "visionneuse/**"
+      - "pyproject.toml"
       - ".github/workflows/image.yml"
 
 permissions:
@@ -23,6 +28,10 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Le code du commit lui-même, pas la fusion provisoire avec main que GitHub prépare pour
+          # une pull request : l'étiquette de l'image doit désigner exactement ce qu'elle contient.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Garder les étapes déjà compilées (OpenCV) entre deux exécutions
         uses: actions/cache@v4
         with:
