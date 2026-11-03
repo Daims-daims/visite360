@@ -36,7 +36,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 12 | Hébergement et lien de partage | v1 | livrée |
 | 13 | Envoi depuis l'app et assemblage sur serveur | v1 | livrée |
 | 13 bis | Déploiement automatique à la fusion sur `main` | v1 | livrée |
-| 14 | Génération d'image sur une carte graphique louée | v1 | à faire |
+| 14 | Génération d'image sur une carte graphique louée | v1 | en cours |
 | 15 | Modifications et chiffrage en ligne | v1 | à faire |
 | 16 | Retours d'engagement pour l'agent | v1 | à faire |
 | J4 | **Jalon v1 : présentation aux agents et premiers accès** | — | à faire |
@@ -213,6 +213,7 @@ Les coûts d'hébergement commencent à l'étape 12, ceux du serveur à l'étape
 - **Tests automatiques :** une demande envoyée à la carte et la fiche obtenue sont les mêmes qu'avec le calcul sur le Mac ; allumage à la première demande et extinction après le délai, simulés ; message clair en français quand la carte ne répond pas, avec repli sur le Mac ; vue effacée après le calcul. Le modèle est simulé.
 - **Validation :** sur l'appartement du propriétaire, le même meuble remplacé sur le Mac et sur la carte louée donne un résultat de même qualité. Temps d'une génération à froid (carte éteinte) et à chaud, coût d'une séance d'essais et coût estimé du mois notés, comparés aux 2 à 3 minutes du Mac et au prix de l'API (`docs/generation.md`).
 - **À trancher avant l'étape :** type de carte graphique et mode de location (machine allumée à l'heure, service facturé à l'usage) ; logiciel qui fait tourner FLUX.2 klein sur carte NVIDIA (diffusers, licence à vérifier, D32) ; plafond de dépense mensuel et ce qui se passe quand il est atteint.
+- **Tranché le 2026-11-03 (D41) :** instance GPU Scaleway `L4-1-24G` (0,7875 €/h, à la minute) créée à la première demande et supprimée par elle-même après 10 minutes sans demande, car Scaleway ne propose pas de GPU « serverless » ; vues relayées par le serveur du projet puis réseau privé ; plafond de 30 € par mois ; repli sur le Mac. Licence des bibliothèques CUDA de NVIDIA acceptée par le propriétaire le 2026-11-03 (`docs/licences.md`).
 - **À trancher pendant l'étape :** réduction du temps d'allumage (modèle préchargé, image système prête) ; délai avant extinction ; résolution de la vue envoyée.
 
 ### Étape 15 : modifications et chiffrage en ligne

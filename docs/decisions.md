@@ -554,3 +554,19 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
 - **Limites :**
   - le secret GitHub reste un secret chez un tiers : en cas de vol, quelqu'un pourrait déployer une image de son choix sur le serveur. D'où l'approbation manuelle à envisager, et la rotation de la clé en cas de doute ;
   - les routes de l'API de Scaleway qui changent l'image d'un conteneur et d'une tâche n'ont pas encore été essayées avec le compte du propriétaire.
+
+## D41 : génération sur une instance GPU Scaleway créée à la demande, relais par le serveur du projet
+
+- **Date :** 2026-11-03
+- **Décision (validée par le propriétaire pour la carte et le mode de location) :**
+  - la génération d'image tourne sur une **instance GPU Scaleway `L4-1-24G`** (24 Go de mémoire graphique, 0,7875 €/h lu dans la console, facturée à la minute), avec le même modèle FLUX.2 klein 4B, par `diffusers` ;
+  - aucun GPU n'est proposé en « serverless » par Scaleway (non trouvé dans les offres Serverless Containers et Jobs) : le « à l'usage » est donc une **instance créée à la première demande et supprimée après 10 minutes sans demande**, à partir d'une image système préparée une fois (modèle déjà dedans) ;
+  - **la carte se supprime elle-même** (`carte_worker.py`) : le serveur du projet, qui s'éteint au bout de 15 minutes, ne peut pas surveiller l'inactivité ;
+  - les vues passent du Mac au **serveur du projet** (`/api/carte/generer`, connexion d'agent exigée), puis du serveur à la carte par un **réseau privé**, avec un secret partagé. Sans réseau privé configuré, la carte refuse de démarrer : les vues ne voyageraient jamais en clair sur Internet. Elles sont gardées en mémoire seulement, jamais écrites sur un disque ni dans les journaux ;
+  - **plafond mensuel de 30 €** par défaut (réglable), compté par le serveur dans sa base (table `carte_usage`) avant tout allumage. Atteint, la carte refuse et la visionneuse retombe sur le Mac. Le décompte est une estimation prudente (temps de calcul, allumage, délai d'attente) : la vraie facture est celle de Scaleway, où régler aussi une alerte de budget ;
+  - repli sur le Mac (mflux) quand la carte ne répond pas, avec un message dans le Terminal de `visite360 serve`.
+- **Raisons :** coût nul quand personne ne génère (D32) ; les images ne sortent pas du projet ; le Mac reste le secours et l'environnement de développement.
+- **Limites, à lever pendant la validation :**
+  - l'API d'instances de Scaleway (création, carte réseau privée, adresse privée, suppression) n'a pas été essayée : le quota GPU est en attente ;
+  - le démarrage à froid (création, démarrage, chargement de 13 Go de poids) n'est pas mesuré ;
+  - **licence NVIDIA, acceptée par le propriétaire le 2026-11-03 :** les bibliothèques CUDA livrées avec PyTorch sur carte NVIDIA sont sous licence propriétaire NVIDIA (`LicenseRef-NVIDIA-Proprietary`, vérifié le 2026-11-03 sur PyPI pour `nvidia-cuda-runtime-cu12`), hors de la liste de `CLAUDE.md`. Elles sont indispensables sur carte NVIDIA, ne tournent que sur la carte louée et ne sont jamais distribuées. Acceptées sans modification, comme la MPL 2.0 en D29. Le texte du contrat (EULA CUDA) n'a pas été lu à la source au moment de la décision : à relire avant la mise en vente, avec le reste de `docs/licences.md`.

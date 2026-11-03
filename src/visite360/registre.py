@@ -101,6 +101,10 @@ SCHEMA = (
         debut_le BIGINT,
         fin_le BIGINT
     )""",
+    """CREATE TABLE IF NOT EXISTS carte_usage (
+        mois TEXT PRIMARY KEY,
+        secondes BIGINT NOT NULL
+    )""",
     "CREATE INDEX IF NOT EXISTS traitements_visite ON traitements (visite_id, cree_le)",
     "CREATE INDEX IF NOT EXISTS traitements_etat ON traitements (etat, cree_le)",
 )
@@ -642,4 +646,19 @@ class Registre:
             m=message,
             t=self.now(),
             id=job_id,
+        )
+
+    # --- Temps de carte graphique (étape 14) ----------------------------------------------------
+
+    def seconds(self, month: str) -> int:
+        """Secondes de carte comptées pour un mois (« 2026-11 »), pour le plafond de dépense."""
+        rows = self._run("SELECT secondes FROM carte_usage WHERE mois = :m", m=month)
+        return int(rows[0][0]) if rows else 0
+
+    def add(self, month: str, seconds: int) -> None:
+        self._run(
+            "INSERT INTO carte_usage (mois, secondes) VALUES (:m, :s) "
+            "ON CONFLICT (mois) DO UPDATE SET secondes = carte_usage.secondes + :s",
+            m=month,
+            s=seconds,
         )

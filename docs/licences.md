@@ -97,6 +97,8 @@ Remarques :
 | FLUX.2 [klein] 9B, FLUX.2 [dev], FLUX.1 Fill [dev] | Licence non commerciale de Black Forest Labs. Seul klein 4B est sous Apache 2.0 | 2026-10-25 |
 | LaMa (poids publiés) | Code sous Apache 2.0, poids entraînés sur Places365, réservé à la recherche et à l'enseignement | 2026-10-25 |
 | MobileSAM (poids) | Code sous Apache 2.0, mais poids entraînés par un tiers sur 1 % des images de SA-1B, réservées à la recherche. Même cas que ZInD | 2026-10-25 |
+| diffusers (classe `Flux2KleinPipeline`) | Fait tourner FLUX.2 klein sur la carte NVIDIA louée (étape 14) | Apache 2.0 | Installé seulement dans l'image système de la carte, jamais dans l'app ni dans le dépôt | 2026-11-03 | LICENSE du dépôt huggingface/diffusers |
+| Bibliothèques CUDA de NVIDIA (paquets `nvidia-*` livrés avec PyTorch) et pilote NVIDIA de l'image de la carte (étape 14) | Fait tourner le modèle sur la carte NVIDIA louée | Licence propriétaire NVIDIA (`LicenseRef-NVIDIA-Proprietary`), usage commercial autorisé. Acceptée par le propriétaire le 2026-11-03 (D41), sans modification, sur la carte louée seulement, jamais distribuée. Texte du contrat non relu à la source : à relire avant la mise en vente | Installée seulement dans l'image système de la carte | 2026-11-03 | PyPI, métadonnées de `nvidia-cuda-runtime-cu12` 12.9.79 |
 
 ## Zone grise, à éviter sans vérification complète
 
