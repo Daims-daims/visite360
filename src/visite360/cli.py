@@ -11,6 +11,7 @@ from pathlib import Path
 
 from visite360 import (
     __version__,
+    carte_worker,
     chiffrage,
     comptes,
     deploiement,
@@ -196,6 +197,15 @@ def build_parser() -> argparse.ArgumentParser:
             "variables d'environnement (docs/serveur.md)."
         ),
     )
+    subparsers.add_parser(
+        "carte-serveur",
+        help="programme de la carte graphique louée (étape 14, lancé sur la carte, pas sur le Mac)",
+        description=(
+            "Reçoit les vues du serveur du projet, fait calculer le modèle et rend l'image, puis "
+            "supprime la carte après un temps sans demande. Réglages dans les variables "
+            "d'environnement (docs/generation.md)."
+        ),
+    )
     deploy_parser = subparsers.add_parser(
         "deployer",
         help="met une version en ligne : serveur et tâche d'assemblage (étape 13 bis)",
@@ -270,6 +280,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return serveur.run(args.local, args.dossier, args.port)
     if args.command == "traiter":
         return traitement.run()
+    if args.command == "carte-serveur":
+        return carte_worker.run()
     if args.command == "deployer":
         return deploiement.run(args.etiquette, args.dry_run, args.sans_controle)
     if args.command == "compte":

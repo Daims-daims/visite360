@@ -118,3 +118,47 @@ Ce que coûterait une génération ailleurs, sans rien utiliser ni souscrire :
 | Carte graphique louée (v1, D32) | prix à l'heure, de l'ordre de 0,30 à 2 € selon la carte (estimation non vérifiée), quelques secondes par image | — |
 
 En v1, la génération tournera sur du matériel loué, pas par une API, pour que les images des logements ne sortent pas du serveur du projet (D32).
+
+## Sur une carte graphique louée (étape 14, D41)
+
+Le calcul peut partir sur une carte NVIDIA louée chez Scaleway au lieu du Mac. Le cadre, la demande, le report dans le panorama et la fiche de modification ne changent pas : seul l'endroit du calcul change.
+
+### Comment ça marche, en clair
+
+Une **instance GPU** est un ordinateur loué avec une carte graphique puissante, facturé à la minute tant qu'il existe. Le serveur du projet la crée à la première demande de génération et elle se supprime toute seule après 10 minutes sans demande : sans demande, aucune facture. Le premier calcul après une pause est donc plus long (création de l'ordinateur et chargement du modèle, de l'ordre de quelques minutes), les suivants prennent quelques secondes.
+
+Le chemin d'une vue : visionneuse du Mac → serveur du projet (connexion d'agent exigée) → carte, par un **réseau privé** (réseau fermé, invisible d'Internet). La vue reste en mémoire, n'est écrite sur aucun disque et n'apparaît dans aucun journal.
+
+Si la carte ne répond pas (quota, panne, plafond de dépense atteint), le Terminal de `visite360 serve` l'écrit et le calcul se fait sur le Mac, s'il est installé.
+
+### Réglages
+
+Sur le serveur (variables d'environnement du conteneur) :
+
+| Variable | Rôle |
+|---|---|
+| `VISITE360_CARTE_IMAGE` | identifiant de l'image système de la carte. Absente : la carte est désactivée |
+| `VISITE360_CARTE_ZONE` | zone, par exemple `fr-par-2` |
+| `VISITE360_CARTE_PROJET` | identifiant du projet Scaleway |
+| `VISITE360_CARTE_RESEAU` | identifiant du réseau privé (obligatoire) |
+| `VISITE360_CARTE_SECRET` | secret partagé entre le serveur et la carte (secret du conteneur) |
+| `VISITE360_CARTE_TYPE` | type d'instance (défaut `L4-1-24G`) |
+| `VISITE360_CARTE_PRIX_HEURE` | prix à l'heure pour le décompte (défaut 0,7875) |
+| `VISITE360_CARTE_PLAFOND` | plafond mensuel en euros (défaut 30) |
+| `VISITE360_CARTE_ATTENTE_MIN` | minutes sans demande avant suppression (défaut 10) |
+
+Sur le Mac : `VISITE360_CARTE_URL` (adresse du serveur du projet) et `VISITE360_CARTE_JETON` (jeton de session d'un compte agent). Sans eux, la génération se fait sur le Mac comme avant.
+
+La carte lit les mêmes variables, plus `SCW_SECRET_KEY` (clé limitée à la suppression d'instances), et se lance par `visite360 carte-serveur`.
+
+### Préparer l'image système, une fois
+
+1. Créer une instance `L4-1-24G` avec une image Ubuntu GPU, dans le réseau privé `visite360`.
+2. Y installer le projet, `torch` (avec ses bibliothèques CUDA), `diffusers` (version de développement, comme l'indique la fiche du modèle), `Pillow`, et télécharger les poids FLUX.2 klein 4B (révision de `generation.py`).
+3. Faire lancer `visite360 carte-serveur` au démarrage (service systemd), avec les variables ci-dessus.
+4. En faire une image dans la console Scaleway, supprimer l'instance, et mettre l'identifiant de l'image dans `VISITE360_CARTE_IMAGE`.
+
+### Ce qui n'est pas vérifié
+
+L'API d'instances de Scaleway, la liaison au réseau privé, l'adresse privée lue sur l'instance, le chargement du modèle par `diffusers` sur la carte, le temps de démarrage à froid et le coût réel d'une séance : tout cela demande le quota GPU du compte et se mesure pendant la validation de l'étape. Les tests automatiques simulent Scaleway et le modèle.
+

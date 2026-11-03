@@ -44,13 +44,23 @@ import re
 import socket
 import sys
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
 
-from visite360 import chiffrage, couleur, generation, piece, segment, selection, stitch, visite
+from visite360 import (
+    carte,
+    chiffrage,
+    couleur,
+    generation,
+    piece,
+    segment,
+    selection,
+    stitch,
+    visite,
+)
 from visite360.opencv import OpenCVError, load_cv2
 from visite360.photos import PhotoError
 
@@ -313,19 +323,38 @@ def default_selector(tour: visite.Tour) -> selection.Selector:
 
 
 def default_generations(
-    tour: visite.Tour, painter: couleur.Painter, selector: selection.Selector
+    tour: visite.Tour,
+    painter: couleur.Painter,
+    selector: selection.Selector,
+    environ: Mapping[str, str] | None = None,
 ) -> generation.Generations:
-    """Génération avec FLUX.2 klein, s'il est installé (sinon la visionneuse dit quoi installer)."""
+    """Génération sur la carte louée si elle est réglée, sinon (ou en secours) avec FLUX.2 klein
+    sur le Mac, s'il est installé (sinon la visionneuse dit quoi installer)."""
+    environ = os.environ if environ is None else environ
     problem = generation.missing()
-    message = (
-        f"Le remplacement d'objet demande {generation.MODEL_NAME} ({problem}). "
-        f"L'installer : {generation.INSTALL_COMMAND}"
-        if problem
-        else None
-    )
+    local = None if problem else generation.MfluxGenerator
+    factory: Callable[[], generation.Generator]
+    message = None
+    url = environ.get("VISITE360_CARTE_URL", "").strip()
+    token = environ.get("VISITE360_CARTE_JETON", "").strip()
+    if url and token:
+        remote = carte.RemoteGenerator(f"{url.rstrip('/')}/api/carte/generer", token)
+
+        def factory() -> generation.Generator:
+            return carte.FallbackGenerator(
+                remote, local, lambda notice: print(notice, file=sys.stderr, flush=True)
+            )
+    elif local is not None:
+        factory = local
+    else:
+        factory = generation.MfluxGenerator
+        message = (
+            f"Le remplacement d'objet demande {generation.MODEL_NAME} ({problem}). "
+            f"L'installer : {generation.INSTALL_COMMAND}"
+        )
     return generation.Generations(
         tour,
-        generation.MfluxGenerator,
+        factory,
         lambda point, without: painter.base(point.folders.point, point.folders.panorama, without),
         message,
         selector.release,

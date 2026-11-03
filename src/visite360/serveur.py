@@ -49,7 +49,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
 
-from visite360 import __version__, capture, comptes, publier, reglages, traitement, visite
+from visite360 import __version__, capture, carte, comptes, publier, reglages, traitement, visite
 from visite360.depot import Depot, DepotError, FolderDepot, S3Depot, md5_base64
 from visite360.receive import (
     FILE_PATH,
@@ -230,6 +230,29 @@ class App:
     local_public: FolderDepot | None = None
     # Attente maximale de l'envoi d'un code avant de répondre à l'agent, en secondes.
     mail_wait: float = 4.0
+    # Carte graphique louée (étape 14) : None si elle n'est pas configurée.
+    gpu: carte.Carte | None = None
+
+    # Génération sur la carte graphique
+
+    def generate_view(self, raw: Any) -> dict[str, Any]:
+        """Relais d'une demande de génération vers la carte (étape 14, D41).
+
+        La vue traverse le serveur sans y être rangée ni journalisée.
+        """
+        if self.gpu is None:
+            raise ApiError("La carte graphique n'est pas configurée sur ce serveur.", 503)
+        if not isinstance(raw, dict) or not isinstance(raw.get("image"), str):
+            raise ApiError("Demande incomplète (image, consigne et graine).")
+        consigne, graine = raw.get("consigne"), raw.get("graine")
+        if not isinstance(consigne, str) or not consigne.strip() or len(consigne) > 2000:
+            raise ApiError("Consigne absente ou trop longue.")
+        if not isinstance(graine, int) or isinstance(graine, bool):
+            raise ApiError("Graine invalide.")
+        try:
+            return self.gpu.forward({"image": raw["image"], "consigne": consigne, "graine": graine})
+        except carte.CarteError as error:
+            raise ApiError(str(error), 503) from error
 
     # Connexion
 
@@ -511,6 +534,8 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
                 self.extra_headers.append(("Set-Cookie", self._cookie("", 0)))
                 return {"message": "Déconnecté."}
             agent = self._agent()
+            if path == "/api/carte/generer":
+                return app.generate_view(self._body(carte.MAX_BODY))
             if path == "/api/envois":
                 return app.start_upload(agent, self._body(MAX_MANIFEST_BYTES))
             match = FINISH_PATH.fullmatch(path)
@@ -660,6 +685,21 @@ def online_app(settings: reglages.Settings, environ: Mapping[str, str], out: Tex
         flush=True,
     )
     print(describe_mailer(mailer), file=out, flush=True)
+    gpu = None
+    try:
+        gpu_settings = carte.from_env(environ)
+    except carte.CarteError as error:
+        raise reglages.SettingsError(str(error)) from error
+    if gpu_settings is None:
+        print("Carte graphique : non configurée (génération sur le Mac).", file=out, flush=True)
+    else:
+        gpu = carte.Carte(gpu_settings, carte.ScalewayProvider(gpu_settings), registre)
+        print(
+            f"Carte graphique : {gpu_settings.commercial_type} en {gpu_settings.zone}, "
+            f"plafond {gpu_settings.cap_eur:.2f} € par mois.",
+            file=out,
+            flush=True,
+        )
     return App(
         registre,
         S3Depot(settings.depot),
@@ -668,6 +708,7 @@ def online_app(settings: reglages.Settings, environ: Mapping[str, str], out: Tex
         mailer,
         traitement.ScalewayLauncher(settings.depot.secret_key, settings.depot.region, settings.job),
         out,
+        gpu=gpu,
     )
 
 
