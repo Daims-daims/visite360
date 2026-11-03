@@ -98,6 +98,7 @@ Remarques :
 | LaMa (poids publiés) | Code sous Apache 2.0, poids entraînés sur Places365, réservé à la recherche et à l'enseignement | 2026-10-25 |
 | MobileSAM (poids) | Code sous Apache 2.0, mais poids entraînés par un tiers sur 1 % des images de SA-1B, réservées à la recherche. Même cas que ZInD | 2026-10-25 |
 | diffusers (classe `Flux2KleinPipeline`) | Fait tourner FLUX.2 klein sur la carte NVIDIA louée (étape 14) | Apache 2.0 | Installé seulement dans l'image système de la carte, jamais dans l'app ni dans le dépôt | 2026-11-03 | LICENSE du dépôt huggingface/diffusers |
+| Bibliothèques CUDA de NVIDIA (paquets `nvidia-*` livrés avec PyTorch) et pilote NVIDIA de l'image de la carte (étape 14) | Fait tourner le modèle sur la carte NVIDIA louée | Licence propriétaire NVIDIA (`LicenseRef-NVIDIA-Proprietary`), usage commercial autorisé. Acceptée par le propriétaire le 2026-11-03 (D41), sans modification, sur la carte louée seulement, jamais distribuée. Texte du contrat non relu à la source : à relire avant la mise en vente | Installée seulement dans l'image système de la carte | 2026-11-03 | PyPI, métadonnées de `nvidia-cuda-runtime-cu12` 12.9.79 |
 
 ## Zone grise, à éviter sans vérification complète
 
@@ -108,12 +109,6 @@ Remarques :
 | Stable Diffusion (versions de remplissage d'une zone) | Licence OpenRAIL, hors de la liste autorisée, avec des restrictions d'usage ; entraîné sur LAION, contesté | 2026-10-25 |
 | FLUX.3 image klein | Licence « other » et accès sur demande, non lue en détail ; 43 Go | 2026-10-25 |
 | Qwen-Image-Edit-2511 | Code et poids sous Apache 2.0, données d'entraînement non publiées, comme FLUX.2 klein. Non retenu : 20 milliards de paramètres, trop lourd pour le Mac (D31) | 2026-10-25 |
-
-## À trancher par le propriétaire
-
-| Composant | Problème | Vérifié le |
-|---|---|---|
-| Bibliothèques CUDA de NVIDIA (paquets `nvidia-*` livrés avec PyTorch pour carte NVIDIA) et pilote NVIDIA de l'image de la carte, étape 14 | Licence propriétaire NVIDIA (`LicenseRef-NVIDIA-Proprietary`), qui autorise l'usage commercial mais est hors de la liste de `CLAUDE.md`. Indispensable pour faire tourner le modèle sur une carte NVIDIA. Ne tourne que sur la carte louée, jamais distribué. À accepter explicitement (comme MPL 2.0 en D29) ou à refuser, auquel cas la génération reste sur le Mac | 2026-11-03 |
 
 ## Brevets
 
