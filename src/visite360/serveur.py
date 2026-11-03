@@ -49,7 +49,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
 
-from visite360 import __version__, capture, carte, comptes, publier, reglages, traitement, visite
+from visite360 import (
+    __version__,
+    atelier,
+    capture,
+    carte,
+    comptes,
+    generation,
+    publier,
+    reglages,
+    serve,
+    traitement,
+    visite,
+)
 from visite360.depot import Depot, DepotError, FolderDepot, S3Depot, md5_base64
 from visite360.receive import (
     FILE_PATH,
@@ -84,6 +96,8 @@ NOT_FOUND = "Visite introuvable."
 BUSY = "L'assemblage de cette visite est en cours : réessayer quand il sera fini."
 VISIT_PATH = re.compile(r"/api/visites/([0-9a-f]{32})(?:/(depublier|publier))?")
 FINISH_PATH = re.compile(r"/api/envois/([0-9a-f]{32})/fin")
+WORKSHOP_PATH = re.compile(r"/atelier/([0-9a-f]{32})(/.*)")
+NOT_READY = "Cette visite n'est pas prête : attendre la fin de l'assemblage."
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -91,6 +105,12 @@ SECURITY_HEADERS = {
     "X-Robots-Tag": "noindex",
 }
 PAGE_POLICY = "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+# La visionneuse a son script et son style dans la page, et affiche des images fabriquées.
+WORKSHOP_POLICY = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; worker-src 'self' blob:; frame-ancestors 'none'; "
+    "base-uri 'none'; form-action 'none'"
+)
 SPACE_FILES = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/espace.js": ("espace.js", "text/javascript; charset=utf-8"),
@@ -232,6 +252,42 @@ class App:
     mail_wait: float = 4.0
     # Carte graphique louée (étape 14) : None si elle n'est pas configurée.
     gpu: carte.Carte | None = None
+    # Outils de modification en ligne (étape 15) : None si le serveur n'en propose pas.
+    ateliers: atelier.Ateliers | None = None
+
+    # Atelier : outils de modification d'une visite, pour l'agent connecté
+
+    def workshop(self, agent: Agent, visit_id: str) -> atelier.Atelier:
+        visit = self._own(agent, visit_id)
+        if self.ateliers is None:
+            raise ApiError("Les outils de modification ne sont pas disponibles ici.", 503)
+        if self._busy(visit):
+            raise ApiError(BUSY, 409)
+        if visit.ready is None:
+            raise ApiError(NOT_READY, 409)
+        return self.ateliers.get(
+            visit,
+            lambda: self.registre.grid(agent.id),
+            lambda content: self.registre.set_grid(agent.id, content),
+        )
+
+    def workshop_get(self, agent: Agent, visit_id: str, rest: str) -> tuple[bytes, str, bool]:
+        """Contenu d'une route GET de l'atelier. Le dernier élément dit si c'est la page."""
+        found = self.workshop(agent, visit_id)
+        if rest == "/":
+            return found.page(), "text/html; charset=utf-8", True
+        content = found.get(rest)
+        if content is None:
+            raise ApiError("Introuvable.", 404)
+        return content[0], content[1], False
+
+    def workshop_post(self, agent: Agent, visit_id: str, rest: str, body: Any) -> tuple[bytes, str]:
+        if not isinstance(body, dict):
+            raise ApiError("Requête illisible : objet JSON attendu.")
+        content = self.workshop(agent, visit_id).post(rest, body)
+        if content is None:
+            raise ApiError("Introuvable.", 404)
+        return content
 
     # Génération sur la carte graphique
 
@@ -442,6 +498,8 @@ class App:
         visit = self._own(agent, visit_id)
         if self._busy(visit):
             raise ApiError(BUSY, 409)
+        if self.ateliers is not None:
+            self.ateliers.drop(visit.id, save=False)
         if visit.publication:
             publier.remove_published(self.public, visit.publication)
         for key in sorted(self.depot.list(f"{visit.id}/")):
@@ -464,6 +522,10 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
 
         def do_GET(self) -> None:
             path = self.path.split("?", 1)[0]
+            workshop = WORKSHOP_PATH.fullmatch(path)
+            if workshop:
+                self._workshop(lambda: self._workshop_get(*workshop.groups()))
+                return
             if path in SPACE_FILES:
                 name, kind = SPACE_FILES[path]
                 self._send(200, (space / name).read_bytes(), kind, page=True)
@@ -475,6 +537,19 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
 
         def do_POST(self) -> None:
             path = self.path.split("?", 1)[0]
+            workshop = WORKSHOP_PATH.fullmatch(path)
+            if workshop:
+                visit_id, rest = workshop.groups()
+                self._workshop(
+                    lambda: (
+                        *app.workshop_post(
+                            self._agent(), visit_id, rest, self._body(serve.MAX_BODY)
+                        ),
+                        False,
+                    ),
+                    write=True,
+                )
+                return
             self._api(lambda: self._post(path), write=True)
 
         def do_DELETE(self) -> None:
@@ -555,6 +630,40 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
                 return app.delete(agent, match.group(1))
             raise ApiError("Introuvable.", 404)
 
+        # Atelier
+
+        def _workshop_get(self, visit_id: str, rest: str) -> tuple[bytes, str, bool]:
+            return app.workshop_get(self._agent(), visit_id, rest)
+
+        def _workshop(
+            self, action: Callable[[], tuple[bytes, str, bool]], write: bool = False
+        ) -> None:
+            """Répond à une route de l'atelier. Les erreurs ont la forme que lit la visionneuse :
+            `{"erreur": message}`."""
+            self.extra_headers = []
+            try:
+                if write and self.headers.get(GUARD_HEADER) != "1":
+                    raise ApiError(f"En-tête {GUARD_HEADER} manquant.", 403)
+                data, kind, is_page = action()
+            except ApiError as error:
+                if error.status == 401 and self.command == "GET" and self.path.endswith("/"):
+                    # Page ouverte sans session : retour à l'espace, qui demande la connexion.
+                    self.send_response(302)
+                    self.send_header("Location", "/")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                self.close_connection = True
+                self._json(error.status, {"erreur": str(error)})
+            except (atelier.AtelierError, DepotError, RegistreError) as error:
+                print(f"Erreur : {error}", file=app.out, flush=True)
+                self._json(503, {"erreur": f"Erreur du serveur : {error}"})
+            except Exception as error:  # la visionneuse attend toujours une réponse lisible
+                status, message = serve.tool_error(error)
+                self._json(status, {"erreur": message})
+            else:
+                self._send(200, data, kind, page=is_page, policy=WORKSHOP_POLICY)
+
         # Outils
 
         def _token(self) -> str | None:
@@ -613,7 +722,9 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
             data = json.dumps(body, ensure_ascii=False).encode("utf-8")
             self._send(status, data, JSON)
 
-        def _send(self, status: int, data: bytes, kind: str, page: bool = False) -> None:
+        def _send(
+            self, status: int, data: bytes, kind: str, page: bool = False, policy: str = PAGE_POLICY
+        ) -> None:
             self.send_response(status)
             self.send_header("Content-Type", kind)
             self.send_header("Content-Length", str(len(data)))
@@ -621,7 +732,7 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
             for name, value in SECURITY_HEADERS.items():
                 self.send_header(name, value)
             if page:
-                self.send_header("Content-Security-Policy", PAGE_POLICY)
+                self.send_header("Content-Security-Policy", policy)
             for name, value in getattr(self, "extra_headers", []):
                 self.send_header(name, value)
             self.end_headers()
@@ -667,6 +778,21 @@ def describe_mailer(mailer: comptes.Mailer) -> str:
     return "E-mails : affichés dans les journaux (mode local)."
 
 
+NO_GPU = "Le remplacement d'objet n'est pas configuré sur ce serveur (carte graphique absente)."
+
+
+def _no_generator() -> generation.Generator:
+    raise generation.GenerationError(NO_GPU)
+
+
+def online_tools(gpu: carte.Carte | None) -> atelier.ToolsFactory:
+    """Outils de l'atelier en ligne : SAM 2.1 sur le processeur du serveur, génération sur la
+    carte graphique du projet (D41, D42)."""
+    if gpu is None:
+        return lambda tour: serve.tools_for(tour, _no_generator, NO_GPU)
+    return lambda tour: serve.tools_for(tour, lambda: carte.CarteGenerator(gpu))
+
+
 def online_app(settings: reglages.Settings, environ: Mapping[str, str], out: TextIO) -> App:
     """Serveur en ligne, chez Scaleway."""
     assert settings.depot is not None and settings.public is not None and settings.job
@@ -700,15 +826,17 @@ def online_app(settings: reglages.Settings, environ: Mapping[str, str], out: Tex
             file=out,
             flush=True,
         )
+    depot = S3Depot(settings.depot)
     return App(
         registre,
-        S3Depot(settings.depot),
+        depot,
         publier.S3Storage(settings.public),
         settings.public,
         mailer,
         traitement.ScalewayLauncher(settings.depot.secret_key, settings.depot.region, settings.job),
         out,
         gpu=gpu,
+        ateliers=atelier.Ateliers(depot, online_tools(gpu)),
     )
 
 
@@ -733,6 +861,7 @@ def local_app(settings: reglages.Settings, out: TextIO) -> App:
         out,
         secure_cookie=False,
         local_public=public,
+        ateliers=atelier.Ateliers(depot, serve.default_tools),
     )
 
 

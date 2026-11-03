@@ -570,3 +570,23 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - l'API d'instances de Scaleway (création, carte réseau privée, adresse privée, suppression) n'a pas été essayée : le quota GPU est en attente ;
   - le démarrage à froid (création, démarrage, chargement de 13 Go de poids) n'est pas mesuré ;
   - **licence NVIDIA, acceptée par le propriétaire le 2026-11-03 :** les bibliothèques CUDA livrées avec PyTorch sur carte NVIDIA sont sous licence propriétaire NVIDIA (`LicenseRef-NVIDIA-Proprietary`, vérifié le 2026-11-03 sur PyPI pour `nvidia-cuda-runtime-cu12`), hors de la liste de `CLAUDE.md`. Elles sont indispensables sur carte NVIDIA, ne tournent que sur la carte louée et ne sont jamais distribuées. Acceptées sans modification, comme la MPL 2.0 en D29. Le texte du contrat (EULA CUDA) n'a pas été lu à la source au moment de la décision : à relire avant la mise en vente, avec le reste de `docs/licences.md`.
+
+
+## D42 : outils de modification en ligne, dans un atelier par visite sur le serveur du projet
+
+- **Date :** 2026-11-03
+- **Décision (validée par le propriétaire, plan de l'étape 15) :**
+  - les outils des étapes 7 à 11 (sélection, couleur, remplacement d'objet, mesure des pièces, chiffrage) tournent sur le serveur, pour l'agent connecté. Une visite s'ouvre à `/atelier/<visite>/`, avec la même visionneuse que sur le Mac (`/agent`) et les mêmes routes, préfixées. Le code des outils n'est pas copié : `serve.Tools` les regroupe et sert les deux ;
+  - un **atelier** (`atelier.py`) reconstitue le dossier d'une visite dans un répertoire temporaire à partir du stockage privé, y fait tourner les outils, puis range ce qu'ils ont écrit (`<point>/modifications/`, `<point>/piece.json`) à côté du reste de la visite. Les photos et panoramas d'origine ne sont jamais réécrits (D9). Le stockage est la référence : chaque requête relit la liste des fichiers, ce qui permet plusieurs copies du serveur. Trois ateliers au plus sont gardés ouverts ;
+  - **SAM 2.1 tourne sur le processeur du serveur**, pas sur la carte graphique, qui reste réservée à la génération (D41) : la sélection est quasi instantanée même sur processeur, et allumer la carte à chaque clic coûterait de l'argent et plusieurs minutes. Le remplacement d'objet passe par la carte comme à l'étape 14, directement depuis le serveur (`carte.CarteGenerator`) ;
+  - la **grille de prix est celle de l'agent**, pas celle de la visite : table `grilles` de la base, un agent qui change ses prix les change pour toutes ses visites. Le fichier `tarifs.json` du dossier de travail n'en est qu'une copie ;
+  - la visite publiée contient, quand il y en a, le panorama modifié de chaque point (`apres.jpg`, `apres-mobile.jpg`) et `chiffrage.json`, avec la bascule avant et après et le chiffrage en fourchette. Le client ne peut rien modifier : la page publiée n'appelle aucune route de l'API. Ni photo d'origine, ni masque, ni fiche de travail ne sont publiés. La publication ne se met pas à jour seule : l'agent clique « Mettre à jour le lien », le lien reste le même ;
+  - les routes de l'atelier exigent la session de l'agent et l'en-tête `X-Visite360` pour écrire ; une visite d'un autre agent répond « introuvable ». Sa page a une politique de sécurité plus large que celle de l'espace (script et style dans la page), sans autre source que le serveur.
+- **Raisons :** l'agent travaille depuis n'importe où, sans le Mac ; un seul code pour les deux ; rien à régler de plus chez Scaleway qu'à l'étape 13.
+- **Dérogation :** étape démarrée avant que l'étape 14 soit « livrée » (quota de carte graphique en attente), à la demande du propriétaire.
+- **Limites :**
+  - le remplacement d'objet en ligne n'a été testé qu'avec un modèle simulé ; il se valide avec la carte réelle (étape 14) ;
+  - l'image du serveur grossit (PyTorch pour processeur, SAM 2.1, 176 Mo de poids) et demande 4 Go de mémoire ; elle n'a pas été construite pendant l'étape ;
+  - une génération en cours rangera ses fichiers à la prochaine requête de l'agent (ou à la fermeture de l'atelier) : si le serveur s'éteint avant, la génération est perdue ;
+  - un atelier garde ses fichiers dans le disque temporaire du conteneur, perdus à l'extinction : seul ce qui est rangé dans le stockage reste ;
+  - modifier la même visite depuis deux onglets en même temps n'est pas protégé : la dernière écriture gagne.

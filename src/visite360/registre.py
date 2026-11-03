@@ -105,6 +105,10 @@ SCHEMA = (
         mois TEXT PRIMARY KEY,
         secondes BIGINT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS grilles (
+        agent_id TEXT PRIMARY KEY,
+        contenu TEXT NOT NULL
+    )""",
     "CREATE INDEX IF NOT EXISTS traitements_visite ON traitements (visite_id, cree_le)",
     "CREATE INDEX IF NOT EXISTS traitements_etat ON traitements (etat, cree_le)",
 )
@@ -661,4 +665,23 @@ class Registre:
             "ON CONFLICT (mois) DO UPDATE SET secondes = carte_usage.secondes + :s",
             m=month,
             s=seconds,
+        )
+
+    # --- Grille de prix de l'agent (étape 15) ---------------------------------------------------
+
+    def grid(self, agent_id: str) -> str | None:
+        """Grille de prix de l'agent (texte JSON), ou None s'il garde la grille par défaut."""
+        rows = self._run("SELECT contenu FROM grilles WHERE agent_id = :a", a=agent_id)
+        return str(rows[0][0]) if rows else None
+
+    def set_grid(self, agent_id: str, content: str | None) -> None:
+        """Enregistre la grille de l'agent ; None revient à la grille par défaut."""
+        if content is None:
+            self._run("DELETE FROM grilles WHERE agent_id = :a", a=agent_id)
+            return
+        self._run(
+            "INSERT INTO grilles (agent_id, contenu) VALUES (:a, :c) "
+            "ON CONFLICT (agent_id) DO UPDATE SET contenu = :c",
+            a=agent_id,
+            c=content,
         )

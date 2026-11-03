@@ -11,7 +11,7 @@
 FROM docker.io/library/python:3.13-slim-bookworm AS construction
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
+    && apt-get install -y --no-install-recommends build-essential git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
@@ -33,6 +33,23 @@ RUN pip install --no-cache-dir "numpy>=1.26" \
     && bash scripts/installer-opencv.sh \
     && rm -rf build
 
+# SAM 2.1 (étape 15, D42) : sélection d'une surface au clic, sur le processeur du serveur. Mêmes
+# versions que scripts/installer-sam2.sh, mais PyTorch « pour processeur » : sans les
+# bibliothèques NVIDIA, dont la licence n'est acceptée que sur la carte graphique (D41).
+# Avant le code du projet : cette étape ne change presque jamais et reste en cache.
+RUN SAM2_BUILD_CUDA=0 pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+        "torch==2.14.1" "torchvision==0.29.1" \
+    && SAM2_BUILD_CUDA=0 pip install --no-cache-dir \
+        "hydra-core==1.3.7" "iopath==0.1.10" "tqdm==4.70.1" "pillow==13.0.0" \
+        "sam-2 @ git+https://github.com/facebookresearch/sam2.git@2b90b9f5ceec907a1c18123530e92e794ad901a4"
+# Poids de Meta (176 Mo), empreinte vérifiée : même fichier et même empreinte que visite360.segment.
+RUN python -c "import hashlib, pathlib, urllib.request; \
+url = 'https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt'; \
+target = pathlib.Path('/opt/modeles/sam2.1_hiera_small.pt'); target.parent.mkdir(parents=True); \
+data = urllib.request.urlopen(url, timeout=120).read(); \
+assert hashlib.sha256(data).hexdigest() == '6d1aa6f30de5c92224f8172114de081d104bbd23dd9dc5c58996f0cad5dc4d38', 'poids SAM 2.1 inattendus'; \
+target.write_bytes(data)"
+
 # Puis le projet et ses dépendances : rapide, refait à chaque changement du code.
 COPY pyproject.toml README.md ./
 COPY src src
@@ -45,7 +62,8 @@ FROM docker.io/library/python:3.13-slim-bookworm
 
 RUN useradd --create-home --uid 1000 visite360
 COPY --from=construction /opt/visite360 /opt/visite360
-ENV PATH="/opt/visite360/bin:$PATH" PYTHONUNBUFFERED=1
+COPY --from=construction /opt/modeles /opt/modeles
+ENV PATH="/opt/visite360/bin:$PATH" PYTHONUNBUFFERED=1 VISITE360_MODELES=/opt/modeles
 # Commit du code de l'image, annoncé par /api/info (étape 13 bis). Placé en dernier : changer de
 # commit ne refait aucune des étapes précédentes.
 ARG COMMIT=inconnu

@@ -218,6 +218,9 @@
   </div>
   <script src="pannellum/pannellum.js"></script>
   <script>
+    // Étape 15 : en ligne, la page est servie sous /atelier/<visite>/ ; le serveur y inscrit ce
+    // préfixe dans <meta name="base">. Sur le Mac, il est vide.
+    const BASE = (document.querySelector('meta[name="base"]') || {}).content || "";
     // Beaucoup de téléphones refusent les images plus larges que la limite de leur carte
     // graphique : on choisit la version du panorama que cet appareil sait afficher.
     function maxTextureSize() {
@@ -281,13 +284,15 @@
           document.title = info.name + " — visite 360°";
           const useFull = info.points.every((point) => maxTextureSize() >= point.full.width);
           // Étape 8 : recolorations de chaque point, pour ouvrir la visite en « après ».
-          const colors = info.publiee ? info.points.map(() => null) : await Promise.all(info.points.map((point, index) =>
-            fetch("/p/" + index + "/couleurs.json").then((r) => r.ok ? r.json() : null).catch(() => null)));
+          // Visite publiée : les adresses des images modifiées sont dans info.json (étape 15).
+          const colors = info.publiee ? info.points.map((point) => point.apres || null) : await Promise.all(info.points.map((point, index) =>
+            fetch(BASE + "/p/" + index + "/couleurs.json").then((r) => r.ok ? r.json() : null).catch(() => null)));
           const look = { useFull, colors, after: true };
           look.url = (index) => {
             const state = look.colors[index];
             if (look.after && state && state.version) {
-              return "/p/" + index + "/" + (useFull ? "apres" : "apres-mobile") + ".jpg?v=" + state.version;
+              if (state.full) return (useFull ? state.full : state.mobile) + "?v=" + state.version;
+              return BASE + "/p/" + index + "/" + (useFull ? "apres" : "apres-mobile") + ".jpg?v=" + state.version;
             }
             const point = info.points[index];
             return (useFull ? point.full : point.mobile).url;
@@ -313,7 +318,9 @@
 
           // Étape 12 : la visite publiée est en lecture seule, sans les outils qui appellent le Mac.
           if (info.publiee) {
-            for (const id of ["cap", "outils"]) document.getElementById(id).style.display = "none";
+            document.getElementById("cap").style.display = "none";
+            for (const button of document.querySelectorAll("#outils button")) button.hidden = true;
+            setupPublished(info, viewer, look);
             return;
           }
 
@@ -338,10 +345,79 @@
         .catch(() => show("Impossible de charger la visite.", null, ""));
     }
 
+    // Étape 15 : le client d'une visite publiée regarde les modifications de l'agent et leur
+    // chiffrage en fourchette, sans rien pouvoir modifier.
+    function setupPublished(info, viewer, look) {
+      const toggle = document.getElementById("avant-apres");
+      const ids = info.points.map((point) => point.id);
+      let current = info.start;
+      const sync = () => {
+        const index = ids.indexOf(current);
+        toggle.hidden = index < 0 || !look.colors[index];
+        toggle.textContent = look.after ? "Voir l'original" : "Voir les modifications";
+      };
+      viewer.on("scenechange", (id) => { current = id; sync(); });
+      toggle.onclick = () => {
+        look.after = !look.after;
+        for (const [index, point] of info.points.entries()) {
+          look.scenes[point.id] = Object.assign({}, look.scenes[point.id], { panorama: look.url(index) });
+          viewer.addScene(point.id, look.scenes[point.id]);
+        }
+        viewer.loadScene(current, viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
+        sync();
+      };
+      sync();
+
+      if (!info.chiffrage) return;
+      const panel = document.getElementById("chiffrage");
+      const content = document.getElementById("chiffrage-contenu");
+      const euros = (value) => {
+        const rounded = value >= 100 ? Math.round(value / 10) * 10 : Math.round(value);
+        return rounded.toLocaleString("fr-FR") + " €";
+      };
+      const range = (low, high) => low === high ? euros(low) : euros(low) + " à " + euros(high);
+      const row = (label, text, className) => {
+        const line = document.createElement("div");
+        line.className = className || "poste";
+        const name = document.createElement("div");
+        name.textContent = label;
+        const amount = document.createElement("div");
+        amount.className = "montant";
+        amount.textContent = text;
+        line.append(name, amount);
+        return line;
+      };
+      const render = (pricing) => {
+        content.replaceChildren();
+        const block = pricing.points[Math.max(ids.indexOf(current), 0)];
+        for (const line of block.lignes) {
+          if (line.bas !== null) content.appendChild(row(line.nom, range(line.bas, line.haut)));
+        }
+        if (block.lignes.length) content.appendChild(row(block.nom, range(block.bas, block.haut), "poste total"));
+        if (pricing.points.length > 1) {
+          content.appendChild(row("Toute la visite", range(pricing.bas, pricing.haut), "poste total"));
+        }
+        const note = document.createElement("div");
+        note.className = "note";
+        note.textContent = "Ordre de grandeur, pas un devis : prix TTC indicatifs, peinture et sols fournis et posés, meubles achat seul.";
+        content.appendChild(note);
+      };
+      let pricing = null;
+      document.getElementById("tarifs-modifier").hidden = true;
+      document.getElementById("chiffrer").hidden = false;
+      document.getElementById("chiffrer").onclick = async () => {
+        panel.style.display = "flex";
+        if (!pricing) pricing = await fetch(info.chiffrage).then((response) => response.json());
+        render(pricing);
+      };
+      viewer.on("scenechange", () => { if (pricing && panel.style.display === "flex") render(pricing); });
+      document.getElementById("chiffrage-fermer").onclick = () => { panel.style.display = "none"; };
+    }
+
     async function postJson(path, body) {
       const response = await fetch(path, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Visite360": "1" },
         body: JSON.stringify(body),
       });
       if (!response.ok) {
@@ -429,7 +505,7 @@
         }
         busy = true;
         try {
-          const response = await postJson("/api/selection/masque", { vue: state.view, clics: state.clicks });
+          const response = await postJson(BASE + "/api/selection/masque", { vue: state.view, clics: state.clicks });
           const url = URL.createObjectURL(await response.blob());
           if (maskImage.src.startsWith("blob:")) URL.revokeObjectURL(maskImage.src);
           maskImage.src = url;
@@ -443,7 +519,7 @@
 
       async function start() {
         if (busy) return;
-        const response = await fetch("/api/selection").then((r) => r.json());
+        const response = await fetch(BASE + "/api/selection").then((r) => r.json());
         if (!response.disponible) { say(response.message); return; }
         // Mesuré sur la visionneuse : le calque, encore masqué, aurait une taille nulle.
         const rect = $("panorama").getBoundingClientRect();
@@ -457,7 +533,7 @@
         busy = true;
         say("Préparation de la vue (la première fois, chargement du modèle : quelques secondes)...");
         try {
-          const answer = await postJson("/api/selection/vue", {
+          const answer = await postJson(BASE + "/api/selection/vue", {
             point: pointIndex(), cap: viewer.getYaw(), hauteur: viewer.getPitch(), champ: state.fov,
           }).then((r) => r.json());
           state.view = answer.vue;
@@ -506,7 +582,7 @@
         busy = true;
         say("Report de la sélection dans le panorama...");
         try {
-          const record = await postJson("/api/selection/valider", {
+          const record = await postJson(BASE + "/api/selection/valider", {
             vue: state.view, clics: state.clicks, nom: name,
           }).then((r) => r.json());
           stop();
@@ -523,7 +599,7 @@
       async function refreshList() {
         const index = pointIndex();
         if (index < 0) return [];
-        const records = await fetch("/p/" + index + "/selections.json").then((r) => r.ok ? r.json() : []);
+        const records = await fetch(BASE + "/p/" + index + "/selections.json").then((r) => r.ok ? r.json() : []);
         $("mes-selections").textContent = "Sélections (" + records.length + ")";
         return records;
       }
@@ -533,7 +609,7 @@
         previewOf = { pointId: currentId };
         viewer.addScene(sceneId, {
           type: "equirectangular",
-          panorama: "/p/" + index + "/selections/" + record.id + ".jpg?t=" + Date.now(),
+          panorama: BASE + "/p/" + index + "/selections/" + record.id + ".jpg?t=" + Date.now(),
         });
         viewer.loadScene(sceneId, viewer.getPitch(), viewer.getYaw(), viewer.getHfov());
         say("");
@@ -593,7 +669,7 @@
             undo.title = "Annuler la recoloration de cette surface";
             undo.onclick = async () => {
               try {
-                await postJson("/api/couleur/annuler", { point: index, id: painted.id });
+                await postJson(BASE + "/api/couleur/annuler", { point: index, id: painted.id });
                 box.style.display = "none";
                 await refreshColors(index);
                 say("Couleur de « " + record.nom + " » annulée.");
@@ -609,7 +685,7 @@
             const extra = painted ? " Sa couleur sera aussi annulée." : "";
             if (!window.confirm("Supprimer « " + record.nom + " » ? Le panorama ne change pas." + extra)) return;
             try {
-              await postJson("/api/selection/supprimer", { point: index, id: record.id });
+              await postJson(BASE + "/api/selection/supprimer", { point: index, id: record.id });
               line.remove();
               refreshList();
               if (painted) await refreshColors(index);
@@ -655,7 +731,7 @@
       }
 
       async function refreshColors(index) {
-        const answer = await fetch("/p/" + index + "/couleurs.json");
+        const answer = await fetch(BASE + "/p/" + index + "/couleurs.json");
         look.colors[index] = answer.ok ? await answer.json() : null;
         updateScenes();
       }
@@ -681,7 +757,7 @@
       picker.setAttribute("aria-label", "Couleur personnalisée");
       custom.appendChild(picker);
 
-      fetch("/nuancier.json").then((r) => r.ok ? r.json() : { familles: [] }).catch(() => ({ familles: [] }))
+      fetch(BASE + "/nuancier.json").then((r) => r.ok ? r.json() : { familles: [] }).catch(() => ({ familles: [] }))
         .then((palette) => {
           const box = $("nuancier");
           for (const family of palette.familles || []) {
@@ -771,7 +847,7 @@
         const ticket = ++trial;
         const { index, record, color, shade } = paint;
         try {
-          const response = await postJson("/api/couleur/apercu", {
+          const response = await postJson(BASE + "/api/couleur/apercu", {
             point: index, selection: record.id, couleur: color, actuelle: currentValue(),
           });
           const url = URL.createObjectURL(await response.blob());
@@ -803,7 +879,7 @@
         if (!paint.color) { say("Choisir d'abord une teinte dans le nuancier."); return; }
         const { index, record, color, shade } = paint;
         try {
-          await postJson("/api/couleur/appliquer", {
+          await postJson(BASE + "/api/couleur/appliquer", {
             point: index, selection: record.id, couleur: color, teinte: shade, actuelle: currentValue(),
           });
           look.after = true;
@@ -867,7 +943,7 @@
 
       $("transformer").onclick = async () => {
         if (state || paint) return;
-        const answer = await fetch("/api/generation").then((r) => r.json());
+        const answer = await fetch(BASE + "/api/generation").then((r) => r.json());
         if (!answer.disponible) { say(answer.message); return; }
         if (answer.travail && answer.travail.etat === "en_cours") {
           say("Une génération est déjà en cours : attendre qu'elle finisse."); return;
@@ -930,7 +1006,7 @@
         let name = instruction;
         if (name.length > 60) name = name.slice(0, 59).trimEnd() + "…";
         try {
-          await postJson("/api/generation/lancer", {
+          await postJson(BASE + "/api/generation/lancer", {
             point: pointIndex(), cap: view.cap, hauteur: view.hauteur, champ: view.champ,
             cadre: [ax, ay, bx, by], instruction, nom: name,
           });
@@ -948,7 +1024,7 @@
         const box = $("suivi");
         const tick = async () => {
           let job = null;
-          try { job = (await fetch("/api/generation").then((r) => r.json())).travail; } catch (error) { /* réessai */ }
+          try { job = (await fetch(BASE + "/api/generation").then((r) => r.json())).travail; } catch (error) { /* réessai */ }
           if (!job) { polling = setTimeout(tick, 2000); return; }
           if (job.etat === "en_cours") {
             box.style.display = "block";
@@ -999,7 +1075,7 @@
           again.title = "Autre essai avec le même cadre et la même consigne (2 minutes environ)";
           again.onclick = async () => {
             try {
-              await postJson("/api/generation/refaire", { point: index, id: record.id });
+              await postJson(BASE + "/api/generation/refaire", { point: index, id: record.id });
               box.style.display = "none";
               follow();
             } catch (error) {
@@ -1011,7 +1087,7 @@
           remove.onclick = async () => {
             if (!window.confirm("Supprimer « " + record.nom + " » ? Le panorama d'origine ne change pas.")) return;
             try {
-              await postJson("/api/generation/supprimer", { point: index, id: record.id });
+              await postJson(BASE + "/api/generation/supprimer", { point: index, id: record.id });
               box.style.display = "none";
               await refreshColors(index);
               refreshReplacements();
@@ -1029,7 +1105,7 @@
       // Étape 10 : mesure de la pièce, réservée à l'agent (adresse /agent). L'agent clique les
       // coins dans l'ordre ; le serveur regroupe les clics en coins, calcule la pièce avec la
       // hauteur de l'objectif mesurée par l'app, et renvoie le panorama avec le contour dessiné.
-      const AGENT = location.pathname === "/agent";
+      const AGENT = location.pathname === "/agent" || BASE !== "";
       let measure = null, measureTicket = 0;
       const metres = (value, digits = 2) =>
         value.toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -1078,7 +1154,7 @@
         const ticket = ++measureTicket;
         const body = measureBody();
         try {
-          const response = await postJson("/api/piece/apercu", body);
+          const response = await postJson(BASE + "/api/piece/apercu", body);
           const url = URL.createObjectURL(await response.blob());
           if (ticket !== measureTicket || !measure) { URL.revokeObjectURL(url); return; }
           viewer.addScene("apercu:piece", { type: "equirectangular", panorama: url });
@@ -1092,7 +1168,7 @@
         let room = null, problem = "";
         if (measure.clicks.length) {
           try {
-            room = await postJson("/api/piece/calculer", body).then((r) => r.json());
+            room = await postJson(BASE + "/api/piece/calculer", body).then((r) => r.json());
           } catch (error) {
             problem = error.message;
           }
@@ -1103,7 +1179,7 @@
       async function startMeasure() {
         if (state || paint || drawing || measure) return;
         const index = pointIndex();
-        const answer = await fetch("/p/" + index + "/piece.json").then((r) => r.json());
+        const answer = await fetch(BASE + "/p/" + index + "/piece.json").then((r) => r.json());
         const saved = answer.piece;
         measure = { index, pointId: currentId, clicks: saved ? saved.clics.slice() : [], blob: null };
         $("plafond").value = saved && saved.hauteur_plafond_saisie_m ? saved.hauteur_plafond_saisie_m : "";
@@ -1155,7 +1231,7 @@
       $("mesure-enregistrer").onclick = async () => {
         if (!measure) return;
         try {
-          const record = await postJson("/api/piece/enregistrer", measureBody()).then((r) => r.json());
+          const record = await postJson(BASE + "/api/piece/enregistrer", measureBody()).then((r) => r.json());
           endMeasure();
           say("Pièce enregistrée : " + metres(record.resultat.surface_sol_m2, 1) + " m² au sol, "
             + record.resultat.murs.length + " murs.");
@@ -1166,7 +1242,7 @@
       $("mesure-supprimer").onclick = async () => {
         if (!measure || !window.confirm("Supprimer la mesure de cette pièce ?")) return;
         try {
-          await postJson("/api/piece/supprimer", { point: measure.index });
+          await postJson(BASE + "/api/piece/supprimer", { point: measure.index });
           endMeasure();
           say("Mesure supprimée.");
         } catch (error) {
@@ -1217,7 +1293,7 @@
               try {
                 const body = { point: index, id: line.modification,
                   categorie: choice.value === line.categorie_reconnue ? null : choice.value };
-                pricing = await postJson("/api/chiffrage/meuble", body).then((r) => r.json());
+                pricing = await postJson(BASE + "/api/chiffrage/meuble", body).then((r) => r.json());
                 renderPricing();
               } catch (error) {
                 say(error.message);
@@ -1261,8 +1337,8 @@
       async function showPricing() {
         $("chiffrage-contenu").replaceChildren(div("Calcul en cours…", "note"));
         try {
-          if (AGENT) grid = (await getJson("/api/tarifs")).tarifs;
-          pricing = await getJson("/api/chiffrage");
+          if (AGENT) grid = (await getJson(BASE + "/api/tarifs")).tarifs;
+          pricing = await getJson(BASE + "/api/chiffrage");
           renderPricing();
         } catch (error) {
           $("chiffrage-contenu").replaceChildren(div(error.message, "alerte"));
@@ -1306,7 +1382,7 @@
             edited[part][which][key] = input.value === "" ? null : Number(input.value);
           }
           try {
-            const answer = await postJson("/api/tarifs/enregistrer", { tarifs: edited }).then((r) => r.json());
+            const answer = await postJson(BASE + "/api/tarifs/enregistrer", { tarifs: edited }).then((r) => r.json());
             grid = answer.tarifs;
             renderGrid(false);
             await showPricing();
@@ -1321,7 +1397,7 @@
         reset.onclick = async () => {
           if (!window.confirm("Revenir aux prix indicatifs par défaut ?")) return;
           try {
-            const answer = await postJson("/api/tarifs/reinitialiser", {}).then((r) => r.json());
+            const answer = await postJson(BASE + "/api/tarifs/reinitialiser", {}).then((r) => r.json());
             grid = answer.tarifs;
             renderGrid(true);
             await showPricing();
@@ -1339,7 +1415,7 @@
         const box = $("tarifs");
         if (box.style.display === "block") { box.style.display = "none"; return; }
         try {
-          const answer = await getJson("/api/tarifs");
+          const answer = await getJson(BASE + "/api/tarifs");
           grid = answer.tarifs;
           renderGrid(answer.par_defaut);
           box.style.display = "block";
@@ -1364,14 +1440,14 @@
         if (pricing && !id.startsWith("apercu:") && $("chiffrage").style.display === "flex") renderPricing();
       });
 
-      fetch("/api/generation").then((r) => r.json()).then((answer) => {
+      fetch(BASE + "/api/generation").then((r) => r.json()).then((answer) => {
         $("transformer").hidden = false;
         if (!answer.disponible) $("transformer").title = answer.message;
         if (answer.travail && answer.travail.etat === "en_cours") follow();
       });
       refreshReplacements();
 
-      fetch("/api/selection").then((r) => r.json()).then((answer) => {
+      fetch(BASE + "/api/selection").then((r) => r.json()).then((answer) => {
         $("choisir").hidden = false;
         $("mes-selections").hidden = false;
         if (!answer.disponible) $("choisir").title = answer.message;

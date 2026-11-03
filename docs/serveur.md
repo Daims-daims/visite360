@@ -58,6 +58,18 @@ visite360 serveur --local
 
 Le serveur affiche son adresse, par exemple `http://192.168.1.20:8080`. L'espace web s'ouvre à cette adresse, sur le Mac ou sur un téléphone du même Wi-Fi. Pour l'app, mettre cette adresse dans `app/Config/Local.xcconfig` (voir `docs/app.md`), puis réinstaller l'app.
 
+## Modifier une visite en ligne (étape 15)
+
+Dans l'espace web, une visite prête a un bouton **Modifier**. Il ouvre `/atelier/<visite>/` : la même visionneuse que `/agent` sur le Mac, avec les mêmes outils (sélection d'une surface au clic, changement de couleur, remplacement d'un objet, mesure de la pièce, chiffrage et grille de prix). Il faut être connecté : sans session, la page renvoie à l'espace.
+
+Comment ça marche, en clair : le serveur recopie la visite dans un dossier de travail temporaire (les panoramas viennent du stockage privé et ne sont jamais réécrits), fait tourner les mêmes outils que sur le Mac, puis range dans le stockage privé ce qu'ils ont produit : les sélections, les couleurs et les remplacements d'objets de chaque point, et la mesure de la pièce. Si le serveur s'éteint, la visite et ses modifications reviennent du stockage à la demande suivante. La sélection (SAM 2.1) tourne sur le processeur du serveur : 2 à 5 secondes la première fois (chargement du modèle), puis quasi instantanée (estimation, mesurée seulement sur le Mac). Le remplacement d'objet passe par la carte graphique de l'étape 14, comme depuis le Mac.
+
+La **grille de prix** est celle de l'agent : la changer vaut pour toutes ses visites.
+
+Pour que le client voie les modifications, cliquer sur **Mettre à jour le lien** : la visite publiée est refaite avec le panorama modifié de chaque point (bouton « Voir les modifications ») et le chiffrage en fourchette. Le lien ne change pas. Le client ne peut rien modifier. Les photos d'origine, les masques et les fiches de travail ne sont jamais publiés.
+
+Sur le Mac, `visite360 serveur --local` offre le même atelier, avec SAM 2.1 et la génération installés sur le Mac.
+
 ## Mettre en ligne chez Scaleway, une fois
 
 Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'étape 12, région **Paris (fr-par)**. Les noms entre chevrons sont à choisir.
@@ -88,7 +100,7 @@ Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'éta
      Le script télécharge la dernière image réussie de la branche courante, la charge et l'envoie chez Scaleway. **La clé de Scaleway reste sur le Mac** : GitHub n'en reçoit aucune (D37).
    - **Sur le Mac seulement**, avec Podman (secours) : `bash deploiement/construire.sh rg.fr-par.scw.cloud/<espace>`. OpenCV est compilé par émulation : de une heure à plusieurs heures selon l'émulateur (estimation). Donner d'abord 8 Go à la machine virtuelle de Podman (2 Go par défaut, trop peu) : `podman machine stop && podman machine set --memory 8192 && podman machine start`. Sinon la compilation s'arrête avec « Killed signal terminated program cc1plus », ce qui veut dire mémoire pleine ; le script le vérifie avant de commencer.
 9. **Tâche d'assemblage** : Serverless → Jobs → créer `visite360-assemblage` avec l'image envoyée, la commande `visite360 traiter`, 4 vCPU, 12 Go de mémoire, durée maximale 6 h. Ajouter une programmation quotidienne (par exemple `0 4 * * *`), puis les variables du tableau ci-dessous, sauf `VISITE360_JOB` et les réglages SMTP. Noter l'identifiant de la tâche.
-10. **Serveur** : Serverless → Containers → créer `visite360-serveur` avec la même image, port 8080, minimum 0 et maximum 2 copies, 1 vCPU et 1 Go de mémoire, rattaché au réseau privé `visite360`. Ajouter toutes les variables du tableau. Dans « Custom domains », ajouter `api.hesti-scan.fr` et créer l'enregistrement DNS demandé. Scaleway fournit le certificat HTTPS.
+10. **Serveur** : Serverless → Containers → créer `visite360-serveur` avec la même image, port 8080, minimum 0 et maximum 2 copies, 2 vCPU et 4 Go de mémoire (SAM 2.1 tourne sur le processeur du serveur depuis l'étape 15), rattaché au réseau privé `visite360`. Ajouter toutes les variables du tableau. Dans « Custom domains », ajouter `api.hesti-scan.fr` et créer l'enregistrement DNS demandé. Scaleway fournit le certificat HTTPS.
 11. **Premier agent**, sur le Mac : ajouter la clé `"base": "<adresse de la base>"` dans `~/.config/visite360/scaleway.json`, puis `visite360 compte ajouter <votre adresse>`.
 
 ### Réglages (variables d'environnement)
