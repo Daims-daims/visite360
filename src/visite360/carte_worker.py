@@ -50,8 +50,11 @@ class DiffusersModel:
         from diffusers import Flux2KleinPipeline  # type: ignore[import-not-found]  # noqa: PLC0415
 
         self.torch = torch
+        # Les cartes d'avant 2020 (P100 du RENDER-S) ne calculent pas bien en bfloat16.
+        major, _ = torch.cuda.get_device_capability()
+        dtype = torch.bfloat16 if major >= 8 else torch.float16
         self.pipeline = Flux2KleinPipeline.from_pretrained(
-            generation.REPOSITORY, revision=generation.REVISION, torch_dtype=torch.bfloat16
+            generation.REPOSITORY, revision=generation.REVISION, torch_dtype=dtype
         ).to("cuda")
 
     def __call__(self, image: np.ndarray, prompt: str, seed: int) -> np.ndarray:
