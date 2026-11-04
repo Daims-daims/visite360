@@ -308,6 +308,38 @@ def test_viewer_uses_the_card_when_it_is_set(tmp_path: Path) -> None:
     assert jobs.unavailable is None
 
 
+# --- Création de l'instance chez Scaleway ----------------------------------------------------
+
+
+def test_instance_gets_a_public_address_so_it_can_delete_itself(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str, object]] = []
+
+    def fake_call(self, method, path, body=None):  # type: ignore[no-untyped-def]
+        calls.append((method, path, body))
+        return {"server": {"id": "abc", "state": "starting"}}
+
+    monkeypatch.setattr(carte.ScalewayProvider, "_call", fake_call)
+    carte.ScalewayProvider(settings(security_group="groupe-id")).create()
+    body = calls[0][2]
+    assert isinstance(body, dict)
+    assert body["dynamic_ip_required"] is True and body["security_group"] == "groupe-id"
+    assert ("POST", "/servers/abc/private_nics", {"private_network_id": "reseau-id"}) in calls
+
+
+def test_security_group_is_optional(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, str, object]] = []
+
+    def fake_call(self, method, path, body=None):  # type: ignore[no-untyped-def]
+        calls.append((method, path, body))
+        return {"server": {"id": "abc", "state": "starting"}}
+
+    monkeypatch.setattr(carte.ScalewayProvider, "_call", fake_call)
+    carte.ScalewayProvider(settings()).create()
+    assert "security_group" not in calls[0][2]  # type: ignore[operator]
+
+
 # --- Réglages -------------------------------------------------------------------------------
 
 BASE_ENV = {
@@ -331,6 +363,7 @@ def test_defaults_and_overrides() -> None:
     assert result is not None
     assert result.commercial_type == "L4-1-24G"
     assert result.cap_eur == 12.5 and result.idle_s == 300
+    assert result.security_group == ""
 
 
 @pytest.mark.parametrize("missing", ["VISITE360_CARTE_RESEAU", "VISITE360_CARTE_SECRET"])

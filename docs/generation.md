@@ -142,7 +142,8 @@ Sur le serveur (variables d'environnement du conteneur) :
 | `VISITE360_CARTE_PROJET` | identifiant du projet Scaleway |
 | `VISITE360_CARTE_RESEAU` | identifiant du réseau privé (obligatoire) |
 | `VISITE360_CARTE_SECRET` | secret partagé entre le serveur et la carte (secret du conteneur) |
-| `VISITE360_CARTE_TYPE` | type d'instance (défaut `L4-1-24G`) |
+| `VISITE360_CARTE_TYPE` | type d'instance (défaut `L4-1-24G`, `RENDER-S` pour la P100) |
+| `VISITE360_CARTE_GROUPE_SECURITE` | identifiant d'un groupe de sécurité Scaleway qui bloque les connexions entrantes venues d'Internet (facultatif, recommandé) |
 | `VISITE360_CARTE_PRIX_HEURE` | prix à l'heure pour le décompte (défaut 0,7875) |
 | `VISITE360_CARTE_PLAFOND` | plafond mensuel en euros (défaut 30) |
 | `VISITE360_CARTE_ATTENTE_MIN` | minutes sans demande avant suppression (défaut 10) |
@@ -154,11 +155,21 @@ La carte lit les mêmes variables, plus `SCW_SECRET_KEY` (clé limitée à la su
 ### Préparer l'image système, une fois
 
 1. Créer une instance `L4-1-24G` avec une image Ubuntu GPU, dans le réseau privé `visite360`.
-2. Y installer le projet, `torch` (avec ses bibliothèques CUDA), `diffusers` (version de développement, comme l'indique la fiche du modèle), `Pillow`, et télécharger les poids FLUX.2 klein 4B (révision de `generation.py`).
+2. Y installer le projet, `torch` (avec ses bibliothèques CUDA ; sur une P100, `torch` 2.14 depuis l'index CUDA 12.6 de PyTorch, les versions plus récentes ne gèrent plus les cartes Pascal), `diffusers` (version de développement, comme l'indique la fiche du modèle), `Pillow`, et télécharger les poids FLUX.2 klein 4B (révision de `generation.py`).
 3. Faire lancer `visite360 carte-serveur` au démarrage (service systemd), avec les variables ci-dessus.
 4. En faire une image dans la console Scaleway, supprimer l'instance, et mettre l'identifiant de l'image dans `VISITE360_CARTE_IMAGE`.
 
 ### Ce qui n'est pas vérifié
 
 L'API d'instances de Scaleway, la liaison au réseau privé, l'adresse privée lue sur l'instance, le chargement du modèle par `diffusers` sur la carte, le temps de démarrage à froid et le coût réel d'une séance : tout cela demande le quota GPU du compte et se mesure pendant la validation de l'étape. Les tests automatiques simulent Scaleway et le modèle.
+
+### Avec un RENDER-S (carte P100, 16 Go)
+
+Choix du propriétaire du 2026-11-04 : seul le RENDER-S est accessible pour l'instant, démarrage à froid uniquement. Réglages : `VISITE360_CARTE_TYPE=RENDER-S` et `VISITE360_CARTE_PRIX_HEURE=1.2426` (pour que le plafond compte le bon tarif, d'après la FAQ de Scaleway, à vérifier dans la console).
+
+- **Adresse publique et groupe de sécurité.** L'instance est créée avec une adresse publique, sinon elle ne pourrait pas appeler Scaleway pour se supprimer et resterait facturée. Créer dans la console un groupe de sécurité qui refuse les connexions entrantes et mettre son identifiant dans `VISITE360_CARTE_GROUPE_SECURITE`. Le serveur du projet parle à la carte par le réseau privé, que ce groupe ne bloque pas (à vérifier à l'essai).
+- **Type de calcul.** La P100 ne calcule pas bien en `bfloat16` : le programme de la carte passe en `float16` sur les cartes d'avant 2020. Les images noires ou abîmées seraient le signe d'un dépassement de capacité de ce format.
+- **Mémoire.** Le modèle demande environ 13 Go sur 16 : une vue de 1024 pixels peut faire échouer le calcul faute de mémoire.
+- **Vitesse.** Plus lente que le L4 (non mesurée).
+- **Rupture de stock.** Aucune carte de secours ni file d'attente n'est prévue pour l'instant : si Scaleway n'a pas de RENDER-S libre à la création, la génération échoue avec un message clair (et retombe sur le Mac, s'il est installé). À reprendre avant le jalon v1 (le serveur ne doit pas dépendre d'un Mac allumé).
 

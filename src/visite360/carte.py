@@ -67,6 +67,8 @@ class Settings:
     worker_secret: str
     network: str
     commercial_type: str = DEFAULT_TYPE
+    # Groupe de sécurité qui bloque les connexions entrantes venues d'Internet (facultatif).
+    security_group: str = ""
     price_per_hour: float = DEFAULT_PRICE_PER_HOUR
     cap_eur: float = DEFAULT_CAP_EUR
     idle_s: int = DEFAULT_IDLE_S
@@ -106,6 +108,7 @@ def from_env(environ: Mapping[str, str]) -> Settings | None:
         # Sans réseau privé, les vues voyageraient en clair sur Internet : refusé.
         network=required("VISITE360_CARTE_RESEAU", "réseau privé reliant le serveur et la carte"),
         commercial_type=environ.get("VISITE360_CARTE_TYPE", "").strip() or DEFAULT_TYPE,
+        security_group=environ.get("VISITE360_CARTE_GROUPE_SECURITE", "").strip(),
         price_per_hour=_number(environ, "VISITE360_CARTE_PRIX_HEURE", DEFAULT_PRICE_PER_HOUR),
         cap_eur=_number(environ, "VISITE360_CARTE_PLAFOND", DEFAULT_CAP_EUR),
         idle_s=int(_number(environ, "VISITE360_CARTE_ATTENTE_MIN", DEFAULT_IDLE_S / 60) * 60),
@@ -183,18 +186,20 @@ class ScalewayProvider:
 
     def create(self) -> Machine:
         settings = self.settings
-        created = self._call(
-            "POST",
-            "/servers",
-            {
-                "name": MACHINE_NAME,
-                "commercial_type": settings.commercial_type,
-                "image": settings.image,
-                "project": settings.project,
-                "dynamic_ip_required": False,
-                "tags": ["visite360", "carte"],
-            },
-        )["server"]
+        body: dict[str, Any] = {
+            "name": MACHINE_NAME,
+            "commercial_type": settings.commercial_type,
+            "image": settings.image,
+            "project": settings.project,
+            # Une adresse publique est nécessaire pour que la carte puisse appeler Scaleway et se
+            # supprimer (sans elle, elle resterait allumée et facturée). Le groupe de sécurité
+            # bloque les connexions entrantes venues d'Internet.
+            "dynamic_ip_required": True,
+            "tags": ["visite360", "carte"],
+        }
+        if settings.security_group:
+            body["security_group"] = settings.security_group
+        created = self._call("POST", "/servers", body)["server"]
         machine_id = created["id"]
         try:
             self._call(
