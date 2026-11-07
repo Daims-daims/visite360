@@ -112,6 +112,23 @@ function render(visits) {
 
     const actions = document.createElement("div");
     actions.className = "actions";
+    if (visit.etat === "prete") {
+      // Étape 15 : les outils de modification (couleur, objets, mesure, chiffrage) en ligne.
+      const edit = document.createElement("a");
+      edit.className = "bouton";
+      edit.href = `/atelier/${visit.id}/`;
+      edit.target = "_blank";
+      edit.rel = "noopener";
+      edit.textContent = "Modifier";
+      actions.append(edit);
+    }
+    if (visit.lien && visit.etat === "prete") {
+      actions.append(button("Mettre à jour le lien", async () => {
+        await api("POST", `/api/visites/${visit.id}/publier`);
+        say("Mise à jour lancée : le lien reste le même et montre bientôt les modifications.");
+        await refresh();
+      }));
+    }
     if (visit.lien) {
       actions.append(button("Dépublier", async () => {
         if (!confirm(`Retirer « ${visit.nom} » d'Internet ? Le lien n'affichera plus rien.`)) return;

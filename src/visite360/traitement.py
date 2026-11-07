@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, TextIO
 
-from visite360 import capture, publier, serve, stitch, visite
+from visite360 import atelier, capture, chiffrage, publier, selection, serve, stitch, visite
 from visite360.depot import Depot, DepotError
 from visite360.opencv import OpenCVError
 from visite360.photos import PhotoError
@@ -212,8 +212,28 @@ def assemble(context: Context, job: Job, visit: Visit) -> str:
                 depot.put(prefix + name, data, kind)
             shutil.rmtree(point.folders.photos, ignore_errors=True)
             shutil.rmtree(point.folders.cache, ignore_errors=True)
+        restore_modifications(context, visit, folder, stored)
         registre.progress(job.id, "Publication de la visite")
         return publish(context, visit, tour, folder)
+
+
+def restore_modifications(
+    context: Context, visit: Visit, folder: Path, stored: Mapping[str, str]
+) -> None:
+    """Remet dans le dossier de travail les modifications de l'agent (étape 15) : celles que
+    l'atelier a rangées à côté de la visite, et la grille de prix de l'agent. La publication
+    en tire les images modifiées et le chiffrage."""
+    prefix = f"{visit.id}/"
+    for key in sorted(context.depot.list(prefix)):
+        rel = key[len(prefix) :]
+        if atelier.SYNCED.fullmatch(rel):
+            _download(context, visit, rel, folder)
+    grid = context.registre.grid(visit.agent_id)
+    path = chiffrage.grid_path(folder)
+    if grid is not None:
+        selection.write_atomic(path, grid.encode("utf-8"))
+    else:
+        path.unlink(missing_ok=True)
 
 
 def publish(context: Context, visit: Visit, tour: visite.Tour, folder: Path) -> str:

@@ -257,6 +257,7 @@ def build_assets(
         raise ServeError(str(error)) from error
     assets: dict[str, Asset] = {}
     points = []
+    painter = couleur.Painter(MOBILE_WIDTH)
     for index, point in enumerate(tour.points):
         folders = point.folders
         if not folders.panorama.is_file():
@@ -267,23 +268,35 @@ def build_assets(
         prefix = f"{root}p/{index}"
         assets[f"{prefix}/panorama.jpg"] = Asset(folders.panorama, "image/jpeg")
         assets[f"{prefix}/panorama-mobile.jpg"] = Asset(mobile, "image/jpeg")
-        points.append(
-            {
-                "id": point.id,
-                "name": point.name,
-                "full": {"url": f"{prefix}/panorama.jpg", "width": full_width},
-                "mobile": {"url": f"{prefix}/panorama-mobile.jpg", "width": mobile_width},
-                "links": [
-                    {
-                        "to": link.target,
-                        "angle": link.angle,
-                        "pitch": link.pitch,
-                        "text": link.text,
-                    }
-                    for link in tour.links_from(point.id)
-                ],
-            }
-        )
+        entry: dict[str, Any] = {
+            "id": point.id,
+            "name": point.name,
+            "full": {"url": f"{prefix}/panorama.jpg", "width": full_width},
+            "mobile": {"url": f"{prefix}/panorama-mobile.jpg", "width": mobile_width},
+            "links": [
+                {
+                    "to": link.target,
+                    "angle": link.angle,
+                    "pitch": link.pitch,
+                    "text": link.text,
+                }
+                for link in tour.links_from(point.id)
+            ],
+        }
+        if published:
+            # Étape 15 : le panorama modifié et sa version, pour la bascule avant et après.
+            version = painter.state(folders.point, folders.panorama)["version"]
+            if version:
+                full = painter.after(folders.point, folders.panorama, mobile=False)
+                small = painter.after(folders.point, folders.panorama, mobile=True)
+                assets[f"{prefix}/apres.jpg"] = Asset(full, "image/jpeg")
+                assets[f"{prefix}/apres-mobile.jpg"] = Asset(small, "image/jpeg")
+                entry["apres"] = {
+                    "version": version,
+                    "full": f"{prefix}/apres.jpg",
+                    "mobile": f"{prefix}/apres-mobile.jpg",
+                }
+        points.append(entry)
     info: dict[str, Any] = {"name": tour.name, "start": tour.start, "points": points}
     if published:
         info["publiee"] = True
@@ -514,6 +527,146 @@ def handle_pricing(
     return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
 
 
+GET_ROUTES = ("/api/selection", "/api/generation", "/api/chiffrage", "/api/tarifs")
+POST_PREFIXES = (
+    "/api/selection/",
+    "/api/couleur/",
+    "/api/generation/",
+    "/api/piece/",
+    "/api/chiffrage/",
+    "/api/tarifs/",
+)
+
+
+def tool_error(error: Exception) -> tuple[int, str]:
+    """Code HTTP et message en français pour une erreur d'outil, ou une erreur imprévue."""
+    if isinstance(error, RequestError):
+        return error.status, str(error)
+    if isinstance(
+        error,
+        (
+            selection.SelectionError,
+            couleur.ColorError,
+            generation.GenerationError,
+            piece.PieceError,
+            chiffrage.ChiffrageError,
+        ),
+    ):
+        return 400, str(error)
+    if isinstance(error, (segment.SegmentError, OpenCVError)):
+        print(f"Erreur : {error}", file=sys.stderr)
+        return 503, str(error)
+    print(f"Erreur inattendue : {error!r}", file=sys.stderr)
+    return 500, f"Erreur inattendue : {error}"
+
+
+class Tools:
+    """Outils de modification d'une visite (étapes 7 à 11) : sélection, couleur, génération,
+    mesure de la pièce, chiffrage. Indépendants du protocole : `serve` les sert sur le Mac, le
+    serveur du projet les sert en ligne (`atelier.py`, étape 15), avec les mêmes routes."""
+
+    def __init__(
+        self,
+        tour: visite.Tour,
+        selector: selection.Selector,
+        generations: generation.Generations,
+        painter: couleur.Painter,
+    ) -> None:
+        self.tour = tour
+        self.selector = selector
+        self.generations = generations
+        self.painter = painter
+
+    @staticmethod
+    def is_get(path: str) -> bool:
+        return path in GET_ROUTES or any(
+            route.match(path)
+            for route in (SELECTIONS_PATH, PREVIEW_PATH, COLORS_PATH, AFTER_PATH, PIECE_PATH)
+        )
+
+    @staticmethod
+    def is_post(path: str) -> bool:
+        return path.startswith(POST_PREFIXES)
+
+    @staticmethod
+    def _json(result: Any) -> tuple[bytes, str]:
+        return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
+
+    def get(self, path: str) -> tuple[bytes, str]:
+        """Contenu d'une route GET d'outil (voir `is_get`)."""
+        if path == "/api/selection":
+            message = self.selector.unavailable
+            return self._json({"disponible": message is None, "message": message})
+        if path == "/api/generation":
+            return self._json(self.generations.state())
+        if SELECTIONS_PATH.match(path) or PREVIEW_PATH.match(path):
+            return self._selection_file(path)
+        if COLORS_PATH.match(path) or AFTER_PATH.match(path):
+            return self._color_file(path)
+        if PIECE_PATH.match(path):
+            return self._piece_file(path)
+        if path == "/api/chiffrage":
+            return self._json(estimate(self.tour))
+        grid, default = chiffrage.load_grid(tour_folder(self.tour))
+        return self._json({"tarifs": grid, "par_defaut": default})
+
+    def post(self, path: str, body: dict[str, Any]) -> tuple[bytes, str]:
+        """Réponse à une route POST d'outil (voir `is_post`)."""
+        route = path.rsplit("/", 1)[1]
+        if path.startswith("/api/selection/"):
+            return handle_selection(self.selector, route, body)
+        if path.startswith("/api/couleur/"):
+            return handle_color(self.selector, route, body)
+        if path.startswith("/api/generation/"):
+            return handle_generation(self.generations, self.selector, route, body)
+        if path.startswith("/api/piece/"):
+            return handle_piece(self.selector, route, body)
+        return handle_pricing(self.tour, self.selector, path, body)
+
+    def _selection_file(self, path: str) -> tuple[bytes, str]:
+        listing = SELECTIONS_PATH.match(path)
+        match = listing or PREVIEW_PATH.match(path)
+        assert match is not None
+        folders = self.selector.point(int(match.group(1))).folders
+        if listing:
+            return self._json(selection.list_all(folders.point, folders.panorama))
+        image = selection.preview(folders.point, folders.panorama, match.group(2))
+        return image.read_bytes(), "image/jpeg"
+
+    def _color_file(self, path: str) -> tuple[bytes, str]:
+        listing = COLORS_PATH.match(path)
+        match = listing or AFTER_PATH.match(path)
+        assert match is not None
+        folders = self.selector.point(int(match.group(1))).folders
+        if listing:
+            return self._json(self.painter.state(folders.point, folders.panorama))
+        mobile = match.group(2) == "apres-mobile"
+        return self.painter.after(
+            folders.point, folders.panorama, mobile
+        ).read_bytes(), "image/jpeg"
+
+    def _piece_file(self, path: str) -> tuple[bytes, str]:
+        match = PIECE_PATH.match(path)
+        assert match is not None
+        folders = self.selector.point(int(match.group(1))).folders
+        if match.group(2) == "jpg":
+            image = piece.contour(folders.point, folders.panorama, MOBILE_WIDTH)
+            return image.read_bytes(), "image/jpeg"
+        return self._json(
+            {
+                "piece": piece.load(folders.point, folders.panorama),
+                "hauteur_objectif_app_m": piece.lens_height(folders.point),
+            }
+        )
+
+
+def default_tools(tour: visite.Tour, environ: Mapping[str, str] | None = None) -> Tools:
+    """Outils avec SAM 2.1 et la génération réglés par défaut (serveur local, étape 15)."""
+    selector = default_selector(tour)
+    painter = couleur.Painter(MOBILE_WIDTH)
+    return Tools(tour, selector, default_generations(tour, painter, selector, environ), painter)
+
+
 def make_server(
     tour: visite.Tour,
     host: str,
@@ -534,6 +687,7 @@ def make_server(
     selector = selector or default_selector(tour)
     painter = couleur.Painter(MOBILE_WIDTH)
     generations = generations or default_generations(tour, painter, selector)
+    tools = Tools(tour, selector, generations, painter)
     if tour_needs_generation(tour, force):
         for point in tour.points:
             if needs_generation(point.folders, force):
@@ -548,30 +702,8 @@ def make_server(
             if path == "/status.json":
                 self._send(json.dumps(visit.status()).encode("utf-8"), JSON)
                 return
-            if path == "/api/selection":
-                message = selector.unavailable
-                state = {"disponible": message is None, "message": message}
-                self._send(json.dumps(state, ensure_ascii=False).encode("utf-8"), JSON)
-                return
-            if path == "/api/generation":
-                self._send(
-                    json.dumps(generations.state(), ensure_ascii=False).encode("utf-8"), JSON
-                )
-                return
-            if SELECTIONS_PATH.match(path) or PREVIEW_PATH.match(path):
-                self._answer(lambda: self._selection_file(path))
-                return
-            if COLORS_PATH.match(path) or AFTER_PATH.match(path):
-                self._answer(lambda: self._color_file(path))
-                return
-            if PIECE_PATH.match(path):
-                self._answer(lambda: self._piece_file(path))
-                return
-            if path == "/api/chiffrage":
-                self._answer(lambda: self._json(estimate(tour)))
-                return
-            if path == "/api/tarifs":
-                self._answer(lambda: self._grid())
+            if tools.is_get(path):
+                self._answer(lambda: tools.get(path))
                 return
             info, asset = visit.lookup(path)
             if info is not None:
@@ -585,17 +717,8 @@ def make_server(
 
         def do_POST(self) -> None:
             path = self.path.split("?", 1)[0]
-            route = path.rsplit("/", 1)[1]
-            if path.startswith("/api/selection/"):
-                self._answer(lambda: handle_selection(selector, route, self._body()))
-            elif path.startswith("/api/couleur/"):
-                self._answer(lambda: handle_color(selector, route, self._body()))
-            elif path.startswith("/api/generation/"):
-                self._answer(lambda: handle_generation(generations, selector, route, self._body()))
-            elif path.startswith("/api/piece/"):
-                self._answer(lambda: handle_piece(selector, route, self._body()))
-            elif path.startswith(("/api/chiffrage/", "/api/tarifs/")):
-                self._answer(lambda: handle_pricing(tour, selector, path, self._body()))
+            if tools.is_post(path):
+                self._answer(lambda: tools.post(path, self._body()))
             else:
                 self.send_error(404, "Introuvable")
 
@@ -605,22 +728,8 @@ def make_server(
                 if visit.status()["status"] != "ready":
                     raise RequestError(409, "La visite n'est pas encore prête.")
                 data, kind = produce()
-            except RequestError as error:
-                self._send_error(error.status, str(error))
-            except (
-                selection.SelectionError,
-                couleur.ColorError,
-                generation.GenerationError,
-                piece.PieceError,
-                chiffrage.ChiffrageError,
-            ) as error:
-                self._send_error(400, str(error))
-            except (segment.SegmentError, OpenCVError) as error:
-                print(f"Erreur : {error}", file=sys.stderr)
-                self._send_error(503, str(error))
             except Exception as error:  # le serveur doit répondre, même à une erreur imprévue
-                print(f"Erreur inattendue : {error!r}", file=sys.stderr)
-                self._send_error(500, f"Erreur inattendue : {error}")
+                self._send_error(*tool_error(error))
             else:
                 self._send(data, kind)
 
@@ -638,48 +747,6 @@ def make_server(
             if not isinstance(body, dict):
                 raise RequestError(400, "Requête illisible : objet JSON attendu.")
             return body
-
-        def _selection_file(self, path: str) -> tuple[bytes, str]:
-            listing = SELECTIONS_PATH.match(path)
-            match = listing or PREVIEW_PATH.match(path)
-            assert match is not None
-            folders = selector.point(int(match.group(1))).folders
-            if listing:
-                records = selection.list_all(folders.point, folders.panorama)
-                return json.dumps(records, ensure_ascii=False).encode("utf-8"), JSON
-            image = selection.preview(folders.point, folders.panorama, match.group(2))
-            return image.read_bytes(), "image/jpeg"
-
-        def _color_file(self, path: str) -> tuple[bytes, str]:
-            listing = COLORS_PATH.match(path)
-            match = listing or AFTER_PATH.match(path)
-            assert match is not None
-            folders = selector.point(int(match.group(1))).folders
-            if listing:
-                state = painter.state(folders.point, folders.panorama)
-                return json.dumps(state, ensure_ascii=False).encode("utf-8"), JSON
-            mobile = match.group(2) == "apres-mobile"
-            return painter.after(folders.point, folders.panorama, mobile).read_bytes(), "image/jpeg"
-
-        def _piece_file(self, path: str) -> tuple[bytes, str]:
-            match = PIECE_PATH.match(path)
-            assert match is not None
-            folders = selector.point(int(match.group(1))).folders
-            if match.group(2) == "jpg":
-                image = piece.contour(folders.point, folders.panorama, MOBILE_WIDTH)
-                return image.read_bytes(), "image/jpeg"
-            state = {
-                "piece": piece.load(folders.point, folders.panorama),
-                "hauteur_objectif_app_m": piece.lens_height(folders.point),
-            }
-            return json.dumps(state, ensure_ascii=False).encode("utf-8"), JSON
-
-        def _json(self, result: Any) -> tuple[bytes, str]:
-            return json.dumps(result, ensure_ascii=False).encode("utf-8"), JSON
-
-        def _grid(self) -> tuple[bytes, str]:
-            grid, default = chiffrage.load_grid(tour_folder(tour))
-            return self._json({"tarifs": grid, "par_defaut": default})
 
         def _send_error(self, status: int, message: str) -> None:
             data = json.dumps({"erreur": message}, ensure_ascii=False).encode("utf-8")

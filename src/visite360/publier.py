@@ -43,7 +43,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, TextIO
 
-from visite360 import serve, stitch, visite
+from visite360 import chiffrage, serve, stitch, visite
 from visite360.photos import PhotoError
 
 CONFIG_PATH = Path.home() / ".config" / "visite360" / "scaleway.json"
@@ -398,6 +398,16 @@ def published_files(tour: visite.Tour) -> list[File]:
     for name in ("pannellum/pannellum.js", "pannellum/pannellum.css"):
         files.append(File(name, (viewer / name).read_bytes(), _content_type(name)))
     files.append(File("status.json", json.dumps(READY).encode("utf-8"), serve.JSON))
+    # Étape 15 : le chiffrage en fourchette des modifications, s'il y en a (D42).
+    try:
+        pricing = serve.estimate(tour)
+    except chiffrage.ChiffrageError as error:
+        raise PublishError(f"Chiffrage impossible : {error}") from None
+    if any(block["lignes"] for block in pricing["points"]):
+        data = json.dumps(pricing, ensure_ascii=False).encode("utf-8")
+        files.append(File("chiffrage.json", data, serve.JSON))
+        described = {**json.loads(info), "chiffrage": "chiffrage.json"}
+        info = json.dumps(described, ensure_ascii=False).encode("utf-8")
     files.append(File("info.json", info, serve.JSON))
     page = (viewer / "index.html").read_bytes()
     files.append(File("index.html", page, _content_type("index.html")))

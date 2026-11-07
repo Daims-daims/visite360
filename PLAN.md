@@ -37,7 +37,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 13 | Envoi depuis l'app et assemblage sur serveur | v1 | livrée |
 | 13 bis | Déploiement automatique à la fusion sur `main` | v1 | livrée |
 | 14 | Génération d'image sur une carte graphique louée | v1 | en cours |
-| 15 | Modifications et chiffrage en ligne | v1 | à faire |
+| 15 | Modifications et chiffrage en ligne | v1 | en cours |
 | 16 | Retours d'engagement pour l'agent | v1 | à faire |
 | J4 | **Jalon v1 : présentation aux agents et premiers accès** | — | à faire |
 
@@ -221,14 +221,14 @@ Les coûts d'hébergement commencent à l'étape 12, ceux du serveur à l'étape
 - **Contenu :** les outils réservés jusqu'ici au Mac passent sur le serveur, dans l'espace web de l'agent connecté : sélection au clic (étape 7), changement de couleur (étape 8), remplacement d'un objet sur la carte graphique de l'étape 14, dimensions des pièces (étape 10) et chiffrage (étape 11). La visite publiée gagne les modifications de l'agent, la bascule avant et après, et le chiffrage en fourchette. Le client regarde, il ne modifie rien. Le mode `/agent` en ligne exige d'être connecté.
 - **Tests automatiques :** mêmes fiches de modification en local et sur le serveur ; un visiteur non connecté n'atteint aucune route d'écriture ; liste des fichiers d'une visite publiée avec modifications, sans photo d'origine ni fichier de travail. Les modèles sont simulés.
 - **Validation :** sur l'appartement du propriétaire, depuis un navigateur hors du Wi-Fi du Mac : un mur repeint, un meuble remplacé, une pièce mesurée et chiffrée, avec un résultat aussi bon que sur le Mac ; puis le tout vu par le lien sur un téléphone en 4G. Coût du mois noté.
-- **À trancher avant l'étape :** SAM 2 sur la carte graphique de l'étape 14 ou sur le processeur du serveur.
-- **À trancher pendant l'étape :** grille de prix propre à chaque agent plutôt qu'à chaque visite (question ouverte de l'étape 11).
+- **Tranché le 2026-11-03 (D42) :** SAM 2.1 sur le processeur du serveur, pas sur la carte graphique (qui reste réservée à la génération). Grille de prix propre à chaque agent, rangée dans la base (question ouverte de l'étape 11). Étape démarrée avant que l'étape 14 soit « livrée » (validation sur vraie carte en attente du quota GPU Scaleway), sur demande du propriétaire : le remplacement d'objet en ligne est donc testé avec un modèle simulé, et sa validation sur la vraie carte reste à faire avec celle de l'étape 14.
 
 ### Étape 16 : retours d'engagement pour l'agent
 
 - **Contenu :** pour une même visite, l'agent crée un lien par client, avec un libellé de son choix. Pour chaque lien, il voit dans son espace : nombre d'ouvertures et leurs dates, durée, pièces vues et temps passé dans chacune, modifications regardées (bascule avant et après), chiffrage ouvert. La page publiée envoie ces mesures au serveur pendant la consultation. À l'ouverture, le client est informé de la mesure et peut la refuser : la visite fonctionne alors sans rien envoyer. Supprimer un lien ne touche pas les autres liens de la visite.
 - **Tests automatiques :** mesures reçues, rangées par lien et totalisées ; rien n'est envoyé après un refus ; un agent ne voit que les liens de ses visites ; lien supprimé ; mesures mal formées ou envoyées en rafale refusées.
 - **Validation :** le propriétaire ouvre deux liens d'une même visite sur deux téléphones, accepte la mesure sur l'un et la refuse sur l'autre. L'espace agent montre les pièces vues et les durées du premier, et rien du second.
+- **Demande du propriétaire, 2026-11-03 (à intégrer à l'étape, avec D43 au début de l'étape) :** le client qui a un lien peut **modifier** la visite lui-même (couleurs et remplacement d'objet), et pas seulement la regarder. Cela change la règle de l'étape 15 (« le client regarde, il ne modifie rien », D42). Choix faits : modifications **à part, par lien** (celles de l'agent et des autres clients ne bougent pas, l'agent les voit et peut les effacer) ; **couleurs et remplacement d'objet**, ni mesure de la pièce ni grille de prix. À trancher au début de l'étape : le lien de consultation actuel (public, sans compte) devient-il un lien qui écrit, ou un lien de modification à part ; limite de générations par lien et par jour, car chacune coûte sur la carte graphique et vient du plafond de 30 € par mois partagé avec l'agent ; ce que le client voit du chiffrage ; durée de conservation des modifications des clients (données de clients, même question RGPD que ci-dessous).
 - **À trancher avant l'étape (RGPD, à faire vérifier) :** base légale de la mesure et texte d'information au client : consentement demandé à l'ouverture, ou mesure d'audience dispensée de consentement selon les conditions de la CNIL ; durée de conservation des mesures ; contrat de sous-traitance entre le projet et les agents, qui confient au projet des données de leurs clients et des photos de logements ; détail montré à l'agent (totaux par lien ou chaque consultation).
 - **À trancher pendant l'étape :** stockage des mesures chez Scaleway (base de données gérée ou fichiers) et licence du logiciel ; fréquence d'envoi depuis la page.
 

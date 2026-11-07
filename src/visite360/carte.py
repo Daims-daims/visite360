@@ -384,6 +384,22 @@ class Carte:
         return decode_png(str(answer.get("image", "")))
 
 
+class CarteGenerator:
+    """Générateur du serveur du projet (étape 15) : envoie la vue à la carte, sans passer par le
+    réseau public. L'agent connecté à l'espace web génère comme depuis le Mac."""
+
+    def __init__(self, carte: Carte) -> None:
+        self.carte = carte
+
+    def generate(self, image: np.ndarray, prompt: str, seed: int, progress: Progress) -> np.ndarray:
+        try:
+            result = self.carte.generate(image, prompt, seed)
+        except CarteError as error:
+            raise GenerationError(str(error)) from error
+        progress(generation.STEPS, generation.STEPS)
+        return result
+
+
 # --- Côté Mac : générateur distant avec repli ---------------------------------------------------
 
 
