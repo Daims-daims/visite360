@@ -47,6 +47,9 @@ SESSION_LIFETIME = 90 * 24 * 3600
 STALE_AFTER = 24 * 3600 + 600
 MAX_ATTEMPTS = 3
 PHOTOS_KEPT = 30 * 24 * 3600
+# Étape 16 (D43) : mesures de consultation et modifications des clients gardées 12 mois après la
+# dernière ouverture.
+MEASURES_KEPT = 365 * 24 * 3600
 
 # États d'un traitement.
 WAITING = "en_attente"
@@ -109,6 +112,40 @@ SCHEMA = (
         agent_id TEXT PRIMARY KEY,
         contenu TEXT NOT NULL
     )""",
+    # Étape 16 (D43) : un lien par client, ses consultations et le temps passé dans chaque pièce.
+    # Le jeton est en clair, comme l'identifiant d'une visite publiée : l'agent doit pouvoir
+    # recopier le lien. `ouvert_le` ne sert qu'à l'effacement après 12 mois, il n'est pas montré.
+    """CREATE TABLE IF NOT EXISTS liens (
+        id TEXT PRIMARY KEY,
+        visite_id TEXT NOT NULL,
+        jeton TEXT NOT NULL UNIQUE,
+        libelle TEXT NOT NULL,
+        cree_le BIGINT NOT NULL,
+        ouvert_le BIGINT
+    )""",
+    """CREATE TABLE IF NOT EXISTS consultations (
+        id TEXT PRIMARY KEY,
+        lien_id TEXT NOT NULL,
+        debut_le BIGINT NOT NULL,
+        vue_le BIGINT NOT NULL,
+        secondes BIGINT NOT NULL,
+        chiffrage BIGINT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS consultation_pieces (
+        consultation_id TEXT NOT NULL,
+        point TEXT NOT NULL,
+        secondes BIGINT NOT NULL,
+        bascules BIGINT NOT NULL,
+        PRIMARY KEY (consultation_id, point)
+    )""",
+    """CREATE TABLE IF NOT EXISTS lien_generations (
+        lien_id TEXT NOT NULL,
+        jour TEXT NOT NULL,
+        nombre BIGINT NOT NULL,
+        PRIMARY KEY (lien_id, jour)
+    )""",
+    "CREATE INDEX IF NOT EXISTS liens_visite ON liens (visite_id, cree_le)",
+    "CREATE INDEX IF NOT EXISTS consultations_lien ON consultations (lien_id, debut_le)",
     "CREATE INDEX IF NOT EXISTS traitements_visite ON traitements (visite_id, cree_le)",
     "CREATE INDEX IF NOT EXISTS traitements_etat ON traitements (etat, cree_le)",
 )
@@ -258,6 +295,32 @@ class Job:
     started: int | None
     finished: int | None
 
+
+@dataclass(frozen=True)
+class Link:
+    """Lien d'une visite pour un client (étape 16)."""
+
+    id: str
+    visit_id: str
+    token: str
+    label: str
+    created: int
+    opened: int | None
+
+
+@dataclass(frozen=True)
+class Opening:
+    """Une consultation acceptée par le client : début, dernière mesure, durée vue."""
+
+    id: str
+    started: int
+    seen: int
+    seconds: int
+    pricing: bool
+
+
+LINK_COLUMNS = "id, visite_id, jeton, libelle, cree_le, ouvert_le"
+OPENING_COLUMNS = "id, debut_le, vue_le, secondes, chiffrage"
 
 VISIT_COLUMNS = (
     "id, agent_id, nom, manifeste, cree_le, envoi_fini_le, prete_le, photos_effacees_le, "
@@ -543,6 +606,8 @@ class Registre:
         return [_visit(row) for row in rows]
 
     def delete_visit(self, visit_id: str) -> None:
+        for link in self.links(visit_id):
+            self.delete_link(link.id)
         self._run("DELETE FROM traitements WHERE visite_id = :id", id=visit_id)
         self._run("DELETE FROM visites WHERE id = :id", id=visit_id)
 
@@ -684,4 +749,159 @@ class Registre:
             "ON CONFLICT (agent_id) DO UPDATE SET contenu = :c",
             a=agent_id,
             c=content,
+        )
+
+    # --- Liens des clients et mesures de consultation (étape 16) --------------------------------
+
+    def create_link(self, visit_id: str, label: str) -> Link:
+        link = Link(new_id(), visit_id, secrets.token_urlsafe(16), label, self.now(), None)
+        self._run(
+            f"INSERT INTO liens ({LINK_COLUMNS}) VALUES (:id, :v, :j, :l, :t, NULL)",
+            id=link.id,
+            v=visit_id,
+            j=link.token,
+            l=label,
+            t=link.created,
+        )
+        return link
+
+    def links(self, visit_id: str) -> list[Link]:
+        rows = self._run(
+            f"SELECT {LINK_COLUMNS} FROM liens WHERE visite_id = :v ORDER BY cree_le, libelle",
+            v=visit_id,
+        )
+        return [Link(*row) for row in rows]
+
+    def link(self, link_id: str) -> Link | None:
+        rows = self._run(f"SELECT {LINK_COLUMNS} FROM liens WHERE id = :id", id=link_id)
+        return Link(*rows[0]) if rows else None
+
+    def link_by_token(self, token: str) -> Link | None:
+        rows = self._run(f"SELECT {LINK_COLUMNS} FROM liens WHERE jeton = :j", j=token)
+        return Link(*rows[0]) if rows else None
+
+    def touch_link(self, link_id: str) -> None:
+        """Note l'ouverture de la page, pour l'effacement après 12 mois seulement."""
+        self._run("UPDATE liens SET ouvert_le = :t WHERE id = :id", t=self.now(), id=link_id)
+
+    def forget_measures(self, link_id: str) -> None:
+        self._run(
+            "DELETE FROM consultation_pieces WHERE consultation_id IN "
+            "(SELECT id FROM consultations WHERE lien_id = :l)",
+            l=link_id,
+        )
+        self._run("DELETE FROM consultations WHERE lien_id = :l", l=link_id)
+
+    def delete_link(self, link_id: str) -> None:
+        self.forget_measures(link_id)
+        self._run("DELETE FROM lien_generations WHERE lien_id = :l", l=link_id)
+        self._run("DELETE FROM liens WHERE id = :l", l=link_id)
+
+    def opening(self, opening_id: str) -> tuple[str, Opening] | None:
+        """Lien et état d'une consultation, ou None si elle n'existe pas."""
+        rows = self._run(
+            f"SELECT lien_id, {OPENING_COLUMNS} FROM consultations WHERE id = :id", id=opening_id
+        )
+        if not rows:
+            return None
+        row = rows[0]
+        return str(row[0]), Opening(row[1], row[2], row[3], row[4], bool(row[5]))
+
+    def recent_openings(self, link_id: str, since: int) -> int:
+        rows = self._run(
+            "SELECT COUNT(*) FROM consultations WHERE lien_id = :l AND debut_le >= :t",
+            l=link_id,
+            t=since,
+        )
+        return int(rows[0][0])
+
+    def record(
+        self,
+        link_id: str,
+        opening_id: str,
+        seconds: Mapping[str, int],
+        toggles: Mapping[str, int],
+        pricing: bool,
+    ) -> None:
+        """Ajoute une mesure déjà vérifiée à une consultation, créée à sa première mesure."""
+        now = self.now()
+        total = sum(seconds.values())
+        if self.opening(opening_id) is None:
+            self._run(
+                f"INSERT INTO consultations ({OPENING_COLUMNS}, lien_id) "
+                "VALUES (:id, :t, :t, :s, :c, :l)",
+                id=opening_id,
+                t=now,
+                s=total,
+                c=int(pricing),
+                l=link_id,
+            )
+        else:
+            self._run(
+                "UPDATE consultations SET vue_le = :t, secondes = secondes + :s, "
+                "chiffrage = CASE WHEN :c = 1 THEN 1 ELSE chiffrage END WHERE id = :id",
+                t=now,
+                s=total,
+                c=int(pricing),
+                id=opening_id,
+            )
+        for point in sorted(set(seconds) | set(toggles)):
+            self._run(
+                "INSERT INTO consultation_pieces (consultation_id, point, secondes, bascules) "
+                "VALUES (:o, :p, :s, :b) ON CONFLICT (consultation_id, point) DO UPDATE SET "
+                "secondes = consultation_pieces.secondes + :s, "
+                "bascules = consultation_pieces.bascules + :b",
+                o=opening_id,
+                p=point,
+                s=seconds.get(point, 0),
+                b=toggles.get(point, 0),
+            )
+
+    def openings(self, link_id: str) -> list[Opening]:
+        rows = self._run(
+            f"SELECT {OPENING_COLUMNS} FROM consultations WHERE lien_id = :l "
+            "ORDER BY debut_le DESC",
+            l=link_id,
+        )
+        return [Opening(row[0], row[1], row[2], row[3], bool(row[4])) for row in rows]
+
+    def rooms(self, link_id: str) -> dict[str, tuple[int, int]]:
+        """Pour chaque point : secondes passées et nombre de bascules avant et après."""
+        rows = self._run(
+            "SELECT p.point, SUM(p.secondes), SUM(p.bascules) FROM consultation_pieces p "
+            "JOIN consultations c ON c.id = p.consultation_id WHERE c.lien_id = :l "
+            "GROUP BY p.point",
+            l=link_id,
+        )
+        return {str(row[0]): (int(row[1]), int(row[2])) for row in rows}
+
+    def forget_old_measures(self) -> list[Link]:
+        """Efface les consultations de plus de 12 mois. Renvoie les liens restés sans ouverture
+        depuis 12 mois, dont les modifications du client sont à effacer."""
+        limit = self.now() - MEASURES_KEPT
+        self._run(
+            "DELETE FROM consultation_pieces WHERE consultation_id IN "
+            "(SELECT id FROM consultations WHERE vue_le < :t)",
+            t=limit,
+        )
+        self._run("DELETE FROM consultations WHERE vue_le < :t", t=limit)
+        rows = self._run(
+            f"SELECT {LINK_COLUMNS} FROM liens WHERE COALESCE(ouvert_le, cree_le) < :t", t=limit
+        )
+        return [Link(*row) for row in rows]
+
+    def generations_today(self, link_id: str, day: str) -> int:
+        rows = self._run(
+            "SELECT nombre FROM lien_generations WHERE lien_id = :l AND jour = :d",
+            l=link_id,
+            d=day,
+        )
+        return int(rows[0][0]) if rows else 0
+
+    def add_generation(self, link_id: str, day: str) -> None:
+        self._run(
+            "INSERT INTO lien_generations (lien_id, jour, nombre) VALUES (:l, :d, 1) "
+            "ON CONFLICT (lien_id, jour) DO UPDATE SET nombre = lien_generations.nombre + 1",
+            l=link_id,
+            d=day,
         )

@@ -55,6 +55,7 @@ from visite360 import (
     capture,
     carte,
     comptes,
+    engagement,
     generation,
     publier,
     reglages,
@@ -75,6 +76,7 @@ from visite360.registre import (
     RUNNING,
     SESSION_LIFETIME,
     Agent,
+    Link,
     Registre,
     RegistreError,
     Visit,
@@ -94,7 +96,11 @@ NEUTRAL = (
 )
 NOT_FOUND = "Visite introuvable."
 BUSY = "L'assemblage de cette visite est en cours : réessayer quand il sera fini."
-VISIT_PATH = re.compile(r"/api/visites/([0-9a-f]{32})(?:/(depublier|publier))?")
+VISIT_PATH = re.compile(r"/api/visites/([0-9a-f]{32})(?:/(depublier|publier|liens))?")
+LINK_PATH = re.compile(r"/api/visites/([0-9a-f]{32})/liens/([0-9a-f]{32})(?:/(effacer))?")
+# Étape 16 : page d'un lien client, à l'adresse /l/<jeton>/ (D43).
+CLIENT_PATH = re.compile(rf"/l/({engagement.TOKEN})(/.*)")
+GONE = "Ce lien ne mène plus à aucune visite. Demander un nouveau lien à votre agent."
 FINISH_PATH = re.compile(r"/api/envois/([0-9a-f]{32})/fin")
 WORKSHOP_PATH = re.compile(r"/atelier/([0-9a-f]{32})(/.*)")
 NOT_READY = "Cette visite n'est pas prête : attendre la fin de l'assemblage."
@@ -117,6 +123,22 @@ SPACE_FILES = {
     "/espace.css": ("espace.css", "text/css; charset=utf-8"),
 }
 PUBLIC_TYPES = {**publier.TYPES, ".jpg": "image/jpeg"}
+
+
+HTML = "text/html; charset=utf-8"
+
+
+def client_message(text: str) -> bytes:
+    """Petite page qui remplace la visite quand un lien de client ne mène plus à rien."""
+    safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return (
+        '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<meta name="robots" content="noindex, nofollow"><title>Visite 360°</title></head>'
+        '<body style="font-family: system-ui, sans-serif; background: #111; color: #eee; '
+        "display: flex; min-height: 90vh; align-items: center; justify-content: center; "
+        f'padding: 24px; text-align: center"><p>{safe}</p></body></html>'
+    ).encode()
 
 
 class ApiError(Exception):
@@ -288,6 +310,153 @@ class App:
         if content is None:
             raise ApiError("Introuvable.", 404)
         return content
+
+    # Liens des clients (étape 16, D43)
+
+    def _names(self, visit: Visit) -> dict[str, str]:
+        """Nom de chaque point de la visite, par identifiant."""
+        try:
+            described = json.loads(self.depot.get(f"{visit.id}/{visite.FILE_NAME}"))
+            return {
+                str(point["id"]): str(point.get("nom", point["id"]))
+                for point in described["points"]
+            }
+        except (DepotError, ValueError, KeyError, TypeError):
+            return {}
+
+    def _own_link(self, agent: Agent, visit_id: str, link_id: str) -> tuple[Visit, Link]:
+        visit = self._own(agent, visit_id)
+        link = self.registre.link(link_id)
+        if link is None or link.visit_id != visit.id:
+            raise ApiError("Lien introuvable.", 404)
+        return visit, link
+
+    def links(self, agent: Agent, visit_id: str) -> dict[str, Any]:
+        visit = self._own(agent, visit_id)
+        names = self._names(visit)
+        return {
+            "liens": [
+                engagement.summary(self.registre, link, names)
+                for link in self.registre.links(visit.id)
+            ]
+        }
+
+    def create_link(self, agent: Agent, visit_id: str, raw: Any) -> dict[str, Any]:
+        visit = self._own(agent, visit_id)
+        label = self._checked(lambda: engagement.parse_label(raw))
+        if len(self.registre.links(visit.id)) >= engagement.MAX_LINKS:
+            raise ApiError(f"Au plus {engagement.MAX_LINKS} liens par visite.", 409)
+        link = self.registre.create_link(visit.id, label)
+        print(f"Lien « {label} » créé pour « {visit.name} ».", file=self.out, flush=True)
+        return engagement.summary(self.registre, link, self._names(visit))
+
+    def link_detail(self, agent: Agent, visit_id: str, link_id: str) -> dict[str, Any]:
+        visit, link = self._own_link(agent, visit_id, link_id)
+        return engagement.detail(self.registre, self.depot, link, self._names(visit))
+
+    def delete_link(self, agent: Agent, visit_id: str, link_id: str) -> dict[str, Any]:
+        visit, link = self._own_link(agent, visit_id, link_id)
+        if self.ateliers is not None:
+            self.ateliers.drop_key(f"lien:{link.id}", save=False)
+        engagement.clear_changes(self.depot, visit.id, link.id)
+        self.registre.delete_link(link.id)
+        return {"message": f"Lien « {link.label} » supprimé. Les autres liens ne changent pas."}
+
+    def clear_link(self, agent: Agent, visit_id: str, link_id: str) -> dict[str, Any]:
+        visit, link = self._own_link(agent, visit_id, link_id)
+        if self.ateliers is not None:
+            self.ateliers.drop_key(f"lien:{link.id}", save=False)
+        count = engagement.clear_changes(self.depot, visit.id, link.id)
+        message = "Modifications du client effacées." if count else "Aucune modification à effacer."
+        return {"message": message}
+
+    @staticmethod
+    def _checked(action: Callable[[], Any]) -> Any:
+        try:
+            return action()
+        except engagement.EngagementError as error:
+            raise ApiError(str(error), error.status) from None
+
+    def _client(self, token: str) -> tuple[Visit, Link]:
+        """Visite et lien d'un jeton, si la visite est prête et en ligne."""
+        link = self.registre.link_by_token(token)
+        visit = self.registre.visit(link.visit_id) if link is not None else None
+        if link is None or visit is None or visit.ready is None or not visit.publication:
+            raise ApiError(GONE, 404)
+        if self._busy(visit):
+            raise ApiError(BUSY, 409)
+        return visit, link
+
+    def client_workshop(self, token: str) -> engagement.ClientAtelier:
+        visit, link = self._client(token)
+        if self.ateliers is None:
+            raise ApiError("Les outils de modification ne sont pas disponibles ici.", 503)
+        publication = visit.publication
+        assert publication is not None
+
+        def published(rel: str) -> bytes:
+            try:
+                return self.public.get(f"{publication}/{rel}")
+            except publier.PublishError as error:
+                raise DepotError(str(error)) from None
+
+        found = self.ateliers.open_with(
+            f"lien:{link.id}",
+            lambda root: engagement.ClientAtelier(
+                visit,
+                link,
+                self.depot,
+                published,
+                root,
+                self.ateliers.make_tools,  # type: ignore[union-attr]
+                lambda: self.registre.grid(visit.agent_id),
+            ),
+        )
+        assert isinstance(found, engagement.ClientAtelier)
+        return found
+
+    def client_get(self, token: str, rest: str) -> tuple[bytes, str, bool]:
+        found = self.client_workshop(token)
+        if rest == "/":
+            self.registre.touch_link(found.link.id)
+            return found.page(), "text/html; charset=utf-8", True
+        content = found.get(rest)
+        if content is None:
+            raise ApiError("Introuvable.", 404)
+        return content[0], content[1], False
+
+    def client_post(self, token: str, rest: str, body: Any) -> tuple[bytes, str]:
+        if not isinstance(body, dict):
+            raise ApiError("Requête illisible : objet JSON attendu.")
+        if rest == "/api/mesure":
+            return self.measure(token, body)
+        found = self.client_workshop(token)
+        if rest not in engagement.CLIENT_POSTS:
+            raise ApiError("Introuvable.", 404)
+        today = engagement.day(self.registre.now())
+        generating = rest in engagement.GENERATING
+        if generating:
+            used = self.registre.generations_today(found.link.id, today)
+            if used >= engagement.MAX_GENERATIONS:
+                raise ApiError(
+                    f"Limite atteinte : {engagement.MAX_GENERATIONS} remplacements d'objets par "
+                    "jour avec ce lien. Réessayer demain, ou demander à votre agent.",
+                    429,
+                )
+        content = found.post(rest, body)
+        if content is None:
+            raise ApiError("Introuvable.", 404)
+        if generating:
+            self.registre.add_generation(found.link.id, today)
+        return content
+
+    def measure(self, token: str, body: Any) -> tuple[bytes, str]:
+        """Range une mesure de consultation envoyée par la page, après accord du client."""
+        visit, link = self._client(token)
+        points = set(self._names(visit))
+        measure = self._checked(lambda: engagement.parse_measure(body, points))
+        self._checked(lambda: engagement.record(self.registre, link, measure))
+        return b'{"ok": true}', JSON
 
     # Génération sur la carte graphique
 
@@ -522,6 +691,10 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
 
         def do_GET(self) -> None:
             path = self.path.split("?", 1)[0]
+            client = CLIENT_PATH.fullmatch(path)
+            if client:
+                self._workshop(lambda: app.client_get(*client.groups()))
+                return
             workshop = WORKSHOP_PATH.fullmatch(path)
             if workshop:
                 self._workshop(lambda: self._workshop_get(*workshop.groups()))
@@ -537,6 +710,15 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
 
         def do_POST(self) -> None:
             path = self.path.split("?", 1)[0]
+            client = CLIENT_PATH.fullmatch(path)
+            if client:
+                token, rest = client.groups()
+                limit = engagement.MAX_BODY if rest == "/api/mesure" else serve.MAX_BODY
+                self._workshop(
+                    lambda: (*app.client_post(token, rest, self._body(limit)), False),
+                    write=True,
+                )
+                return
             workshop = WORKSHOP_PATH.fullmatch(path)
             if workshop:
                 visit_id, rest = workshop.groups()
@@ -593,6 +775,11 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
             match = VISIT_PATH.fullmatch(path)
             if match and not match.group(2):
                 return app.state(app._own(agent, match.group(1)))
+            if match and match.group(2) == "liens":
+                return app.links(agent, match.group(1))
+            match = LINK_PATH.fullmatch(path)
+            if match and not match.group(3):
+                return app.link_detail(agent, match.group(1), match.group(2))
             raise ApiError("Introuvable.", 404)
 
         def _post(self, path: str) -> dict[str, Any]:
@@ -621,6 +808,11 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
                 return app.unpublish(agent, match.group(1))
             if match and match.group(2) == "publier":
                 return app.republish(agent, match.group(1))
+            if match and match.group(2) == "liens":
+                return app.create_link(agent, match.group(1), self._body(MAX_BODY))
+            match = LINK_PATH.fullmatch(path)
+            if match and match.group(3) == "effacer":
+                return app.clear_link(agent, match.group(1), match.group(2))
             raise ApiError("Introuvable.", 404)
 
         def _delete(self, path: str) -> dict[str, Any]:
@@ -628,6 +820,9 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
             match = VISIT_PATH.fullmatch(path)
             if match and not match.group(2):
                 return app.delete(agent, match.group(1))
+            match = LINK_PATH.fullmatch(path)
+            if match and not match.group(3):
+                return app.delete_link(agent, match.group(1), match.group(2))
             raise ApiError("Introuvable.", 404)
 
         # Atelier
@@ -654,6 +849,11 @@ def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
                     self.end_headers()
                     return
                 self.close_connection = True
+                path = self.path.split("?", 1)[0]
+                if self.command == "GET" and CLIENT_PATH.fullmatch(path) and path.endswith("/"):
+                    # Lien de client supprimé ou visite retirée : une page lisible, pas du JSON.
+                    self._send(error.status, client_message(str(error)), HTML, page=True)
+                    return
                 self._json(error.status, {"erreur": str(error)})
             except (atelier.AtelierError, DepotError, RegistreError) as error:
                 print(f"Erreur : {error}", file=app.out, flush=True)

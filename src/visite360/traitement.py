@@ -34,7 +34,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, TextIO
 
-from visite360 import atelier, capture, chiffrage, publier, selection, serve, stitch, visite
+from visite360 import (
+    atelier,
+    capture,
+    chiffrage,
+    engagement,
+    publier,
+    selection,
+    serve,
+    stitch,
+    visite,
+)
 from visite360.depot import Depot, DepotError
 from visite360.opencv import OpenCVError
 from visite360.photos import PhotoError
@@ -299,6 +309,10 @@ def process_all(context: Context) -> int:
     deleted = delete_old_photos(context)
     if deleted:
         print(f"Photos d'origine effacées pour {deleted} visite(s).", file=context.out)
+    # Étape 16 (D43) : mesures et modifications des clients, 12 mois après la dernière ouverture.
+    cleaned = engagement.purge(context.registre, context.depot)
+    if cleaned:
+        print(f"Modifications de clients effacées pour {cleaned} lien(s).", file=context.out)
     context.registre.forget_expired()
     return done
 

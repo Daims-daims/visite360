@@ -380,7 +380,7 @@ def test_the_published_page_is_read_only() -> None:
 
     # En ligne, chaque outil est caché ; la page publiée n'appelle jamais /api/ ni l'atelier.
     start = page.index("function setupPublished")
-    published = page[start : page.index("async function postJson")]
+    published = page[start : page.index("// Étape 16 (D43) : à la première ouverture")]
     assert "BASE" not in published and "/api/" not in published and "postJson" not in published
     assert 'querySelectorAll("#outils button")' in page
 

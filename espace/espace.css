@@ -50,3 +50,20 @@ button.danger { color: var(--rouge); }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 #message { min-height: 1.5em; color: var(--doux); }
 #message.erreur { color: var(--rouge); }
+/* Étape 16 : liens des clients. */
+.clients { border-top: 1px solid var(--bord); margin: 10px 0; padding-top: 10px; }
+.clients h3 { font-size: .95rem; margin: 0 0 8px; }
+.liens-clients { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 10px; }
+.lien-client { border: 1px solid var(--bord); border-radius: 10px; padding: 10px 12px; }
+.entete-lien { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; margin-bottom: 8px; }
+.entete-lien strong { overflow-wrap: anywhere; }
+.entete-lien .aide { margin: 0; }
+.detail-lien:empty { display: none; }
+.detail-lien { margin-top: 10px; font-size: .9rem; }
+.detail-lien table { border-collapse: collapse; margin: 6px 0; }
+.detail-lien th, .detail-lien td { text-align: left; padding: 3px 12px 3px 0; font-variant-numeric: tabular-nums; }
+.detail-lien th { color: var(--doux); font-weight: 600; }
+.ouvertures { padding-left: 18px; margin: 6px 0; color: var(--doux); }
+.adresse-lien { font-size: .8rem; color: var(--doux); overflow-wrap: anywhere; margin: 0 0 6px; }
+.nouveau-lien { display: flex; gap: 8px; max-width: none; flex-wrap: wrap; }
+.nouveau-lien input { flex: 1; min-width: 200px; }

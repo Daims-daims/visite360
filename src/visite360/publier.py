@@ -237,6 +237,10 @@ class Storage(Protocol):
 
     def delete(self, key: str) -> None: ...
 
+    def get(self, key: str) -> bytes:
+        """Contenu d'un fichier publié (étape 16 : relu par le serveur pour la page d'un lien)."""
+        ...
+
 
 def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]

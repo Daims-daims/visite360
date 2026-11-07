@@ -43,6 +43,11 @@ class FakeStorage:
         del self.files[key]
         self.deletes.append(key)
 
+    def get(self, key: str) -> bytes:
+        if key not in self.files:
+            raise publier.PublishError(f"{key} absent")
+        return self.files[key][0]
+
 
 def make_tour(root: Path, names: tuple[str, ...] = ("salon", "cuisine")) -> Path:
     """Visite de synthèse, avec autour des panoramas les fichiers qui ne doivent pas partir."""

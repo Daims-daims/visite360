@@ -1,5 +1,6 @@
 // Espace web des agents (étape 13) : connexion par code reçu par e-mail, liste des visites
-// envoyées par l'app, lien à copier, dépublication, nouvelle publication et suppression.
+// envoyées par l'app, dépublication, nouvelle publication et suppression. Étape 16 : un lien
+// par client, avec ce que le client a regardé quand il a accepté la mesure.
 // La session est un cookie que la page ne lit pas (HttpOnly). Chaque requête qui modifie
 // quelque chose porte l'en-tête X-Visite360, exigé par le serveur.
 
@@ -17,6 +18,8 @@ const REFRESH_MS = 5000;
 const $ = (id) => document.getElementById(id);
 let email = "";
 let timer = null;
+// Liens dont le détail est ouvert : gardés ouverts quand la liste se redessine.
+const opened = new Set();
 
 function say(text, error = false) {
   $("message").textContent = text || "";
@@ -53,6 +56,20 @@ function show(section) {
 
 function date(seconds) {
   return seconds ? new Date(seconds * 1000).toLocaleDateString("fr-FR") : "";
+}
+
+function duration(seconds) {
+  if (!seconds) return "0 s";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes >= 60) return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}`;
+  return minutes ? `${minutes} min ${String(seconds % 60).padStart(2, "0")} s` : `${seconds} s`;
+}
+
+function element(tag, text, className = "") {
+  const node = document.createElement(tag);
+  if (text) node.textContent = text;
+  if (className) node.className = className;
+  return node;
 }
 
 function button(text, action, className = "") {
@@ -95,20 +112,8 @@ function render(visits) {
     state.append(" — " + details.join(" · "));
     item.append(title, state);
 
-    if (visit.lien) {
-      const row = document.createElement("div");
-      row.className = "lien";
-      const field = document.createElement("input");
-      field.readOnly = true;
-      field.value = visit.lien;
-      field.setAttribute("aria-label", "Lien de la visite");
-      const copy = button("Copier le lien", async () => {
-        await navigator.clipboard.writeText(visit.lien);
-        say("Lien copié. Il est le seul accès à la visite : ne le donner qu'aux personnes voulues.");
-      });
-      row.append(field, copy);
-      item.append(row);
-    }
+    // Étape 16 : les liens des clients remplacent le lien unique de l'étape 12.
+    if (visit.lien && visit.etat === "prete") item.append(clientLinks(visit));
 
     const actions = document.createElement("div");
     actions.className = "actions";
@@ -154,6 +159,141 @@ function render(visits) {
     item.append(actions);
     list.append(item);
   }
+}
+
+// --- Liens des clients (étape 16) ---------------------------------------------------------------
+
+function clientLinks(visit) {
+  const box = element("div", "", "clients");
+  box.append(element("h3", "Liens clients"));
+  const list = element("ul", "", "liens-clients");
+  box.append(list);
+  const form = document.createElement("form");
+  form.className = "nouveau-lien";
+  const field = document.createElement("input");
+  field.placeholder = "Nom du client, par exemple M. et Mme Martin";
+  field.maxLength = 80;
+  field.required = true;
+  field.setAttribute("aria-label", "Libellé du nouveau lien");
+  const create = element("button", "Créer un lien", "principal");
+  create.type = "submit";
+  form.append(field, create);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    create.disabled = true;
+    try {
+      const link = await api("POST", `/api/visites/${visit.id}/liens`, { libelle: field.value });
+      field.value = "";
+      await copyLink(link);
+      await loadLinks(visit, list);
+    } catch (error) {
+      say(error.message, true);
+    } finally {
+      create.disabled = false;
+    }
+  });
+  box.append(form);
+  loadLinks(visit, list).catch((error) => say(error.message, true));
+  return box;
+}
+
+const absolute = (link) => new URL(link.adresse, location.origin).href;
+
+async function copyLink(link) {
+  try {
+    await navigator.clipboard.writeText(absolute(link));
+    say(`Lien de « ${link.libelle} » copié. Ne le donner qu'à ce client : il lui permet de voir et de modifier la visite.`);
+  } catch (error) {
+    say(`Lien de « ${link.libelle} » : ${absolute(link)}`);
+  }
+}
+
+async function loadLinks(visit, list) {
+  const data = await api("GET", `/api/visites/${visit.id}/liens`);
+  list.replaceChildren();
+  if (!data.liens.length) {
+    list.append(element("li", "Aucun lien pour l'instant : en créer un par client.", "aide"));
+  }
+  for (const link of data.liens) {
+    const row = element("li", "", "lien-client");
+    const head = element("div", "", "entete-lien");
+    head.append(element("strong", link.libelle));
+    const facts = link.ouvertures
+      ? `${link.ouvertures} ouverture${link.ouvertures > 1 ? "s" : ""} · ${duration(link.secondes)} · dernière le ${date(link.derniere_ouverture)}`
+      : "pas encore d'ouverture mesurée";
+    head.append(element("span", facts, "aide"));
+    const actions = element("div", "", "actions");
+    const detail = element("div", "", "detail-lien");
+    actions.append(
+      button("Copier", () => copyLink(link)),
+      button(opened.has(link.id) ? "Masquer" : "Détail", async () => {
+        if (opened.has(link.id)) opened.delete(link.id); else opened.add(link.id);
+        await loadLinks(visit, list);
+      }),
+      button("Supprimer", async () => {
+        if (!confirm(`Supprimer le lien de « ${link.libelle} » ? Il n'affichera plus rien, ses mesures et les modifications du client seront effacées. Les autres liens ne changent pas.`)) return;
+        const result = await api("DELETE", `/api/visites/${visit.id}/liens/${link.id}`);
+        opened.delete(link.id);
+        say(result.message);
+        await loadLinks(visit, list);
+      }, "danger"),
+    );
+    row.append(head, actions, detail);
+    list.append(row);
+    if (opened.has(link.id)) await showDetail(visit, link, detail, list);
+  }
+}
+
+async function showDetail(visit, link, box, list) {
+  const data = await api("GET", `/api/visites/${visit.id}/liens/${link.id}`);
+  box.replaceChildren();
+  box.append(element("p", absolute(link), "adresse-lien"));
+  if (data.pieces.length) {
+    const rooms = element("table");
+    const header = rooms.insertRow();
+    for (const text of ["Pièce", "Temps", "Bascules"]) header.append(element("th", text));
+    for (const room of data.pieces) {
+      const line = rooms.insertRow();
+      line.insertCell().textContent = room.nom;
+      line.insertCell().textContent = duration(room.secondes);
+      line.insertCell().textContent = String(room.bascules);
+    }
+    box.append(rooms);
+  }
+  if (data.chiffrage_ouvert) {
+    box.append(element("p", `Chiffrage ouvert pendant ${data.chiffrage_ouvert} ouverture${data.chiffrage_ouvert > 1 ? "s" : ""}.`));
+  }
+  if (data.liste.length) {
+    const openings = element("ul", "", "ouvertures");
+    for (const opening of data.liste) {
+      const when = new Date(opening.debut * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+      openings.append(element("li", `${when} · ${duration(opening.secondes)}${opening.chiffrage ? " · chiffrage ouvert" : ""}`));
+    }
+    box.append(openings);
+  } else {
+    box.append(element("p", "Aucune ouverture mesurée : le client n'a pas encore ouvert le lien, ou a refusé la mesure.", "aide"));
+  }
+  const changes = data.modifications;
+  const count = changes.couleurs + changes.remplacements;
+  const summary = count
+    ? `Modifications du client : ${changes.couleurs} couleur${changes.couleurs > 1 ? "s" : ""}, ${changes.remplacements} remplacement${changes.remplacements > 1 ? "s" : ""} d'objet.`
+    : "Le client n'a fait aucune modification.";
+  const line = element("div", "", "actions");
+  line.append(element("span", summary, "aide"));
+  if (count || changes.selections) {
+    const view = element("a", "Voir", "bouton");
+    view.href = absolute(link);
+    view.target = "_blank";
+    view.rel = "noopener";
+    view.title = "Ouvre la visite comme le client : refuser la mesure pour ne pas compter cette ouverture.";
+    line.append(view, button("Effacer ses modifications", async () => {
+      if (!confirm(`Effacer les modifications de « ${link.libelle} » ? Sans retour possible.`)) return;
+      const result = await api("POST", `/api/visites/${visit.id}/liens/${link.id}/effacer`);
+      say(result.message);
+      await loadLinks(visit, list);
+    }, "danger"));
+  }
+  box.append(line);
 }
 
 async function refresh() {
