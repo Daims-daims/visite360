@@ -105,6 +105,19 @@
     #mesure-resultat { max-height: 24vh; overflow-y: auto; color: #ddd; font-variant-numeric: tabular-nums; }
     #mesure-resultat .alerte { color: #ffb84d; }
     #mesure .reglage { color: #ccc; font-size: 13px; }
+    /* Étape 16 : accord du client pour la mesure de sa consultation (D43). */
+    #accord { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center;
+      padding: 16px; background: rgba(0, 0, 0, .6); }
+    #accord .boite { width: min(420px, 100%); box-sizing: border-box; padding: 18px; border-radius: 12px;
+      background: #1d1d1d; color: #eee; font-size: 15px; line-height: 1.4; }
+    #accord h2 { margin: 0 0 8px; font-size: 18px; }
+    #accord p { margin: 0 0 8px; }
+    #accord .detail { color: #aaa; font-size: 13px; }
+    #accord .boutons { display: flex; gap: 10px; margin-top: 14px; }
+    #accord .boutons button { flex: 1; padding: 10px 12px; border-radius: 8px; border: 0; background: #4da3ff;
+      color: #fff; font-size: 15px; }
+    #mesure-etat-lien { position: fixed; z-index: 10; top: 0; left: 40px; margin: 12px; padding: 4px 8px;
+      border-radius: 6px; border: 0; background: rgba(0, 0, 0, .45); color: #ccc; font-size: 12px; display: none; }
     /* Étape 11 : chiffrage des modifications. */
     #chiffrage { position: fixed; z-index: 10; bottom: 0; left: 50%; transform: translateX(-50%);
       margin: 12px 0; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .85); display: none;
@@ -211,6 +224,19 @@
     <button id="valider" hidden>Valider</button>
     <button id="abandonner" hidden>Abandonner</button>
   </div>
+  <div id="accord" role="dialog" aria-modal="true" aria-labelledby="accord-titre">
+    <div class="boite">
+      <h2 id="accord-titre">Aider votre agent ?</h2>
+      <p>En acceptant, votre agent peut mieux comprendre vos besoins pour mieux préparer la suite avec vous.</p>
+      <p class="detail">Il voit les pièces que vous regardez, le temps passé dans chacune et les modifications
+        consultées. Rien d'autre. Vous pouvez changer d'avis à tout moment avec le bouton « Mesure » en haut de la page.</p>
+      <div class="boutons">
+        <button id="accord-oui">Accepter</button>
+        <button id="accord-non">Refuser</button>
+      </div>
+    </div>
+  </div>
+  <button id="mesure-etat-lien"></button>
   <div id="message">
     <div id="text"></div>
     <div id="bar"><div id="fill"></div></div>
@@ -221,6 +247,9 @@
     // Étape 15 : en ligne, la page est servie sous /atelier/<visite>/ ; le serveur y inscrit ce
     // préfixe dans <meta name="base">. Sur le Mac, il est vide.
     const BASE = (document.querySelector('meta[name="base"]') || {}).content || "";
+    // Étape 16 : mesure de la consultation d'un client, après son accord. Sans accord (ou hors
+    // d'un lien de client), ces deux fonctions ne font rien.
+    const tracker = { toggle() {}, pricing() {} };
     // Beaucoup de téléphones refusent les images plus larges que la limite de leur carte
     // graphique : on choisit la version du panorama que cet appareil sait afficher.
     function maxTextureSize() {
@@ -288,13 +317,19 @@
           const colors = info.publiee ? info.points.map((point) => point.apres || null) : await Promise.all(info.points.map((point, index) =>
             fetch(BASE + "/p/" + index + "/couleurs.json").then((r) => r.ok ? r.json() : null).catch(() => null)));
           const look = { useFull, colors, after: true };
+          // Étape 16 : le client passe des propositions de l'agent à ses propres idées.
+          look.mode = info.client ? "agent" : "mine";
           look.url = (index) => {
+            const point = info.points[index];
+            if (info.client && look.mode === "agent" && point.agent) {
+              return (useFull ? point.agent.full : point.agent.mobile) + "?v=" + point.agent.version;
+            }
+            if (info.client && look.mode !== "mine") return (useFull ? point.full : point.mobile).url;
             const state = look.colors[index];
             if (look.after && state && state.version) {
               if (state.full) return (useFull ? state.full : state.mobile) + "?v=" + state.version;
               return BASE + "/p/" + index + "/" + (useFull ? "apres" : "apres-mobile") + ".jpg?v=" + state.version;
             }
-            const point = info.points[index];
             return (useFull ? point.full : point.mobile).url;
           };
           const scenes = buildScenes(info, look.url);
@@ -321,6 +356,16 @@
             document.getElementById("cap").style.display = "none";
             for (const button of document.querySelectorAll("#outils button")) button.hidden = true;
             setupPublished(info, viewer, look);
+            return;
+          }
+
+          if (info.client) {
+            document.getElementById("cap").style.display = "none";
+            document.querySelector("#remplacement .note").textContent = "Le modèle refait la vue autour "
+              + "du cadre, puis seul l'intérieur du cadre est gardé. Quelques minutes : on peut continuer "
+              + "la visite pendant ce temps. Au plus 5 remplacements par jour avec ce lien.";
+            setupMeasure(info, viewer);
+            setupSelection(info, viewer, look);
             return;
           }
 
@@ -412,6 +457,89 @@
       };
       viewer.on("scenechange", () => { if (pricing && panel.style.display === "flex") render(pricing); });
       document.getElementById("chiffrage-fermer").onclick = () => { panel.style.display = "none"; };
+    }
+
+    // Étape 16 (D43) : à la première ouverture, le client accepte ou refuse la mesure. Rien
+    // n'est envoyé avant sa réponse ni après un refus. Après un accord, la page envoie toutes les
+    // 15 secondes le temps passé dans chaque pièce (page visible seulement), les bascules entre
+    // les modifications et l'ouverture du chiffrage. Seul le choix est gardé sur l'appareil.
+    function setupMeasure(info, viewer) {
+      const key = "visite360-mesure:" + BASE;
+      let choice = null;
+      try { choice = localStorage.getItem(key); } catch (error) { /* stockage refusé : on redemande */ }
+      const opening = Array.from(crypto.getRandomValues(new Uint8Array(16)),
+        (byte) => byte.toString(16).padStart(2, "0")).join("");
+      const dialog = document.getElementById("accord");
+      const status = document.getElementById("mesure-etat-lien");
+      let current = info.start, since = performance.now(), lastSent = 0;
+      let visible = document.visibilityState === "visible";
+      let pending = {}, toggles = {}, pricingSeen = false;
+
+      const account = () => {
+        const now = performance.now();
+        if (choice === "oui" && visible && current) pending[current] = (pending[current] || 0) + (now - since);
+        since = now;
+      };
+      const showStatus = () => {
+        status.textContent = choice === "oui" ? "Mesure : activée" : "Mesure : désactivée";
+        status.style.display = choice ? "block" : "none";
+      };
+      const decide = (value) => {
+        account();
+        choice = value;
+        try { localStorage.setItem(key, value); } catch (error) { /* gardé pour cette page seulement */ }
+        if (value !== "oui") { pending = {}; toggles = {}; pricingSeen = false; }
+        since = performance.now();
+        dialog.style.display = "none";
+        showStatus();
+      };
+      const send = (leaving) => {
+        if (choice !== "oui") return;
+        account();
+        // Le serveur refuse deux envois à moins de 5 secondes : ce qui reste part au suivant.
+        if (leaving && Date.now() - lastSent < 6000) return;
+        const pieces = {};
+        let total = 0;
+        for (const [id, value] of Object.entries(pending)) {
+          const whole = Math.min(Math.floor(value / 1000), 60 - total);
+          if (whole > 0) { pieces[id] = whole; pending[id] = value - whole * 1000; total += whole; }
+        }
+        if (!total && !Object.keys(toggles).length && !pricingSeen) return;
+        const body = { consultation: opening, pieces, bascules: toggles, chiffrage: pricingSeen };
+        toggles = {};
+        pricingSeen = false;
+        lastSent = Date.now();
+        fetch(info.mesure, {
+          method: "POST",
+          keepalive: true,
+          headers: { "Content-Type": "application/json", "X-Visite360": "1" },
+          body: JSON.stringify(body),
+        }).catch(() => { /* mesure perdue, la visite continue */ });
+      };
+
+      viewer.on("scenechange", (id) => {
+        if (id.startsWith("apercu:")) return;
+        account();
+        current = id;
+      });
+      document.addEventListener("visibilitychange", () => {
+        account();
+        visible = document.visibilityState === "visible";
+        if (!visible) send(true);
+      });
+      window.addEventListener("pagehide", () => send(true));
+      setInterval(() => send(false), 15000);
+      tracker.toggle = (id) => { if (choice === "oui") toggles[id] = (toggles[id] || 0) + 1; };
+      tracker.pricing = () => { if (choice === "oui") pricingSeen = true; };
+
+      document.getElementById("accord-oui").onclick = () => decide("oui");
+      document.getElementById("accord-non").onclick = () => decide("non");
+      status.onclick = () => { dialog.style.display = "flex"; };
+      if (choice !== "oui" && choice !== "non") {
+        choice = null;
+        dialog.style.display = "flex";
+      }
+      showStatus();
     }
 
     async function postJson(path, body) {
@@ -707,10 +835,32 @@
         return colors ? colors.couleurs.find((c) => c.selection === selectionId) : undefined;
       };
 
+      // Étape 16 : sur un lien de client, la bascule passe des propositions de l'agent aux idées
+      // du client, puis à l'original.
+      const MODES = { agent: "propositions de l'agent", mine: "mes idées", original: "l'original" };
+      function clientModes(index) {
+        if (index < 0) return [];
+        const modes = [];
+        if (info.points[index].agent) modes.push("agent");
+        if (look.colors[index] && look.colors[index].version) modes.push("mine");
+        modes.push("original");
+        return modes;
+      }
+      function nextMode(index) {
+        const modes = clientModes(index);
+        return modes[(modes.indexOf(look.mode) + 1) % modes.length];
+      }
+
       function updateToggle() {
         const index = pointIndex();
         const colors = index < 0 ? null : look.colors[index];
         const toggle = $("avant-apres");
+        if (info.client) {
+          toggle.hidden = clientModes(index).length < 2 || state !== null;
+          toggle.textContent = "Voir " + MODES[nextMode(index)];
+          toggle.title = "Passer des propositions de l'agent à vos idées, puis à l'original";
+          return;
+        }
         toggle.hidden = !(colors && colors.version) || state !== null;
         toggle.textContent = look.after ? "Voir l'original" : "Voir les modifications";
         toggle.title = look.after ? "Montrer le panorama d'origine (avant)" : "Montrer les modifications (après)";
@@ -737,6 +887,14 @@
       }
 
       $("avant-apres").onclick = () => {
+        if (info.client) {
+          look.mode = nextMode(pointIndex());
+          look.after = true;
+          updateScenes();
+          say("Vous voyez " + MODES[look.mode] + ".");
+          tracker.toggle(currentId);
+          return;
+        }
         look.after = !look.after;
         updateScenes();
         say(look.after ? "Après : avec les modifications." : "Avant : panorama d'origine.");
@@ -883,6 +1041,7 @@
             point: index, selection: record.id, couleur: color, teinte: shade, actuelle: currentValue(),
           });
           look.after = true;
+          look.mode = "mine";
           say("Recoloration enregistrée. Préparation du panorama modifié...");
           // Les scènes d'abord : le retour à la visite charge alors directement le panorama modifié.
           await refreshColors(index);
@@ -1036,6 +1195,7 @@
           box.style.display = "none";
           if (job.etat === "terminee") {
             look.after = true;
+            look.mode = "mine";
             await refreshColors(job.point);
             say("« " + job.fiche.nom + " » : fait en " + job.secondes + " s. « Voir l'original » pour comparer.");
           } else {
@@ -1105,7 +1265,7 @@
       // Étape 10 : mesure de la pièce, réservée à l'agent (adresse /agent). L'agent clique les
       // coins dans l'ordre ; le serveur regroupe les clics en coins, calcule la pièce avec la
       // hauteur de l'objectif mesurée par l'app, et renvoie le panorama avec le contour dessiné.
-      const AGENT = location.pathname === "/agent" || BASE !== "";
+      const AGENT = !info.client && (location.pathname === "/agent" || BASE !== "");
       let measure = null, measureTicket = 0;
       const metres = (value, digits = 2) =>
         value.toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -1257,7 +1417,7 @@
       // Étape 11 : ordre de grandeur du prix des modifications. Le serveur calcule les m² touchés à
       // partir de la pièce mesurée et les multiplie par la grille de prix, en fourchette basse et
       // haute. L'agent (adresse /agent) peut corriger le type d'un objet et modifier la grille.
-      let pricing = null, grid = null;
+      let pricing = null, grid = null, agentPricing = null;
       const euros = (value) => {
         const rounded = value >= 100 ? Math.round(value / 10) * 10 : Math.round(value);
         return rounded.toLocaleString("fr-FR") + " €";
@@ -1315,6 +1475,17 @@
         const box = $("chiffrage-contenu");
         box.replaceChildren();
         const index = pointIndex();
+        // Étape 16 : le client voit le chiffrage des propositions de l'agent, puis de ses idées.
+        if (info.client && index >= 0) {
+          const theirs = agentPricing ? agentPricing.points[index] : null;
+          box.appendChild(div("Propositions de votre agent", "total"));
+          if (!theirs || !theirs.lignes.length) box.appendChild(div("Aucune proposition dans cette pièce.", "note"));
+          else {
+            for (const line of theirs.lignes) if (line.bas !== null) box.appendChild(pricingLine(index, line));
+            box.appendChild(div(theirs.nom + " : " + range(theirs.bas, theirs.haut), "total"));
+          }
+          box.appendChild(div("Mes idées", "total"));
+        }
         const block = pricing && index >= 0 ? pricing.points[index] : null;
         if (!block) return;
         if (!block.lignes.length) box.appendChild(div("Aucune modification dans cette pièce.", "note"));
@@ -1338,6 +1509,10 @@
         $("chiffrage-contenu").replaceChildren(div("Calcul en cours…", "note"));
         try {
           if (AGENT) grid = (await getJson(BASE + "/api/tarifs")).tarifs;
+          if (info.chiffrage_agent && !agentPricing) {
+            agentPricing = await getJson(info.chiffrage_agent).catch(() => null);
+          }
+          tracker.pricing();
           pricing = await getJson(BASE + "/api/chiffrage");
           renderPricing();
         } catch (error) {

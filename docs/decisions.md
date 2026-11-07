@@ -590,3 +590,37 @@ Chaque décision a un numéro stable. Pour revenir sur l'une d'elles, ajouter un
   - une génération en cours rangera ses fichiers à la prochaine requête de l'agent (ou à la fermeture de l'atelier) : si le serveur s'éteint avant, la génération est perdue ;
   - un atelier garde ses fichiers dans le disque temporaire du conteneur, perdus à l'extinction : seul ce qui est rangé dans le stockage reste ;
   - modifier la même visite depuis deux onglets en même temps n'est pas protégé : la dernière écriture gagne.
+
+## D43 : un lien par client, mesure de la consultation avec accord, modifications du client à part
+
+- **Date :** 2026-11-07
+- **Décision (propriétaire, début de l'étape 16) :**
+  - **un lien par client.** L'agent crée, pour une même visite, un lien par client avec un libellé de son choix. Ce même lien sert à regarder la visite et à la modifier : pas de lien de modification à part. Supprimer un lien ne touche pas les autres ;
+  - **accord demandé à la première ouverture**, pas de mention permanente. Le message met en avant le service rendu à l'agent :
+    > **Aider votre agent ?**
+    > En acceptant, votre agent peut mieux comprendre vos besoins pour mieux préparer la suite avec vous.
+    > *Il voit les pièces que vous regardez, le temps passé dans chacune et les modifications consultées. Rien d'autre.*
+    > [ Accepter ]  [ Refuser ]
+  - les deux boutons ont la même taille et le même aspect : refuser est aussi simple qu'accepter. La visite fonctionne de la même façon quelle que soit la réponse. Rien n'est envoyé avant la réponse, rien après un refus. La réponse est gardée sur l'appareil (seul le choix est rangé), et un lien « Mesure : activée / désactivée » en bas de page permet de changer d'avis ;
+  - la ligne qui dit ce qui est mesuré reste : un accord ne vaut consentement au sens du RGPD que si le client sait à quoi il dit oui. Elle peut être en petits caractères ;
+  - **modifications du client à part, par lien** : couleurs et remplacement d'objet, ni mesure de la pièce ni grille de prix. Celles de l'agent et des autres clients ne bougent pas ; l'agent les voit et peut les effacer ;
+  - **au plus 5 générations par lien et par jour**, prises sur le plafond de 30 € par mois partagé avec l'agent (D41). Les couleurs ne sont pas limitées ;
+  - le client voit le **chiffrage en fourchette** des modifications de l'agent et de ses propres couleurs, calculé avec la grille de l'agent, sans voir la grille ;
+  - **conservation** : mesures gardées 12 mois après la dernière ouverture du lien ; modifications du client effacées avec le lien, ou 12 mois après sa dernière ouverture ;
+  - **ce que voit l'agent** : pour chaque lien, les totaux (ouvertures, durée, temps par pièce, modifications regardées, chiffrage ouvert) et la liste des ouvertures avec date et durée ;
+  - **stockage des mesures** dans la base PostgreSQL de l'étape 13 (D39) : aucun nouveau service.
+- **Mise en œuvre (plan validé par le propriétaire le 2026-11-07) :**
+  - la page d'un lien est **servie par le serveur du projet** à `/l/<jeton>/`, et non par le stockage statique de l'étape 12 : elle doit écrire (mesures, modifications du client). Panoramas, images modifiées de l'agent et chiffrage publiés passent aussi par le serveur, qui relit la visite publiée : tout reste à la même adresse que la page (pas de réglage CORS chez Scaleway), et supprimer un lien coupe aussi les images. Le plan prévoyait d'abord de laisser les images au stockage public ; ce choix a été changé pendant l'étape pour cette raison ;
+  - jeton de 128 bits tiré au hasard, rangé en clair dans la table `liens` comme l'identifiant d'une visite publiée, pour que l'agent puisse recopier le lien. Il n'ouvre que la page du client : ni l'espace, ni l'atelier de l'agent ;
+  - le client a son **propre atelier** (`engagement.ClientAtelier`, D42) : mêmes outils, réduits aux routes de sélection, couleur et remplacement ; ses fichiers sont rangés sous `<visite>/liens/<lien>/` ; la mesure de la pièce et la grille de l'agent y sont reprises en lecture seule pour son chiffrage ;
+  - bascule à trois positions : propositions de l'agent (publiées), idées du client (sur le panorama d'origine), original. Les deux séries ne se combinent pas ;
+  - mesures : tables `consultations` et `consultation_pieces` de la base ; une consultation par page chargée, identifiant tiré par la page. Envoi toutes les 15 secondes ; le serveur refuse une mesure mal formée, de plus d'une minute, de plus que le temps écoulé, à moins de 5 secondes de la précédente, ou au-delà de 20 ouvertures par heure et par lien ;
+  - le choix du client est gardé dans le stockage local du navigateur (pas de cookie). Ce stockage du seul choix est admis sans consentement ;
+  - effacement après 12 mois par la tâche quotidienne (`engagement.purge`).
+- **Raisons :** un accord demandé est la voie la plus sûre au regard du RGPD, puisque chaque lien désigne un client et que l'agent voit sa consultation pièce par pièce : la dispense de consentement de la CNIL vise des statistiques anonymes, pas le suivi d'une personne. Un lien unique par client reste simple à transmettre.
+- **Dérogation :** étape démarrée avant que les étapes 14 et 15 soient « livrées » (validation sur la vraie carte graphique en attente du quota Scaleway), à la demande du propriétaire. Le remplacement d'objet par le client est testé avec un modèle simulé.
+- **Limites :**
+  - le trafic des panoramas vers les clients passe par le conteneur du serveur : coût et temps d'ouverture à mesurer ;
+  - chaque lien ouvert occupe un atelier (au plus trois à la fois pour tout le serveur, agents compris, D42) : au-delà, le plus ancien est refermé et rouvert à la demande suivante, ce qui ralentit ;
+  - le dernier envoi à la fermeture de la page peut se perdre selon le navigateur.
+- **À faire vérifier avant le jalon v1 :** texte d'information et durée de conservation par une personne compétente en RGPD ; contrat de sous-traitance entre le projet et les agents.

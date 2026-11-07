@@ -38,7 +38,7 @@ Objectif : à partir de photos prises en tournant sur soi-même avec un téléph
 | 13 bis | Déploiement automatique à la fusion sur `main` | v1 | livrée |
 | 14 | Génération d'image sur une carte graphique louée | v1 | en cours |
 | 15 | Modifications et chiffrage en ligne | v1 | en cours |
-| 16 | Retours d'engagement pour l'agent | v1 | à faire |
+| 16 | Retours d'engagement pour l'agent | v1 | en cours |
 | J4 | **Jalon v1 : présentation aux agents et premiers accès** | — | à faire |
 
 ## Étape 0 : cadrage du dépôt
@@ -230,6 +230,7 @@ Les coûts d'hébergement commencent à l'étape 12, ceux du serveur à l'étape
 - **Validation :** le propriétaire ouvre deux liens d'une même visite sur deux téléphones, accepte la mesure sur l'un et la refuse sur l'autre. L'espace agent montre les pièces vues et les durées du premier, et rien du second.
 - **Demande du propriétaire, 2026-11-03 (à intégrer à l'étape, avec D43 au début de l'étape) :** le client qui a un lien peut **modifier** la visite lui-même (couleurs et remplacement d'objet), et pas seulement la regarder. Cela change la règle de l'étape 15 (« le client regarde, il ne modifie rien », D42). Choix faits : modifications **à part, par lien** (celles de l'agent et des autres clients ne bougent pas, l'agent les voit et peut les effacer) ; **couleurs et remplacement d'objet**, ni mesure de la pièce ni grille de prix. À trancher au début de l'étape : le lien de consultation actuel (public, sans compte) devient-il un lien qui écrit, ou un lien de modification à part ; limite de générations par lien et par jour, car chacune coûte sur la carte graphique et vient du plafond de 30 € par mois partagé avec l'agent ; ce que le client voit du chiffrage ; durée de conservation des modifications des clients (données de clients, même question RGPD que ci-dessous).
 - **À trancher avant l'étape (RGPD, à faire vérifier) :** base légale de la mesure et texte d'information au client : consentement demandé à l'ouverture, ou mesure d'audience dispensée de consentement selon les conditions de la CNIL ; durée de conservation des mesures ; contrat de sous-traitance entre le projet et les agents, qui confient au projet des données de leurs clients et des photos de logements ; détail montré à l'agent (totaux par lien ou chaque consultation).
+- **Tranché le 2026-11-07 (D43) :** un lien par client, qui sert à regarder et à modifier ; accord demandé à la première ouverture (« Aider votre agent ? »), refus aussi simple qu'accepter, changement d'avis possible en bas de page ; modifications du client à part, par lien, au plus 5 générations par lien et par jour ; chiffrage en fourchette sans la grille ; mesures gardées 12 mois après la dernière ouverture ; totaux et liste des ouvertures pour l'agent ; mesures dans la base PostgreSQL. Étape démarrée avant que les étapes 14 et 15 soient « livrées », sur demande du propriétaire. Texte et durée de conservation à faire vérifier avant le jalon v1.
 - **À trancher pendant l'étape :** stockage des mesures chez Scaleway (base de données gérée ou fichiers) et licence du logiciel ; fréquence d'envoi depuis la page.
 
 ## Jalon v1 : présentation aux agents et premiers accès

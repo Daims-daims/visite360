@@ -68,10 +68,23 @@ class Atelier:
         make_tools: ToolsFactory,
         grid: Callable[[], str | None],
         save_grid: Callable[[str | None], None],
+        store: str | None = None,
+        synced: re.Pattern[str] = SYNCED,
+        shared: re.Pattern[str] | None = None,
+        url_root: str | None = None,
     ) -> None:
+        """`store` : où ranger ce que les outils écrivent (par défaut, à côté de la visite) ;
+        `synced` : ce qui s'y range ; `shared` : fichiers de la visite repris en lecture seule
+        (étape 16 : la mesure de la pièce de l'agent, pour le chiffrage du client) ;
+        `url_root` : préfixe des adresses de la page."""
         self.visit = visit
         self.depot = depot
-        self.prefix = f"{visit.id}/"
+        self.source = f"{visit.id}/"
+        self.prefix = store or self.source
+        self.synced = synced
+        self.shared = shared
+        self.url_root = url_root or f"/atelier/{visit.id}/"
+        self.shared_known: dict[str, str] = {}
         self.folder = root / visit.name
         self.folder.mkdir(parents=True)
         self.make_tools = make_tools
@@ -85,9 +98,9 @@ class Atelier:
 
     # --- Dossier de travail -------------------------------------------------------------------
 
-    def _fetch(self, rel: str) -> None:
+    def _fetch(self, rel: str, prefix: str | None = None) -> None:
         try:
-            data = self.depot.get(self.prefix + rel)
+            data = self.depot.get((self.source if prefix is None else prefix) + rel)
         except DepotError as error:
             raise AtelierError(f"{rel} manque dans le stockage ({error}).") from None
         target = self.folder / rel
@@ -122,7 +135,11 @@ class Atelier:
             candidates = path.glob("*") if path.is_dir() else [path]
             for item in candidates:
                 rel = item.relative_to(self.folder).as_posix()
-                if SYNCED.fullmatch(rel) and item.is_file() and not item.name.endswith(".partiel"):
+                if (
+                    self.synced.fullmatch(rel)
+                    and item.is_file()
+                    and not item.name.endswith(".partiel")
+                ):
                     found[rel] = item
         return found
 
@@ -131,16 +148,33 @@ class Atelier:
         stored = {
             key[len(self.prefix) :]: md5
             for key, md5 in self.depot.list(self.prefix).items()
-            if SYNCED.fullmatch(key[len(self.prefix) :])
+            if self.synced.fullmatch(key[len(self.prefix) :])
         }
         for rel, md5 in stored.items():
             if self.known.get(rel) != md5:
-                self._fetch(rel)
+                self._fetch(rel, self.prefix)
                 self.known[rel] = md5
         for rel in [rel for rel in self.known if rel not in stored]:
             (self.folder / rel).unlink(missing_ok=True)
             del self.known[rel]
+        if self.shared is not None:
+            self._refresh_shared()
         self._write_grid()
+
+    def _refresh_shared(self) -> None:
+        assert self.shared is not None
+        found = {
+            key[len(self.source) :]: md5
+            for key, md5 in self.depot.list(self.source).items()
+            if self.shared.fullmatch(key[len(self.source) :])
+        }
+        for rel, md5 in found.items():
+            if self.shared_known.get(rel) != md5:
+                self._fetch(rel)
+                self.shared_known[rel] = md5
+        for rel in [rel for rel in self.shared_known if rel not in found]:
+            (self.folder / rel).unlink(missing_ok=True)
+            del self.shared_known[rel]
 
     def push(self) -> None:
         """Range dans le stockage ce que les outils ont écrit ou effacé."""
@@ -176,9 +210,12 @@ class Atelier:
 
     def _build(self) -> None:
         if not self._info:
-            self._assets, self._info = serve.build_assets(
-                self.tools.tour, root=f"/atelier/{self.visit.id}/"
-            )
+            self._assets, self._info = serve.build_assets(self.tools.tour, root=self.url_root)
+            self._info = self.describe(self._info)
+
+    def describe(self, info: bytes) -> bytes:
+        """Contenu de `info.json`, que l'atelier d'un client complète (étape 16)."""
+        return info
 
     def get(self, rest: str) -> tuple[bytes, str] | None:
         """Contenu de la route `rest` (« /info.json », « /p/0/panorama.jpg », « /api/… »), ou
@@ -202,7 +239,7 @@ class Atelier:
         if fixed is not None and rest not in ("/", "/agent"):
             return fixed.path.read_bytes(), fixed.content_type
         self._build()
-        asset = self._assets.get(f"/atelier/{self.visit.id}{rest}")
+        asset = self._assets.get(self.url_root.rstrip("/") + rest)
         if asset is not None:
             return asset.path.read_bytes(), asset.content_type
         return None
@@ -221,7 +258,7 @@ class Atelier:
     def page(self) -> bytes:
         """Page de la visionneuse, avec le préfixe de ses adresses (`<meta name="base">`)."""
         html = (serve.viewer_folder() / "index.html").read_text(encoding="utf-8")
-        meta = f'<meta name="base" content="/atelier/{self.visit.id}">'
+        meta = f'<meta name="base" content="{self.url_root.rstrip("/")}">'
         return html.replace("<head>", f"<head>\n  {meta}", 1).encode("utf-8")
 
     def close(self, save: bool = True) -> None:
@@ -258,27 +295,43 @@ class Ateliers:
         grid: Callable[[], str | None],
         save_grid: Callable[[str | None], None],
     ) -> Atelier:
+        return self.open_with(
+            visit.id,
+            lambda root: Atelier(visit, self.depot, root, self.make_tools, grid, save_grid),
+        )
+
+    def open_with(self, key: str, build: Callable[[Path], Atelier]) -> Atelier:
+        """Atelier ouvert sous `key`, ou fabriqué par `build` dans un dossier temporaire neuf
+        (étape 16 : l'atelier d'un client a pour clé « lien:<id> »)."""
         with self._lock:
-            atelier = self._open.get(visit.id)
+            atelier = self._open.get(key)
             if atelier is not None:
-                self._open.move_to_end(visit.id)
+                self._open.move_to_end(key)
                 return atelier
             while len(self._open) >= self.limit:
                 self._open.popitem(last=False)[1].close()
             root = Path(tempfile.mkdtemp(prefix="visite360-atelier-", dir=self.work_root))
-            atelier = Atelier(visit, self.depot, root, self.make_tools, grid, save_grid)
+            atelier = build(root)
             try:
                 atelier.open()
             except Exception:
                 shutil.rmtree(root, ignore_errors=True)
                 raise
-            self._open[visit.id] = atelier
+            self._open[key] = atelier
             return atelier
 
     def drop(self, visit_id: str, save: bool = True) -> None:
-        """Ferme l'atelier de cette visite : panoramas refaits, ou visite supprimée (`save`
-        faux : rien ne doit plus être rangé sous son nom)."""
+        """Ferme l'atelier de cette visite et ceux de ses clients : panoramas refaits, ou visite
+        supprimée (`save` faux : rien ne doit plus être rangé sous son nom)."""
         with self._lock:
-            atelier = self._open.pop(visit_id, None)
+            keys = [key for key, found in self._open.items() if found.visit.id == visit_id]
+            closing = [self._open.pop(key) for key in keys]
+        for atelier in closing:
+            atelier.close(save)
+
+    def drop_key(self, key: str, save: bool = True) -> None:
+        """Ferme un seul atelier (étape 16 : celui d'un lien supprimé)."""
+        with self._lock:
+            atelier = self._open.pop(key, None)
         if atelier is not None:
             atelier.close(save)

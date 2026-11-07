@@ -70,6 +70,10 @@ Pour que le client voie les modifications, cliquer sur **Mettre à jour le lien*
 
 Sur le Mac, `visite360 serveur --local` offre le même atelier, avec SAM 2.1 et la génération installés sur le Mac.
 
+## Liens clients (étape 16)
+
+Le lien de l'étape 12 n'est plus proposé au partage : chaque visite prête a un bloc **Liens clients**, avec un lien par client, ce qu'il a regardé s'il l'a accepté, et ses propres modifications. La page d'un lien est servie par ce serveur à l'adresse `/l/<jeton>/`. Tout est décrit dans `docs/engagement.md`. Rien à régler de plus chez Scaleway.
+
 ## Mettre en ligne chez Scaleway, une fois
 
 Dans la console de Scaleway (console.scaleway.com), projet du stockage de l'étape 12, région **Paris (fr-par)**. Les noms entre chevrons sont à choisir.
